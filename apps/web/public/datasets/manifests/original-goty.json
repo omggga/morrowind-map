@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "original-goty",
+  "mapKey": "original",
+  "snapshotId": "original:goty:placeholder-v1",
+  "title": {
+    "en": "Original Morrowind + expansions",
+    "ru": "Оригинальный Morrowind + дополнения"
+  },
+  "summary": {
+    "en": "Vvardenfell, Solstheim and a planned Tribunal interior inset.",
+    "ru": "Вварденфелл, Солстхейм и планируемая интерьерная схема Tribunal."
+  },
+  "release": {
+    "name": "Morrowind Game of the Year Edition",
+    "version": "1.6.1820",
+    "build": null
+  },
+  "readiness": {
+    "status": "placeholder",
+    "exactProfile": true,
+    "blockers": [],
+    "warnings": [
+      "Locations, locale catalogs and tiles have not been generated yet."
+    ]
+  },
+  "localization": {
+    "defaultLocale": "en",
+    "locales": [
+      {
+        "locale": "en",
+        "status": "available",
+        "coverage": 1,
+        "fallbackLocale": null
+      },
+      {
+        "locale": "ru",
+        "status": "available",
+        "coverage": 1,
+        "fallbackLocale": null
+      }
+    ]
+  },
+  "regions": [
+    {
+      "id": "vvardenfell",
+      "title": {
+        "en": "Vvardenfell",
+        "ru": "Вварденфелл"
+      },
+      "kind": "exterior",
+      "status": "planned"
+    },
+    {
+      "id": "solstheim",
+      "title": {
+        "en": "Solstheim",
+        "ru": "Солстхейм"
+      },
+      "kind": "exterior",
+      "status": "planned"
+    },
+    {
+      "id": "mournhold",
+      "title": {
+        "en": "Mournhold",
+        "ru": "Морнхолд"
+      },
+      "kind": "interior-inset",
+      "status": "planned"
+    }
+  ],
+  "profile": {
+    "status": "confirmed",
+    "contentFiles": [
+      {
+        "name": "Morrowind.esm",
+        "kind": "esm",
+        "version": null,
+        "sha256": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+        "loadOrder": 0,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "Tribunal.esm",
+        "kind": "esm",
+        "version": null,
+        "sha256": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+        "loadOrder": 1,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "Bloodmoon.esm",
+        "kind": "esm",
+        "version": null,
+        "sha256": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357",
+        "loadOrder": 2,
+        "inclusion": "required",
+        "enabled": true
+      }
+    ],
+    "registeredArchives": [
+      {
+        "name": "Morrowind.bsa",
+        "sha256": null,
+        "order": 0,
+        "required": true,
+        "registered": true
+      },
+      {
+        "name": "Tribunal.bsa",
+        "sha256": null,
+        "order": 1,
+        "required": true,
+        "registered": true
+      },
+      {
+        "name": "Bloodmoon.bsa",
+        "sha256": null,
+        "order": 2,
+        "required": true,
+        "registered": true
+      }
+    ],
+    "dataDirectories": [
+      {
+        "id": "base-game",
+        "order": 0,
+        "status": "confirmed"
+      }
+    ],
+    "modules": [
+      {
+        "id": "tribunal",
+        "status": "enabled",
+        "notes": [
+          "Mournhold will be represented as an interior inset rather than fake exterior geography."
+        ]
+      },
+      {
+        "id": "bloodmoon",
+        "status": "enabled",
+        "notes": [
+          "Solstheim belongs to this dataset and is not a fourth map version."
+        ]
+      }
+    ]
+  },
+  "map": {
+    "projection": {
+      "code": "TES3:WORLD",
+      "units": "world-units",
+      "cellSize": 8192,
+      "extent": [-229376, -155648, 196608, 237568],
+      "center": [-16384, 40960]
+    },
+    "tileGrid": {
+      "tileSize": 512,
+      "origin": [-229376, 237568],
+      "resolutions": [2048, 1024, 512, 256, 128, 64, 32, 16]
+    }
+  },
+  "artifacts": {
+    "locations": null,
+    "locales": [
+      {
+        "locale": "en",
+        "artifact": null
+      },
+      {
+        "locale": "ru",
+        "artifact": null
+      }
+    ],
+    "tiles": null
+  },
+  "provenance": {
+    "kind": "placeholder",
+    "notes": [
+      "Extent and center were derived from the effective LAND cell union of the pinned GOTY ESM metadata.",
+      "This manifest contains metadata only; no Bethesda, MIM or mod assets are included."
+    ],
+    "knownIssues": [
+      "The legacy Solstheim MIM raster needs an independently verified world-to-pixel transform.",
+      "Mournhold needs an interior graph or inset contract before its locations are published."
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+export {
+  DATASET_SCHEMA_VERSION,
+  TES3_CELL_SIZE,
+  TES3_PROJECTION_CODE,
+} from "./types";
+export type {
+  ArtifactReference,
+  ContentFileDescriptor,
+  ContentFileInclusion,
+  ContentFileKind,
+  DataDirectoryDescriptor,
+  DatasetArtifacts,
+  DatasetIndex,
+  DatasetIndexEntry,
+  DatasetManifest,
+  DatasetReadiness,
+  DatasetSchemaVersion,
+  Extent,
+  Locale,
+  LocaleArtifactReference,
+  LocaleDescriptor,
+  LocaleStatus,
+  LocalizationDescriptor,
+  LocalizedText,
+  MapDescriptor,
+  MapKey,
+  ModuleDescriptor,
+  ModuleStatus,
+  Point,
+  ProfileItemStatus,
+  ProfileStatus,
+  ProjectionDescriptor,
+  ProvenanceDescriptor,
+  ReadinessDescriptor,
+  RegionDescriptor,
+  RegionKind,
+  RegionStatus,
+  RegisteredArchiveDescriptor,
+  ReleaseDescriptor,
+  SourceProfileDescriptor,
+  Tes3CellSize,
+  Tes3ProjectionCode,
+  TileGridDescriptor,
+  TileSetReference,
+} from "./types";
+export {
+  ContractValidationError,
+  getDatasetIndexValidationIssues,
+  getDatasetManifestValidationIssues,
+  isDatasetIndex,
+  isDatasetManifest,
+  parseDatasetIndex,
+  parseDatasetManifest,
+} from "./validation";
+export type { ContractKind, ContractValidationIssue } from "./validation";
+
+export { default as datasetIndexSchema } from "./schemas/dataset-index.schema.json";
+export { default as datasetManifestSchema } from "./schemas/dataset-manifest.schema.json";

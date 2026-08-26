@@ -1,0 +1,311 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "fullrest-25.08",
+  "mapKey": "fullrest-old",
+  "snapshotId": "fullrest:tr-25.08:blocked-v1",
+  "title": {
+    "en": "Fullrest + Tamriel Rebuilt 25.08",
+    "ru": "Fullrest + Tamriel Rebuilt 25.08"
+  },
+  "summary": {
+    "en": "An explicitly inexact placeholder for the old Grasping Fortune Fullrest profile.",
+    "ru": "Явно неточная заглушка старого профиля Fullrest эпохи Grasping Fortune."
+  },
+  "release": {
+    "name": "Grasping Fortune",
+    "version": "25.08",
+    "build": null
+  },
+  "readiness": {
+    "status": "blocked",
+    "exactProfile": false,
+    "blockers": [
+      "The active Fullrest load order and ordered data directories are unavailable.",
+      "Matching Tamriel Data 25.05 and MFR loose assets are unavailable.",
+      "The enabled state of MFR, TR_Factions, Project Cyrodiil and Skyrim Home of the Nords is unconfirmed."
+    ],
+    "warnings": [
+      "MFR contains 378 unique Russian-only CELL names without local English equivalents.",
+      "Candidate plugin presence does not prove that the plugin was active."
+    ]
+  },
+  "localization": {
+    "defaultLocale": "ru",
+    "locales": [
+      {
+        "locale": "en",
+        "status": "partial",
+        "coverage": 0.9306,
+        "fallbackLocale": "ru"
+      },
+      {
+        "locale": "ru",
+        "status": "partial",
+        "coverage": 0.9998,
+        "fallbackLocale": null
+      }
+    ]
+  },
+  "regions": [
+    {
+      "id": "vvardenfell",
+      "title": {
+        "en": "Vvardenfell",
+        "ru": "Вварденфелл"
+      },
+      "kind": "exterior",
+      "status": "blocked"
+    },
+    {
+      "id": "solstheim",
+      "title": {
+        "en": "Solstheim",
+        "ru": "Солстхейм"
+      },
+      "kind": "exterior",
+      "status": "blocked"
+    },
+    {
+      "id": "tr-mainland",
+      "title": {
+        "en": "TR Mainland",
+        "ru": "Материковый Морровинд"
+      },
+      "kind": "exterior",
+      "status": "blocked"
+    },
+    {
+      "id": "cyrodiil",
+      "title": {
+        "en": "Project Cyrodiil",
+        "ru": "Проект Киродиил"
+      },
+      "kind": "exterior",
+      "status": "unconfirmed"
+    },
+    {
+      "id": "skyrim",
+      "title": {
+        "en": "Skyrim: Home of the Nords",
+        "ru": "Скайрим: Дом Нордов"
+      },
+      "kind": "exterior",
+      "status": "unconfirmed"
+    },
+    {
+      "id": "mournhold",
+      "title": {
+        "en": "Mournhold",
+        "ru": "Морнхолд"
+      },
+      "kind": "interior-inset",
+      "status": "planned"
+    }
+  ],
+  "profile": {
+    "status": "unconfirmed",
+    "contentFiles": [
+      {
+        "name": "Morrowind.esm",
+        "kind": "esm",
+        "version": null,
+        "sha256": "af8e53db703a439a832e8e63fecea3a4848ee0befd80edb3fb66486ae59295ad",
+        "loadOrder": 0,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "Tribunal.esm",
+        "kind": "esm",
+        "version": null,
+        "sha256": "9565d4ccc37ff290d92aa1a3d6dc471259426653b311a2a35292a18c06e16630",
+        "loadOrder": 1,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "Bloodmoon.esm",
+        "kind": "esm",
+        "version": null,
+        "sha256": "a9420b7f4e8ae0e81f7169c99808a942623bbcca18ad504902b7840006070997",
+        "loadOrder": 2,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "Tamriel_Data.esm",
+        "kind": "esm",
+        "version": "25.05",
+        "sha256": "8c5757805a169dc04ae4789645b6b9de1ca079a15ea66460f45b8a9b213f8fd5",
+        "loadOrder": 3,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "TR_Mainland.esm",
+        "kind": "esm",
+        "version": "25.08",
+        "sha256": "14ef2753e8e331831cf07b5f42d1c656c459c0292838fffdbda4c4bd422f39aa",
+        "loadOrder": null,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "MFR.esm",
+        "kind": "esm",
+        "version": null,
+        "sha256": "eba14e9be96033ff0a2aaa625e89de7ba5ed72990e0b5f31884ba355557b3e92",
+        "loadOrder": null,
+        "inclusion": "candidate",
+        "enabled": null
+      },
+      {
+        "name": "MFR_TR_patch.esp",
+        "kind": "esp",
+        "version": null,
+        "sha256": "3fdfb680e09ff46ad339f06a73488f212bcc8c7228983d3dbc712b9893140516",
+        "loadOrder": null,
+        "inclusion": "candidate",
+        "enabled": null
+      },
+      {
+        "name": "TR_Factions.esp",
+        "kind": "esp",
+        "version": "25.08",
+        "sha256": "ab9392e62bdf3f38f37dea7080cec589f04278f02cd0eb6d033f0a0425d58aaf",
+        "loadOrder": null,
+        "inclusion": "optional",
+        "enabled": null
+      },
+      {
+        "name": "Cyr_Main.esm",
+        "kind": "esm",
+        "version": "25.05a",
+        "sha256": null,
+        "loadOrder": null,
+        "inclusion": "candidate",
+        "enabled": null
+      },
+      {
+        "name": "Sky_Main.esm",
+        "kind": "esm",
+        "version": "25.05",
+        "sha256": null,
+        "loadOrder": null,
+        "inclusion": "candidate",
+        "enabled": null
+      }
+    ],
+    "registeredArchives": [
+      {
+        "name": "Morrowind.bsa",
+        "sha256": null,
+        "order": null,
+        "required": true,
+        "registered": null
+      },
+      {
+        "name": "Tribunal.bsa",
+        "sha256": null,
+        "order": null,
+        "required": true,
+        "registered": null
+      },
+      {
+        "name": "Bloodmoon.bsa",
+        "sha256": null,
+        "order": null,
+        "required": true,
+        "registered": null
+      }
+    ],
+    "dataDirectories": [
+      {
+        "id": "fullrest-profile",
+        "order": null,
+        "status": "unconfirmed"
+      }
+    ],
+    "modules": [
+      {
+        "id": "mfr",
+        "status": "unconfirmed",
+        "notes": [
+          "Required to reproduce the user's exact Fullrest profile only if the original load order confirms it."
+        ]
+      },
+      {
+        "id": "tr-factions",
+        "status": "unconfirmed",
+        "notes": []
+      },
+      {
+        "id": "cyrodiil",
+        "status": "unconfirmed",
+        "notes": [
+          "A sister landmass project, not a Tamriel Rebuilt dependency."
+        ]
+      },
+      {
+        "id": "skyrim",
+        "status": "unconfirmed",
+        "notes": [
+          "A sister landmass project, not a Tamriel Rebuilt dependency."
+        ]
+      },
+      {
+        "id": "grass",
+        "status": "disabled",
+        "notes": [
+          "Grass generation plugins are excluded from the semantic location catalog."
+        ]
+      },
+      {
+        "id": "carry-weight-stonks",
+        "status": "disabled",
+        "notes": [
+          "Gameplay-only plugin excluded from the map profile."
+        ]
+      }
+    ]
+  },
+  "map": {
+    "projection": {
+      "code": "TES3:WORLD",
+      "units": "world-units",
+      "cellSize": 8192,
+      "extent": [-229376, -475136, 409600, 278528],
+      "center": [90112, -98304]
+    },
+    "tileGrid": {
+      "tileSize": 512,
+      "origin": [-229376, 278528],
+      "resolutions": [2048, 1024, 512, 256, 128, 64, 32, 16]
+    }
+  },
+  "artifacts": {
+    "locations": null,
+    "locales": [
+      {
+        "locale": "en",
+        "artifact": null
+      },
+      {
+        "locale": "ru",
+        "artifact": null
+      }
+    ],
+    "tiles": null
+  },
+  "provenance": {
+    "kind": "placeholder",
+    "notes": [
+      "The provisional extent and center come from the LAND union of the local candidate base, MFR and TR 25.08 files.",
+      "This manifest contains metadata only; no Bethesda, Fullrest, MFR or Tamriel Rebuilt assets are included."
+    ],
+    "knownIssues": [
+      "The snapshot is intentionally blocked and must not be presented as an exact Fullrest profile.",
+      "The provisional extent must be recomputed after the active plugins and their order are confirmed."
+    ]
+  }
+}

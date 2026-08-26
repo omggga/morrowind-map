@@ -1,0 +1,22 @@
+{
+  "name": "@morrowind-map/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schemas/dataset-index.schema.json": "./src/schemas/dataset-index.schema.json",
+    "./schemas/dataset-manifest.schema.json": "./src/schemas/dataset-manifest.schema.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json",
+    "test": "vitest run src"
+  },
+  "dependencies": {
+    "ajv": "8.17.1"
+  },
+  "devDependencies": {
+    "typescript": "6.0.2",
+    "vitest": "4.1.11"
+  }
+}

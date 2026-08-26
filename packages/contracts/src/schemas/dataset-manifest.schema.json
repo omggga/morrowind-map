@@ -1,0 +1,587 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morrowind-map.local/schemas/dataset-manifest.schema.json",
+  "title": "Morrowind map dataset manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "datasetId",
+    "mapKey",
+    "snapshotId",
+    "title",
+    "summary",
+    "release",
+    "readiness",
+    "localization",
+    "regions",
+    "profile",
+    "map",
+    "artifacts",
+    "provenance"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "datasetId": {
+      "$ref": "#/$defs/datasetId"
+    },
+    "mapKey": {
+      "enum": ["original", "fullrest-old", "poison-song"]
+    },
+    "snapshotId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9][a-z0-9:._-]+$"
+    },
+    "title": {
+      "$ref": "#/$defs/localizedText"
+    },
+    "summary": {
+      "$ref": "#/$defs/localizedText"
+    },
+    "release": {
+      "$ref": "#/$defs/release"
+    },
+    "readiness": {
+      "$ref": "#/$defs/readiness"
+    },
+    "localization": {
+      "$ref": "#/$defs/localization"
+    },
+    "regions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/region"
+      }
+    },
+    "profile": {
+      "$ref": "#/$defs/profile"
+    },
+    "map": {
+      "$ref": "#/$defs/map"
+    },
+    "artifacts": {
+      "$ref": "#/$defs/artifacts"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+    },
+    "datasetId": {
+      "$ref": "#/$defs/identifier"
+    },
+    "locale": {
+      "enum": ["en", "ru"]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "nullableSha256": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "nullableOrder": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "localizedText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["en"],
+      "properties": {
+        "en": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "ru": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "build"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "version": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "build": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "stringList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "exactProfile", "blockers", "warnings"],
+      "properties": {
+        "status": {
+          "enum": ["placeholder", "blocked", "ready"]
+        },
+        "exactProfile": {
+          "type": "boolean"
+        },
+        "blockers": {
+          "$ref": "#/$defs/stringList"
+        },
+        "warnings": {
+          "$ref": "#/$defs/stringList"
+        }
+      }
+    },
+    "localeDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locale", "status", "coverage", "fallbackLocale"],
+      "properties": {
+        "locale": {
+          "$ref": "#/$defs/locale"
+        },
+        "status": {
+          "enum": ["available", "partial", "planned", "unavailable"]
+        },
+        "coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "fallbackLocale": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/locale"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "localization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["defaultLocale", "locales"],
+      "properties": {
+        "defaultLocale": {
+          "$ref": "#/$defs/locale"
+        },
+        "locales": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/localeDescriptor"
+          }
+        }
+      }
+    },
+    "region": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "kind", "status"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "title": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "kind": {
+          "enum": ["exterior", "interior-inset"]
+        },
+        "status": {
+          "enum": ["available", "planned", "blocked", "unconfirmed"]
+        }
+      }
+    },
+    "contentFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "version",
+        "sha256",
+        "loadOrder",
+        "inclusion",
+        "enabled"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 255,
+          "pattern": "\\.(?:esm|esp)$"
+        },
+        "kind": {
+          "enum": ["esm", "esp"]
+        },
+        "version": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sha256": {
+          "$ref": "#/$defs/nullableSha256"
+        },
+        "loadOrder": {
+          "$ref": "#/$defs/nullableOrder"
+        },
+        "inclusion": {
+          "enum": ["required", "optional", "candidate", "excluded"]
+        },
+        "enabled": {
+          "type": ["boolean", "null"]
+        }
+      }
+    },
+    "registeredArchive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256", "order", "required", "registered"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 255,
+          "pattern": "\\.[Bb][Ss][Aa]$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/nullableSha256"
+        },
+        "order": {
+          "$ref": "#/$defs/nullableOrder"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "registered": {
+          "type": ["boolean", "null"]
+        }
+      }
+    },
+    "dataDirectory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "order", "status"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "order": {
+          "$ref": "#/$defs/nullableOrder"
+        },
+        "status": {
+          "enum": ["confirmed", "unconfirmed"]
+        }
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "notes"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "status": {
+          "enum": ["enabled", "disabled", "unconfirmed"]
+        },
+        "notes": {
+          "$ref": "#/$defs/stringList"
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "contentFiles", "registeredArchives", "dataDirectories", "modules"],
+      "properties": {
+        "status": {
+          "enum": ["confirmed", "unconfirmed"]
+        },
+        "contentFiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/contentFile"
+          }
+        },
+        "registeredArchives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/registeredArchive"
+          }
+        },
+        "dataDirectories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dataDirectory"
+          }
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/module"
+          }
+        }
+      }
+    },
+    "point": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "items": false
+    },
+    "extent": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "items": false
+    },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "units", "cellSize", "extent", "center"],
+      "properties": {
+        "code": {
+          "const": "TES3:WORLD"
+        },
+        "units": {
+          "const": "world-units"
+        },
+        "cellSize": {
+          "const": 8192
+        },
+        "extent": {
+          "$ref": "#/$defs/extent"
+        },
+        "center": {
+          "$ref": "#/$defs/point"
+        }
+      }
+    },
+    "tileGrid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tileSize", "origin", "resolutions"],
+      "properties": {
+        "tileSize": {
+          "const": 512
+        },
+        "origin": {
+          "$ref": "#/$defs/point"
+        },
+        "resolutions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        }
+      }
+    },
+    "map": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projection", "tileGrid"],
+      "properties": {
+        "projection": {
+          "$ref": "#/$defs/projection"
+        },
+        "tileGrid": {
+          "$ref": "#/$defs/tileGrid"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "mediaType", "sha256", "bytes"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^/datasets/[^\\s?#]+$"
+        },
+        "mediaType": {
+          "const": "application/json"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "localeArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locale", "artifact"],
+      "properties": {
+        "locale": {
+          "$ref": "#/$defs/locale"
+        },
+        "artifact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/artifact"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "tileSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifestUrl", "sha256"],
+      "properties": {
+        "manifestUrl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^/datasets/[^\\s?#]+\\.json$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locations", "locales", "tiles"],
+      "properties": {
+        "locations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/artifact"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "locales": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/localeArtifact"
+          }
+        },
+        "tiles": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/tileSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "notes", "knownIssues"],
+      "properties": {
+        "kind": {
+          "enum": ["placeholder", "generated"]
+        },
+        "notes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "knownIssues": {
+          "$ref": "#/$defs/stringList"
+        }
+      }
+    }
+  }
+}

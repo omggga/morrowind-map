@@ -1,0 +1,18 @@
+{
+  "name": "@morrowind-map/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit --pretty false",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@morrowind-map/contracts": "workspace:*",
+    "ol": "10.10.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  }
+}

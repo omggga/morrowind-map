@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "defaultDatasetId": "original-goty",
+  "datasets": [
+    {
+      "datasetId": "original-goty",
+      "manifestUrl": "/datasets/manifests/original-goty.json",
+      "order": 0
+    },
+    {
+      "datasetId": "fullrest-25.08",
+      "manifestUrl": "/datasets/manifests/fullrest-25.08.json",
+      "order": 1
+    },
+    {
+      "datasetId": "poison-song-26.08",
+      "manifestUrl": "/datasets/manifests/poison-song-26.08.json",
+      "order": 2
+    }
+  ]
+}

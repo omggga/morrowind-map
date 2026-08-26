@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "poison-song-26.08",
+  "mapKey": "poison-song",
+  "snapshotId": "tr:poison-song-26.08:placeholder-v1",
+  "title": {
+    "en": "Tamriel Rebuilt 26.08 — Poison Song"
+  },
+  "summary": {
+    "en": "The current English Tamriel Rebuilt mainland release with a pinned core-only profile."
+  },
+  "release": {
+    "name": "Poison Song",
+    "version": "26.08",
+    "build": "26.08.23"
+  },
+  "readiness": {
+    "status": "placeholder",
+    "exactProfile": true,
+    "blockers": [],
+    "warnings": [
+      "Locations, locale catalogs and tiles have not been generated yet.",
+      "The Tamriel Data size recorded in TR master metadata differs from the local 26.08 file by 776 bytes and needs an OpenMW smoke test."
+    ]
+  },
+  "localization": {
+    "defaultLocale": "en",
+    "locales": [
+      {
+        "locale": "en",
+        "status": "available",
+        "coverage": 1,
+        "fallbackLocale": null
+      }
+    ]
+  },
+  "regions": [
+    {
+      "id": "vvardenfell",
+      "title": {
+        "en": "Vvardenfell"
+      },
+      "kind": "exterior",
+      "status": "planned"
+    },
+    {
+      "id": "solstheim",
+      "title": {
+        "en": "Solstheim"
+      },
+      "kind": "exterior",
+      "status": "planned"
+    },
+    {
+      "id": "tr-mainland",
+      "title": {
+        "en": "TR Mainland"
+      },
+      "kind": "exterior",
+      "status": "planned"
+    },
+    {
+      "id": "mournhold",
+      "title": {
+        "en": "Mournhold"
+      },
+      "kind": "interior-inset",
+      "status": "planned"
+    }
+  ],
+  "profile": {
+    "status": "confirmed",
+    "contentFiles": [
+      {
+        "name": "Morrowind.esm",
+        "kind": "esm",
+        "version": null,
+        "sha256": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+        "loadOrder": 0,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "Tribunal.esm",
+        "kind": "esm",
+        "version": null,
+        "sha256": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+        "loadOrder": 1,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "Bloodmoon.esm",
+        "kind": "esm",
+        "version": null,
+        "sha256": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357",
+        "loadOrder": 2,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "Tamriel_Data.esm",
+        "kind": "esm",
+        "version": "26.08",
+        "sha256": "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f",
+        "loadOrder": 3,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "TR_Mainland.esm",
+        "kind": "esm",
+        "version": "26.08",
+        "sha256": "661c96c6aa5e517d897f8b9de93c814d2aca16fd17b6e4ce7869486e3737064b",
+        "loadOrder": 4,
+        "inclusion": "required",
+        "enabled": true
+      },
+      {
+        "name": "TR_Factions.esp",
+        "kind": "esp",
+        "version": "26.08",
+        "sha256": "5a645aae80d02b9634f5da482f97df87fb1cc77aaf20bf0fdb26c272996b671e",
+        "loadOrder": null,
+        "inclusion": "optional",
+        "enabled": false
+      }
+    ],
+    "registeredArchives": [
+      {
+        "name": "Morrowind.bsa",
+        "sha256": null,
+        "order": 0,
+        "required": true,
+        "registered": true
+      },
+      {
+        "name": "Tribunal.bsa",
+        "sha256": null,
+        "order": 1,
+        "required": true,
+        "registered": true
+      },
+      {
+        "name": "Bloodmoon.bsa",
+        "sha256": null,
+        "order": 2,
+        "required": true,
+        "registered": true
+      }
+    ],
+    "dataDirectories": [
+      {
+        "id": "base-game",
+        "order": 0,
+        "status": "confirmed"
+      },
+      {
+        "id": "tamriel-data-26.08",
+        "order": 1,
+        "status": "confirmed"
+      },
+      {
+        "id": "tamriel-rebuilt-26.08",
+        "order": 2,
+        "status": "confirmed"
+      }
+    ],
+    "modules": [
+      {
+        "id": "tr-factions",
+        "status": "disabled",
+        "notes": [
+          "The optional faction integration plugin is deliberately excluded from the canonical placeholder profile."
+        ]
+      },
+      {
+        "id": "vanilla-firemoth-patch",
+        "status": "disabled",
+        "notes": [
+          "The canonical profile uses Tamriel Rebuilt's integrated Firemoth content."
+        ]
+      }
+    ]
+  },
+  "map": {
+    "projection": {
+      "code": "TES3:WORLD",
+      "units": "world-units",
+      "cellSize": 8192,
+      "extent": [-229376, -475136, 409600, 278528],
+      "center": [90112, -98304]
+    },
+    "tileGrid": {
+      "tileSize": 512,
+      "origin": [-229376, 278528],
+      "resolutions": [2048, 1024, 512, 256, 128, 64, 32, 16]
+    }
+  },
+  "artifacts": {
+    "locations": null,
+    "locales": [
+      {
+        "locale": "en",
+        "artifact": null
+      }
+    ],
+    "tiles": null
+  },
+  "provenance": {
+    "kind": "placeholder",
+    "notes": [
+      "Extent and center were derived from the effective LAND cell union of the pinned GOTY, Tamriel Data 26.08 and TR 26.08 metadata.",
+      "This manifest contains metadata only; no Bethesda, Tamriel Data or Tamriel Rebuilt assets are included.",
+      "A future Russian catalog is added to this dataset rather than creating a fourth map version."
+    ],
+    "knownIssues": [
+      "English locations and tile artifacts still need to be generated and hashed."
+    ]
+  }
+}
