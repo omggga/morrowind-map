@@ -5,14 +5,20 @@ import datasetIndexSchema from "./schemas/dataset-index.schema.json";
 import datasetManifestSchema from "./schemas/dataset-manifest.schema.json";
 import locationCatalogSchema from "./schemas/location-catalog.schema.json";
 import mapAssetsSchema from "./schemas/map-assets.schema.json";
+import mimImportSchema from "./schemas/mim-import.schema.json";
 import placeLocaleCatalogSchema from "./schemas/place-locale-catalog.schema.json";
+import portableBackupSchema from "./schemas/portable-backup.schema.json";
+import { createMimImportReceiptId } from "./import-receipt";
+import { PORTABLE_BACKUP_SCHEMA_VERSION } from "./types";
 import type {
   DatasetIndex,
   DatasetManifest,
   LocationCatalog,
   LocaleDescriptor,
   MapAssetsManifest,
+  MimImportBundle,
   PlaceLocaleCatalog,
+  PortableBackup,
   SourceProfileDescriptor,
 } from "./types";
 
@@ -21,7 +27,9 @@ export type ContractKind =
   | "dataset manifest"
   | "location catalog"
   | "place locale catalog"
-  | "map assets manifest";
+  | "map assets manifest"
+  | "MIM import bundle"
+  | "portable backup";
 
 export interface ContractValidationIssue {
   instancePath: string;
@@ -59,6 +67,8 @@ const validateLocationCatalogSchema = ajv.compile<LocationCatalog>(locationCatal
 const validatePlaceLocaleCatalogSchema =
   ajv.compile<PlaceLocaleCatalog>(placeLocaleCatalogSchema);
 const validateMapAssetsSchema = ajv.compile<MapAssetsManifest>(mapAssetsSchema);
+const validateMimImportSchema = ajv.compile<MimImportBundle>(mimImportSchema);
+const validatePortableBackupSchema = ajv.compile<PortableBackup>(portableBackupSchema);
 
 function schemaIssues(validate: ValidateFunction): ContractValidationIssue[] {
   return (validate.errors ?? []).map((error: ErrorObject) => ({
@@ -468,6 +478,236 @@ export function getMapAssetsManifestValidationIssues(
   return issues;
 }
 
+export function getMimImportBundleValidationIssues(
+  value: unknown,
+): ContractValidationIssue[] {
+  if (!validateMimImportSchema(value)) {
+    return schemaIssues(validateMimImportSchema);
+  }
+
+  const issues = [
+    ...duplicateIssues(
+      value.sourceFiles.map((sourceFile) => sourceFile.path),
+      "/sourceFiles",
+      "source file paths",
+    ),
+    ...duplicateIssues(
+      value.progress.map((progress) => progress.placeId),
+      "/progress",
+      "MIM progress place ids",
+    ),
+    ...duplicateIssues(
+      value.customMarkers.map((marker) => marker.id),
+      "/customMarkers",
+      "MIM custom marker ids",
+    ),
+  ];
+  value.progress.forEach((progress, index) => {
+    if (!progress.placeId.startsWith(`${value.targetDatasetId}.`)) {
+      issues.push(
+        semanticIssue(
+          `/progress/${index}/placeId`,
+          "must be scoped to targetDatasetId",
+        ),
+      );
+    }
+  });
+  value.customMarkers.forEach((marker, index) => {
+    if (!marker.id.startsWith(`${value.targetDatasetId}.`)) {
+      issues.push(
+        semanticIssue(
+          `/customMarkers/${index}/id`,
+          "must be scoped to targetDatasetId",
+        ),
+      );
+    }
+  });
+  return issues;
+}
+
+function getProvenanceIssues(
+  provenance: PortableBackup["progress"][number]["provenance"],
+  instancePath: string,
+): ContractValidationIssue[] {
+  if (provenance.kind === "manual" && provenance.sourceFingerprint !== null) {
+    return [semanticIssue(instancePath, "manual provenance requires a null fingerprint")];
+  }
+  if (provenance.kind === "mim-import" && provenance.sourceFingerprint === null) {
+    return [semanticIssue(instancePath, "MIM provenance requires a source fingerprint")];
+  }
+  return [];
+}
+
+interface PortableBackupNormalizationResult {
+  value: unknown;
+  issues: ContractValidationIssue[];
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeLegacyPortableBackup(value: unknown): PortableBackupNormalizationResult {
+  if (!isUnknownRecord(value) || value.schemaVersion !== 1) {
+    return { value, issues: [] };
+  }
+
+  const issues: ContractValidationIssue[] = [];
+  const importReceipts = Array.isArray(value.importReceipts)
+    ? (value.importReceipts as unknown[]).map((receipt, index) => {
+        if (!isUnknownRecord(receipt)) {
+          return receipt;
+        }
+
+        const { datasetId, id, sourceFingerprint } = receipt;
+        if (
+          typeof datasetId !== "string" ||
+          typeof id !== "string" ||
+          typeof sourceFingerprint !== "string"
+        ) {
+          return receipt;
+        }
+
+        if (id !== `mim:${datasetId}:${sourceFingerprint}`) {
+          issues.push(
+            semanticIssue(
+              `/importReceipts/${index}/id`,
+              "legacy receipt id must match datasetId and sourceFingerprint",
+            ),
+          );
+          return receipt;
+        }
+
+        return {
+          ...receipt,
+          id: createMimImportReceiptId(datasetId, sourceFingerprint),
+        };
+      })
+    : value.importReceipts;
+
+  return {
+    value: {
+      ...value,
+      schemaVersion: PORTABLE_BACKUP_SCHEMA_VERSION,
+      importReceipts,
+    },
+    issues,
+  };
+}
+
+export function getPortableBackupValidationIssues(value: unknown): ContractValidationIssue[] {
+  if (!validatePortableBackupSchema(value)) {
+    return schemaIssues(validatePortableBackupSchema);
+  }
+
+  const datasetIds = new Set(Object.keys(value.datasets));
+  const issues = [
+    ...duplicateIssues(
+      value.progress.map(({ datasetId, placeId }) => `${datasetId}\0${placeId}`),
+      "/progress",
+      "progress identities",
+    ),
+    ...duplicateIssues(
+      value.customMarkers.map(({ id }) => id),
+      "/customMarkers",
+      "custom marker ids",
+    ),
+    ...duplicateIssues(
+      value.importReceipts.map(({ id }) => id),
+      "/importReceipts",
+      "import receipt ids",
+    ),
+  ];
+
+  if (Number.isNaN(Date.parse(value.exportedAt))) {
+    issues.push(semanticIssue("/exportedAt", "must be a real UTC timestamp"));
+  }
+  value.progress.forEach((progress, index) => {
+    if (!datasetIds.has(progress.datasetId)) {
+      issues.push(
+        semanticIssue(`/progress/${index}/datasetId`, "must be declared in datasets"),
+      );
+    }
+    if (!progress.placeId.startsWith(`${progress.datasetId}.`)) {
+      issues.push(
+        semanticIssue(`/progress/${index}/placeId`, "must be scoped to datasetId"),
+      );
+    }
+    if (Number.isNaN(Date.parse(progress.updatedAt))) {
+      issues.push(semanticIssue(`/progress/${index}/updatedAt`, "must be a real timestamp"));
+    }
+    issues.push(...getProvenanceIssues(progress.provenance, `/progress/${index}/provenance`));
+  });
+  value.customMarkers.forEach((marker, index) => {
+    if (!datasetIds.has(marker.datasetId)) {
+      issues.push(
+        semanticIssue(`/customMarkers/${index}/datasetId`, "must be declared in datasets"),
+      );
+    }
+    if (!marker.id.startsWith(`${marker.datasetId}.`)) {
+      issues.push(
+        semanticIssue(`/customMarkers/${index}/id`, "must be scoped to datasetId"),
+      );
+    }
+    const createdAt = Date.parse(marker.createdAt);
+    const updatedAt = Date.parse(marker.updatedAt);
+    const deletedAt = marker.deletedAt === null ? null : Date.parse(marker.deletedAt);
+    if (
+      Number.isNaN(createdAt) ||
+      Number.isNaN(updatedAt) ||
+      (deletedAt !== null && Number.isNaN(deletedAt))
+    ) {
+      issues.push(
+        semanticIssue(`/customMarkers/${index}`, "marker timestamps must be real timestamps"),
+      );
+    } else {
+      if (createdAt > updatedAt) {
+        issues.push(
+          semanticIssue(
+            `/customMarkers/${index}/updatedAt`,
+            "must not be earlier than createdAt",
+          ),
+        );
+      }
+      if (deletedAt !== null && (deletedAt < createdAt || deletedAt > updatedAt)) {
+        issues.push(
+          semanticIssue(
+            `/customMarkers/${index}/deletedAt`,
+            "must be between createdAt and updatedAt",
+          ),
+        );
+      }
+    }
+    issues.push(
+      ...getProvenanceIssues(marker.provenance, `/customMarkers/${index}/provenance`),
+    );
+  });
+  value.importReceipts.forEach((receipt, index) => {
+    if (!datasetIds.has(receipt.datasetId)) {
+      issues.push(
+        semanticIssue(`/importReceipts/${index}/datasetId`, "must be declared in datasets"),
+      );
+    }
+    if (Number.isNaN(Date.parse(receipt.importedAt))) {
+      issues.push(
+        semanticIssue(`/importReceipts/${index}/importedAt`, "must be a real timestamp"),
+      );
+    }
+    if (
+      receipt.id !==
+      createMimImportReceiptId(receipt.datasetId, receipt.sourceFingerprint)
+    ) {
+      issues.push(
+        semanticIssue(
+          `/importReceipts/${index}/id`,
+          "must be the canonical id for datasetId and sourceFingerprint",
+        ),
+      );
+    }
+  });
+  return issues;
+}
+
 export function isDatasetIndex(value: unknown): value is DatasetIndex {
   return getDatasetIndexValidationIssues(value).length === 0;
 }
@@ -486,6 +726,14 @@ export function isPlaceLocaleCatalog(value: unknown): value is PlaceLocaleCatalo
 
 export function isMapAssetsManifest(value: unknown): value is MapAssetsManifest {
   return getMapAssetsManifestValidationIssues(value).length === 0;
+}
+
+export function isMimImportBundle(value: unknown): value is MimImportBundle {
+  return getMimImportBundleValidationIssues(value).length === 0;
+}
+
+export function isPortableBackup(value: unknown): value is PortableBackup {
+  return getPortableBackupValidationIssues(value).length === 0;
 }
 
 export function parseDatasetIndex(value: unknown): DatasetIndex {
@@ -526,4 +774,24 @@ export function parseMapAssetsManifest(value: unknown): MapAssetsManifest {
     throw new ContractValidationError("map assets manifest", issues);
   }
   return value as MapAssetsManifest;
+}
+
+export function parseMimImportBundle(value: unknown): MimImportBundle {
+  const issues = getMimImportBundleValidationIssues(value);
+  if (issues.length > 0) {
+    throw new ContractValidationError("MIM import bundle", issues);
+  }
+  return value as MimImportBundle;
+}
+
+export function parsePortableBackup(value: unknown): PortableBackup {
+  const normalized = normalizeLegacyPortableBackup(value);
+  const issues = [
+    ...normalized.issues,
+    ...getPortableBackupValidationIssues(normalized.value),
+  ];
+  if (issues.length > 0) {
+    throw new ContractValidationError("portable backup", issues);
+  }
+  return normalized.value as PortableBackup;
 }

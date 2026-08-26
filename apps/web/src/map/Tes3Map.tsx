@@ -24,6 +24,7 @@ import { OriginalMap } from './OriginalMap';
 
 interface Tes3MapProps {
   readonly dataset: DatasetManifest;
+  readonly datasetSnapshots: Readonly<Record<string, string>>;
   readonly onBack: () => void;
 }
 
@@ -52,12 +53,24 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 }
 
-export function Tes3Map({ dataset, onBack }: Tes3MapProps) {
+export function Tes3Map({ dataset, datasetSnapshots, onBack }: Tes3MapProps) {
   if (dataset.mapKey === 'original') {
-    return <OriginalMap dataset={dataset} onBack={onBack} />;
+    return (
+      <OriginalMap
+        dataset={dataset}
+        datasetSnapshots={datasetSnapshots}
+        onBack={onBack}
+      />
+    );
   }
 
-  return <Tes3PlaceholderMap dataset={dataset} onBack={onBack} />;
+  return (
+    <Tes3PlaceholderMap
+      dataset={dataset}
+      datasetSnapshots={datasetSnapshots}
+      onBack={onBack}
+    />
+  );
 }
 
 function Tes3PlaceholderMap({ dataset, onBack }: Tes3MapProps) {

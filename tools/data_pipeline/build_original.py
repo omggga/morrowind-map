@@ -6,14 +6,22 @@ import json
 import math
 import re
 import shutil
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from tools.data_pipeline.esm import TeleportReference, extract_world_data
-from tools.data_pipeline.mim import MimLocation, classify_place, parse_mim_locations
+from tools.data_pipeline.mim import (
+    MimLocation,
+    MimMarker,
+    classify_place,
+    match_mim_progress,
+    parse_mim_locations,
+    parse_mim_markers,
+    parse_mim_progress,
+)
 
 
 DATASET_ID = "original-goty"
@@ -23,10 +31,15 @@ EXPECTED_ESM_HASHES = {
     "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
     "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357",
 }
+EXPECTED_MIM_LAYOUT_HASHES = {
+    "vvardenfell": "80fb8673ddf5866bb72ddf5d2f9097fbd2558f56a158b1d1624f32503c9c1758",
+    "solstheim": "40a1df5a268821e6a4250017943ceee3fa95ccea632a15296789c1d90225d5ba",
+}
 MIM_EXTENT = (-125_000.0, -130_000.0, 175_000.0, 220_000.0)
 SOLSTHEIM_MIM_AXIS_SCALE = (0.349764187732, 0.347160285692)
 SOLSTHEIM_MIM_AXIS_OFFSET = (-185_826.803992, 161_123.190917)
 SOLSTHEIM_RASTER_EXTENT = (-229_376.0, 114_688.0, -131_072.0, 237_568.0)
+MIM_IMPORT_MAPPING_VERSION = "mim-progress-v2"
 MANUAL_NAMES: dict[tuple[str, int], dict[str, str]] = {
     ("solstheim", 15): {"ru": "Логово Удирфрюкта"},
     ("solstheim", 19): {"en": "Beast Stone"},
@@ -63,6 +76,22 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def assert_mim_layout(
+    region_id: str,
+    path: Path,
+    expected_hashes: Mapping[str, str] = EXPECTED_MIM_LAYOUT_HASHES,
+) -> None:
+    expected_hash = expected_hashes.get(region_id)
+    if expected_hash is None:
+        raise ValueError(f"No pinned MIM layout SHA-256 for {region_id!r}")
+    actual_hash = sha256(path)
+    if actual_hash != expected_hash:
+        raise ValueError(
+            f"Unexpected MIM {region_id} layout SHA-256: {actual_hash}; "
+            f"expected {expected_hash}. Bump snapshot/mapping and provide a migration."
+        )
+
+
 def canonical_position(region_id: str, position: tuple[float, float]) -> tuple[float, float]:
     if region_id == "vvardenfell":
         return position
@@ -77,6 +106,86 @@ def canonical_position(region_id: str, position: tuple[float, float]) -> tuple[f
 
 def canonical_solstheim_extent() -> tuple[float, float, float, float]:
     return SOLSTHEIM_RASTER_EXTENT
+
+
+def mim_marker_id(region_id: str, marker: MimMarker, identical_occurrence: int) -> str:
+    identity = "\0".join(
+        (
+            MIM_IMPORT_MAPPING_VERSION,
+            region_id,
+            marker.text,
+            f"{marker.position[0]},{marker.position[1]}",
+            str(identical_occurrence),
+        )
+    )
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+    return f"{DATASET_ID}.custom.mim-{region_id}-{digest}"
+
+
+def build_mim_import_region(
+    region_id: str,
+    locations: list[MimLocation],
+    user_path: Path,
+    markers_path: Path,
+) -> tuple[list[dict[str, object]], list[dict[str, object]], dict[str, object]]:
+    matches = match_mim_progress(
+        region_id,
+        locations,
+        parse_mim_progress(user_path),
+    )
+    progress = [
+        {
+            "placeId": f"{DATASET_ID}.{region_id}.mim-{location.index:04d}",
+            "status": record.status,
+            "note": record.note,
+        }
+        for location, record in matches
+    ]
+
+    markers = []
+    marker_occurrences: Counter[tuple[str, tuple[int, int]]] = Counter()
+    for marker in parse_mim_markers(markers_path):
+        identity = (marker.text, marker.position)
+        identical_occurrence = marker_occurrences[identity]
+        marker_occurrences[identity] += 1
+        x, y = canonical_position(region_id, marker.position)
+        markers.append(
+            {
+                "id": mim_marker_id(region_id, marker, identical_occurrence),
+                "label": marker.text,
+                "note": "",
+                "position": [round(x, 3), round(y, 3)],
+            }
+        )
+
+    status_counts = Counter(str(entry["status"]) for entry in progress)
+    audit = {
+        "progress": len(progress),
+        "statuses": {
+            status: status_counts.get(status, 0)
+            for status in ("unvisited", "active", "visited")
+        },
+        "notes": sum(bool(str(entry["note"])) for entry in progress),
+        "customMarkers": len(markers),
+    }
+    return progress, markers, audit
+
+
+def mim_source_fingerprint(
+    source_files: list[dict[str, str]],
+    mapping_version: str = MIM_IMPORT_MAPPING_VERSION,
+) -> str:
+    fingerprint_input = {
+        "mappingVersion": mapping_version,
+        "sourceFiles": sorted(source_files, key=lambda entry: entry["path"]),
+    }
+    canonical = json.dumps(
+        fingerprint_input,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def normalize(value: str) -> str:
@@ -344,11 +453,33 @@ def build(source_root: Path, output_root: Path) -> dict[str, object]:
     all_places: list[dict[str, object]] = []
     all_english: list[dict[str, object]] = []
     all_russian: list[dict[str, object]] = []
+    all_progress: list[dict[str, object]] = []
+    all_custom_markers: list[dict[str, object]] = []
+    mim_source_files: list[dict[str, str]] = []
+    mim_import_regions: dict[str, object] = {}
     audit_regions: dict[str, object] = {}
     raster_specs: list[dict[str, object]] = []
 
     for region_id, mim_path, raster_path, esm_path, translation_stem in region_inputs:
+        assert_mim_layout(region_id, mim_path)
         locations = parse_mim_locations(mim_path)
+        region_progress, region_markers, progress_audit = build_mim_import_region(
+            region_id,
+            locations,
+            mim_path.parent / "user.gdb",
+            mim_path.parent / "markers.gdb",
+        )
+        all_progress.extend(region_progress)
+        all_custom_markers.extend(region_markers)
+        mim_import_regions[region_id] = progress_audit
+        for filename in ("mwmain.gdb", "user.gdb", "markers.gdb"):
+            source_path = mim_path.parent / filename
+            mim_source_files.append(
+                {
+                    "path": source_path.relative_to(maps_root).as_posix(),
+                    "sha256": sha256(source_path),
+                }
+            )
         by_russian, by_english = load_translations(data_files, translation_stem)
         candidates = build_candidates(extract_world_data(esm_path).teleports, by_english)
         places, english, russian, matched = build_mim_places(
@@ -400,11 +531,16 @@ def build(source_root: Path, output_root: Path) -> dict[str, object]:
     all_places = [values[0] for values in combined]
     all_english = [values[1] for values in combined]
     all_russian = [values[2] for values in combined]
+    all_progress.sort(key=lambda entry: str(entry["placeId"]))
+    all_custom_markers.sort(key=lambda entry: str(entry["id"]))
+    mim_source_files.sort(key=lambda entry: entry["path"])
+    source_fingerprint = mim_source_fingerprint(mim_source_files)
 
     locations_path = output_root / "locations.json"
     english_path = output_root / "locales" / "en.json"
     russian_path = output_root / "locales" / "ru.json"
     assets_path = output_root / "map-assets.json"
+    mim_import_path = output_root / "mim-import.json"
     write_json(
         locations_path,
         {
@@ -444,17 +580,50 @@ def build(source_root: Path, output_root: Path) -> dict[str, object]:
             "rasters": raster_specs,
         },
     )
+    write_json(
+        mim_import_path,
+        {
+            "schemaVersion": 1,
+            "kind": "mim-progress",
+            "targetDatasetId": DATASET_ID,
+            "targetSnapshotId": SNAPSHOT_ID,
+            "sourceFingerprint": source_fingerprint,
+            "sourceFiles": mim_source_files,
+            "progress": all_progress,
+            "customMarkers": all_custom_markers,
+        },
+    )
+    aggregate_statuses = {
+        status: sum(
+            int(region["statuses"][status])
+            for region in mim_import_regions.values()
+        )
+        for status in ("unvisited", "active", "visited")
+    }
     audit = {
         "schemaVersion": 1,
         "datasetId": DATASET_ID,
         "snapshotId": SNAPSHOT_ID,
         "places": len(all_places),
         "regions": audit_regions,
+        "mimImport": {
+            "mappingVersion": MIM_IMPORT_MAPPING_VERSION,
+            "sourceFingerprint": source_fingerprint,
+            "sourceFiles": len(mim_source_files),
+            "progress": len(all_progress),
+            "statuses": aggregate_statuses,
+            "notes": sum(
+                int(region["notes"]) for region in mim_import_regions.values()
+            ),
+            "customMarkers": len(all_custom_markers),
+            "regions": mim_import_regions,
+        },
         "artifacts": {
             "locations": artifact_summary(locations_path, output_root),
             "en": artifact_summary(english_path, output_root),
             "ru": artifact_summary(russian_path, output_root),
             "mapAssets": artifact_summary(assets_path, output_root),
+            "mimImport": artifact_summary(mim_import_path, output_root),
         },
     }
     write_json(output_root / "audit.json", audit)

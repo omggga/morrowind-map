@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morrowind-map.local/schemas/mim-import.schema.json",
+  "title": "Morrowind Interactive Map progress import",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "targetDatasetId",
+    "targetSnapshotId",
+    "sourceFingerprint",
+    "sourceFiles",
+    "progress",
+    "customMarkers"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "mim-progress" },
+    "targetDatasetId": { "$ref": "#/$defs/identifier" },
+    "targetSnapshotId": { "$ref": "#/$defs/snapshotId" },
+    "sourceFingerprint": { "$ref": "#/$defs/sha256" },
+    "sourceFiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/sourceFile" }
+    },
+    "progress": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/progress" }
+    },
+    "customMarkers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/customMarker" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9]+(?:[.:-][a-z0-9]+)*$"
+    },
+    "snapshotId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9][a-z0-9:._-]+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "point": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [{ "type": "number" }, { "type": "number" }],
+      "items": false
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 10000
+    },
+    "sourceFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^[^/\\\\](?:[^\\\\]*[^/\\\\])?$"
+        },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "progress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["placeId", "status", "note"],
+      "properties": {
+        "placeId": { "$ref": "#/$defs/identifier" },
+        "status": { "enum": ["unvisited", "active", "visited"] },
+        "note": { "$ref": "#/$defs/note" }
+      }
+    },
+    "customMarker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "note", "position"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "note": { "$ref": "#/$defs/note" },
+        "position": { "$ref": "#/$defs/point" }
+      }
+    }
+  }
+}

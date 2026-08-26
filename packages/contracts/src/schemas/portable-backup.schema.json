@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morrowind-map.local/schemas/portable-backup.schema.json",
+  "title": "Morrowind Map portable user-data backup",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "exportedAt",
+    "datasets",
+    "progress",
+    "customMarkers",
+    "importReceipts"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "kind": { "const": "morrowind-map-backup" },
+    "exportedAt": { "$ref": "#/$defs/timestamp" },
+    "datasets": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/identifier" },
+      "additionalProperties": { "$ref": "#/$defs/snapshotId" }
+    },
+    "progress": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/progress" }
+    },
+    "customMarkers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/customMarker" }
+    },
+    "importReceipts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/importReceipt" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9]+(?:[.:-][a-z0-9]+)*$"
+    },
+    "snapshotId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9][a-z0-9:._-]+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "mimImportReceiptId": {
+      "type": "string",
+      "minLength": 101,
+      "maxLength": 101,
+      "pattern": "^mim:[a-f0-9]{32}:[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 40,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$"
+    },
+    "point": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [{ "type": "number" }, { "type": "number" }],
+      "items": false
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 10000
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceFingerprint"],
+      "properties": {
+        "kind": { "enum": ["manual", "mim-import"] },
+        "sourceFingerprint": {
+          "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        }
+      }
+    },
+    "progress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "datasetId",
+        "placeId",
+        "status",
+        "note",
+        "updatedAt",
+        "provenance"
+      ],
+      "properties": {
+        "datasetId": { "$ref": "#/$defs/identifier" },
+        "placeId": { "$ref": "#/$defs/identifier" },
+        "status": { "enum": ["unvisited", "active", "visited"] },
+        "note": { "$ref": "#/$defs/note" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "customMarker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "datasetId",
+        "label",
+        "note",
+        "position",
+        "createdAt",
+        "updatedAt",
+        "deletedAt",
+        "provenance"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "datasetId": { "$ref": "#/$defs/identifier" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "note": { "$ref": "#/$defs/note" },
+        "position": { "$ref": "#/$defs/point" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "deletedAt": {
+          "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }]
+        },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "importReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "datasetId",
+        "sourceKind",
+        "sourceFingerprint",
+        "importedAt"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/mimImportReceiptId" },
+        "datasetId": { "$ref": "#/$defs/identifier" },
+        "sourceKind": { "const": "mim" },
+        "sourceFingerprint": { "$ref": "#/$defs/sha256" },
+        "importedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    }
+  }
+}

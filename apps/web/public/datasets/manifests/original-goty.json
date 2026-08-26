@@ -190,6 +190,12 @@
     "tiles": {
       "manifestUrl": "/datasets/generated/original-goty/map-assets.json",
       "sha256": "bf5bc6cd1ef116c9b3629bbd4f3a5507f136038077dff5b8540cf49743d6b59b"
+    },
+    "mimImport": {
+      "url": "/datasets/generated/original-goty/mim-import.json",
+      "mediaType": "application/json",
+      "sha256": "c1a4fb8e96eefe5728f82f66b7870431a9b6fe3bc82ac3f6f92527e4a89d84b4",
+      "bytes": 107155
     }
   },
   "provenance": {

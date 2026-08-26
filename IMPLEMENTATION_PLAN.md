@@ -67,7 +67,8 @@ MIM предоставляет:
 - отдельный Bloodmoon raster `3072×3840`;
 - 864 Morrowind POI;
 - 69 Bloodmoon POI;
-- текущий прогресс: 736 visited и 128 unvisited;
+- текущий прогресс: 933 записи — 741 visited, 192 unvisited, 0 active;
+- одну непустую заметку;
 - 6 personal markers;
 - transport routes;
 - цвета и параметры отображения из `tes.ini`.
@@ -333,7 +334,7 @@ Importer читает:
 
 Mapping выполняется по сочетанию ordinal position, имени, coordinates и target snapshot. Простой словарь `name → status` запрещён из-за повторяющихся названий.
 
-Первичный импорт направляется в Fullrest snapshot, поскольку текущий прогресс связан с этим прохождением. Доказанно совпадающие vanilla places позднее можно скопировать в Original отдельной операцией.
+Первичный lossless-import направляется в Original snapshot: ordinal identity `mwmain.gdb` и текущий каталог MIM принадлежат именно vanilla-карте, поэтому только здесь соответствие можно доказать без догадок. При появлении каталога Fullrest доказанно совпадающие places переносятся туда отдельной migration operation с явной таблицей `sourcePlaceId → targetPlaceId`; прямое присваивание MIM ordinal IDs профилю Fullrest запрещено.
 
 Personal markers импортируются в raw TES3 world coordinates.
 
@@ -367,7 +368,7 @@ Portable backup:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "exportedAt": "...",
   "datasets": {},
   "progress": [],
@@ -606,6 +607,8 @@ Exit: Original функционально работает без user persisten
 
 ### Этап 3 — progress и MIM import
 
+Status: complete (2026-08-26): Dexie schema v3, real MIM snapshot, local editing and portable backup verified end-to-end.
+
 Deliverables:
 
 - Dexie schema/migrations;
@@ -614,7 +617,21 @@ Deliverables:
 - JSON export/import;
 - persistence/reload behavior.
 
-Exit: текущие 736 visited и 6 personal markers воспроизводятся без duplicate-name loss.
+Реализованный результат:
+
+- `progress`, `customMarkers`, `importReceipts` и snapshot bindings хранятся в dataset-scoped Dexie tables; schema v2 мигрирует ранние unbounded receipt IDs, а v3 запрещает неявно показывать данные в другом snapshot;
+- данные из pre-v3 IndexedDB требуют однократного явного подтверждения snapshot; смена manifest под тем же dataset ID требует отдельной migration/archive operation;
+- текущие `user.gdb`/`markers.gdb` строго декодируются как CP1251 и связываются с `mwmain.gdb` по `region + zero-based ordinal` после проверки count/name layout;
+- артефакт содержит 933 статуса (741 visited, 192 unvisited), одну заметку и 6 personal markers;
+- pinned `mwmain.gdb` layout guards ordinal IDs; mapping version `mim-progress-v2` и SHA-256 шести исходных GDB входят в deterministic source fingerprint;
+- receipt делает повтор того же MIM import no-op; manual provenance защищает последующие правки;
+- tombstones не дают удалённым импортированным markers появиться после нового snapshot;
+- общий JSON backup v2 охватывает все зарегистрированные datasets; export отказывается молча терять или перемаркировать данные, если snapshot metadata отсутствует/не совпадает; строгий legacy reader переносит ранние v1 backup;
+- note/marker drafts пишутся синхронно в маленький localStorage recovery journal и debounce-сохраняются в Dexie, поэтому активное поле переживает немедленный reload;
+- restore до единой write transaction проверяет schema, точное совпадение `datasetId → snapshotId` и известные place IDs открытого каталога, затем merge-ит записи по хронологическому `updatedAt`;
+- browser smoke подтвердил MIM import, duplicate protection, JSON export/import, EN/RU UI, status/note/marker persistence после reload и mobile layout.
+
+Exit: текущие 741 visited, одна note и 6 personal markers воспроизводятся без duplicate-name loss.
 
 ### Этап 4 — LAND renderer spike
 

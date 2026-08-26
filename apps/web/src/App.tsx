@@ -3,10 +3,24 @@ import type { DatasetManifest } from '@morrowind-map/contracts';
 import { presentDataset } from './data/datasetPresentation';
 import { loadDatasets } from './data/loadDatasets';
 import { Tes3Map } from './map/Tes3Map';
+import { userDatabase } from './storage/database';
+import {
+  adoptLegacyDatasetSnapshots,
+  ensureDatasetSnapshot,
+} from './storage/userData';
+
+interface LegacyDatasetBinding {
+  readonly dataset: DatasetManifest;
+  readonly storedRecords: number;
+}
 
 type LoadState =
   | { readonly status: 'loading' }
-  | { readonly status: 'ready'; readonly datasets: readonly DatasetManifest[] }
+  | {
+      readonly status: 'ready';
+      readonly datasets: readonly DatasetManifest[];
+      readonly legacyBindings: readonly LegacyDatasetBinding[];
+    }
   | { readonly status: 'error'; readonly message: string };
 
 function errorMessage(error: unknown): string {
@@ -17,6 +31,7 @@ export function App() {
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
   const [selectedDataset, setSelectedDataset] = useState<DatasetManifest | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [adoptingSnapshots, setAdoptingSnapshots] = useState(false);
   const returnFocusIdRef = useRef<string | null>(null);
   const shouldReturnFocusRef = useRef(false);
 
@@ -24,7 +39,30 @@ export function App() {
     const controller = new AbortController();
 
     void loadDatasets(controller.signal)
-      .then((datasets) => setLoadState({ status: 'ready', datasets }))
+      .then(async (datasets) => {
+        const readiness = await Promise.all(
+          datasets.map(async (dataset) => ({
+            dataset,
+            readiness: await ensureDatasetSnapshot(
+              userDatabase,
+              dataset.datasetId,
+              dataset.snapshotId,
+            ),
+          })),
+        );
+        if (controller.signal.aborted) {
+          return;
+        }
+        setLoadState({
+          status: 'ready',
+          datasets,
+          legacyBindings: readiness.flatMap(({ dataset, readiness: result }) =>
+            result.kind === 'needs-legacy-adoption'
+              ? [{ dataset, storedRecords: result.storedRecords }]
+              : [],
+          ),
+        });
+      })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           setLoadState({ status: 'error', message: errorMessage(error) });
@@ -35,9 +73,14 @@ export function App() {
   }, [loadAttempt]);
 
   if (selectedDataset) {
+    const datasets = loadState.status === 'ready' ? loadState.datasets : [selectedDataset];
+    const datasetSnapshots = Object.fromEntries(
+      datasets.map(({ datasetId, snapshotId }) => [datasetId, snapshotId]),
+    );
     return (
       <Tes3Map
         dataset={selectedDataset}
+        datasetSnapshots={datasetSnapshots}
         onBack={() => {
           shouldReturnFocusRef.current = true;
           setSelectedDataset(null);
@@ -63,8 +106,8 @@ export function App() {
         <p className="section-index">КАРТОТЕКА / 01</p>
         <h2 id="archive-heading">Выберите версию мира</h2>
         <p>
-          Каждый профиль — отдельный снимок координат, локаций и прогресса. На этом этапе
-          Original уже открывает локальные растры Morrowind и Bloodmoon, каталог и поиск.
+          Каждый профиль — отдельный снимок координат, локаций и прогресса. Original уже
+          поддерживает локальные растры, EN/RU, поиск, статусы, заметки и личные отметки.
         </p>
       </section>
 
@@ -91,7 +134,50 @@ export function App() {
         </div>
       ) : null}
 
-      {loadState.status === 'ready' ? (
+      {loadState.status === 'ready' && loadState.legacyBindings.length > 0 ? (
+        <section className="error-panel snapshot-adoption-panel" role="status" aria-live="polite">
+          <span>ЛОКАЛЬНЫЕ ДАННЫЕ</span>
+          <h2>Привязать прежние записи к снимкам карт?</h2>
+          <p>
+            Эти записи появились до строгой привязки к snapshot. Подтвердите её один раз,
+            прежде чем открывать карты или создавать резервную копию.
+          </p>
+          <ul>
+            {loadState.legacyBindings.map(({ dataset, storedRecords }) => (
+              <li key={dataset.datasetId}>
+                <strong>{dataset.title.ru ?? dataset.title.en}</strong>
+                <small>{dataset.snapshotId} · {storedRecords} записей</small>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            disabled={adoptingSnapshots}
+            onClick={() => {
+              setAdoptingSnapshots(true);
+              void adoptLegacyDatasetSnapshots(
+                userDatabase,
+                loadState.legacyBindings.map(({ dataset }) => ({
+                  datasetId: dataset.datasetId,
+                  snapshotId: dataset.snapshotId,
+                })),
+              )
+                .then(() => {
+                  setLoadState({ ...loadState, legacyBindings: [] });
+                  setAdoptingSnapshots(false);
+                })
+                .catch((error: unknown) => {
+                  setAdoptingSnapshots(false);
+                  setLoadState({ status: 'error', message: errorMessage(error) });
+                });
+            }}
+          >
+            {adoptingSnapshots ? 'Привязываю…' : 'Привязать и продолжить'}
+          </button>
+        </section>
+      ) : null}
+
+      {loadState.status === 'ready' && loadState.legacyBindings.length === 0 ? (
         <section className="dataset-grid" aria-label="Доступные версии карты">
           {loadState.datasets.map((dataset) => {
             const presentation = presentDataset(dataset);

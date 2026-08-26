@@ -9,7 +9,9 @@
     "./schemas/dataset-manifest.schema.json": "./src/schemas/dataset-manifest.schema.json",
     "./schemas/location-catalog.schema.json": "./src/schemas/location-catalog.schema.json",
     "./schemas/map-assets.schema.json": "./src/schemas/map-assets.schema.json",
-    "./schemas/place-locale-catalog.schema.json": "./src/schemas/place-locale-catalog.schema.json"
+    "./schemas/mim-import.schema.json": "./src/schemas/mim-import.schema.json",
+    "./schemas/place-locale-catalog.schema.json": "./src/schemas/place-locale-catalog.schema.json",
+    "./schemas/portable-backup.schema.json": "./src/schemas/portable-backup.schema.json"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json",

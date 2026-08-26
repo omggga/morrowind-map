@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { DatasetManifest, Locale } from '@morrowind-map/contracts';
+import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react';
+import type {
+  CustomMarkerRecord,
+  DatasetManifest,
+  Locale,
+  ProgressRecord,
+  ProgressStatus,
+} from '@morrowind-map/contracts';
 import Feature from 'ol/Feature.js';
 import Map from 'ol/Map.js';
 import View from 'ol/View.js';
@@ -17,6 +23,19 @@ import { useTranslation } from 'react-i18next';
 import { loadOriginalDataset, type OriginalDatasetBundle } from '../data/loadOriginalDataset';
 import { buildPlaceViews, PlaceSearch, type PlaceView } from '../data/placeSearch';
 import { i18n } from '../i18n';
+import { userDatabase } from '../storage/database';
+import {
+  adoptLegacyDatasetSnapshot,
+  ensureDatasetSnapshot,
+  saveCustomMarker,
+} from '../storage/userData';
+import {
+  CustomMarkerEditor,
+  DataTools,
+  PlaceProgressEditor,
+  useDatasetCustomMarkers,
+  useDatasetProgress,
+} from '../user-data';
 import {
   configureTes3Projection,
   worldToCell,
@@ -24,9 +43,13 @@ import {
   type WorldCoordinate,
 } from './tes3Projection';
 
-interface OriginalMapProps {
+interface MapTitlebarProps {
   readonly dataset: DatasetManifest;
   readonly onBack: () => void;
+}
+
+interface OriginalMapProps extends MapTitlebarProps {
+  readonly datasetSnapshots: Readonly<Record<string, string>>;
 }
 
 type RegionFilter = 'all' | 'vvardenfell' | 'solstheim';
@@ -34,6 +57,11 @@ type RegionFilter = 'all' | 'vvardenfell' | 'solstheim';
 type LoadState =
   | { readonly status: 'loading' }
   | { readonly status: 'ready'; readonly bundle: OriginalDatasetBundle }
+  | {
+      readonly status: 'needs-legacy-adoption';
+      readonly bundle: OriginalDatasetBundle;
+      readonly storedRecords: number;
+    }
   | { readonly status: 'error'; readonly message: string };
 
 interface CursorReadout {
@@ -41,20 +69,45 @@ interface CursorReadout {
   readonly cell: CellCoordinate;
 }
 
-const UNVISITED_STYLE = createMarkerStyle('#fff19b', 5);
-const SELECTED_STYLE = createMarkerStyle('#ff80ff', 7);
+const PROGRESS_COLORS: Readonly<Record<ProgressStatus, string>> = {
+  unvisited: '#fff19b',
+  active: '#ff80ff',
+  visited: '#ffa040',
+};
+const PLACE_STYLES: Readonly<Record<ProgressStatus, Style>> = {
+  unvisited: createMarkerStyle(PROGRESS_COLORS.unvisited, 5),
+  active: createMarkerStyle(PROGRESS_COLORS.active, 5),
+  visited: createMarkerStyle(PROGRESS_COLORS.visited, 5),
+};
+const SELECTED_PLACE_STYLES: Readonly<Record<ProgressStatus, Style>> = {
+  unvisited: createMarkerStyle(PROGRESS_COLORS.unvisited, 7, true),
+  active: createMarkerStyle(PROGRESS_COLORS.active, 7, true),
+  visited: createMarkerStyle(PROGRESS_COLORS.visited, 7, true),
+};
+const CUSTOM_MARKER_STYLE = createMarkerStyle('#40ff40', 6);
+const SELECTED_CUSTOM_MARKER_STYLE = createMarkerStyle('#40ff40', 8, true);
 
-function createMarkerStyle(color: string, radius: number): Style {
+function createMarkerStyle(color: string, radius: number, selected = false): Style {
   return new Style({
     image: new RegularShape({
       points: 4,
       radius,
       angle: Math.PI / 4,
       fill: new Fill({ color }),
-      stroke: new Stroke({ color: '#241a0e', width: 1 }),
+      stroke: new Stroke({ color: selected ? '#fff2b2' : '#241a0e', width: selected ? 2 : 1 }),
     }),
-    zIndex: radius,
+    zIndex: selected ? 100 + radius : radius,
   });
+}
+
+function markerRegion(
+  position: readonly [number, number],
+  bundle: OriginalDatasetBundle,
+): string | null {
+  const [x, y] = position;
+  return bundle.mapAssets.rasters.find(({ extent: [minX, minY, maxX, maxY] }) =>
+    x >= minX && x <= maxX && y >= minY && y <= maxY
+  )?.regionId ?? null;
 }
 
 function prefersReducedMotion(): boolean {
@@ -73,7 +126,7 @@ function formatCoordinate(value: number, locale: Locale): string {
   return Math.round(value).toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US');
 }
 
-export function OriginalMap({ dataset, onBack }: OriginalMapProps) {
+export function OriginalMap({ dataset, datasetSnapshots, onBack }: OriginalMapProps) {
   const { t } = useTranslation();
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -81,7 +134,25 @@ export function OriginalMap({ dataset, onBack }: OriginalMapProps) {
   useEffect(() => {
     const controller = new AbortController();
     void loadOriginalDataset(dataset, controller.signal)
-      .then((bundle) => setLoadState({ status: 'ready', bundle }))
+      .then(async (bundle) => {
+        const readiness = await ensureDatasetSnapshot(
+          userDatabase,
+          dataset.datasetId,
+          dataset.snapshotId,
+        );
+        if (controller.signal.aborted) {
+          return;
+        }
+        setLoadState(
+          readiness.kind === 'ready'
+            ? { status: 'ready', bundle }
+            : {
+                status: 'needs-legacy-adoption',
+                bundle,
+                storedRecords: readiness.storedRecords,
+              },
+        );
+      })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           setLoadState({ status: 'error', message: errorMessage(error) });
@@ -99,6 +170,31 @@ export function OriginalMap({ dataset, onBack }: OriginalMapProps) {
             <>
               <span className="load-indicator" aria-hidden="true" />
               <p>{t('map.loading')}</p>
+            </>
+          ) : loadState.status === 'needs-legacy-adoption' ? (
+            <>
+              <span className="load-state-code">LOCAL DATA</span>
+              <h2>{t('map.legacyDataTitle')}</h2>
+              <p>{t('map.legacyDataBody', { count: loadState.storedRecords })}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  const bundle = loadState.bundle;
+                  setLoadState({ status: 'loading' });
+                  void adoptLegacyDatasetSnapshot(
+                    userDatabase,
+                    dataset.datasetId,
+                    dataset.snapshotId,
+                  )
+                    .then(() => setLoadState({ status: 'ready', bundle }))
+                    .catch((error: unknown) =>
+                      setLoadState({ status: 'error', message: errorMessage(error) }),
+                    );
+                }}
+              >
+                {t('map.adoptLegacyData')}
+              </button>
+              <button type="button" onClick={onBack}>{t('map.versions')}</button>
             </>
           ) : (
             <>
@@ -121,10 +217,17 @@ export function OriginalMap({ dataset, onBack }: OriginalMapProps) {
     );
   }
 
-  return <OriginalMapReady dataset={dataset} bundle={loadState.bundle} onBack={onBack} />;
+  return (
+    <OriginalMapReady
+      dataset={dataset}
+      datasetSnapshots={datasetSnapshots}
+      bundle={loadState.bundle}
+      onBack={onBack}
+    />
+  );
 }
 
-function MapTitlebar({ dataset, onBack }: OriginalMapProps) {
+function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
   const { t } = useTranslation();
   const title = i18n.resolvedLanguage?.startsWith('ru')
     ? (dataset.title.ru ?? dataset.title.en)
@@ -148,21 +251,36 @@ interface OriginalMapReadyProps extends OriginalMapProps {
   readonly bundle: OriginalDatasetBundle;
 }
 
-function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
+function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: OriginalMapReadyProps) {
   const { t } = useTranslation();
   const targetRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markerLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const customMarkerLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const selectedIdRef = useRef<string | null>(null);
+  const selectedMarkerIdRef = useRef<string | null>(null);
+  const customMarkerButtonRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
+  const customMarkerEditorInputRef = useRef<HTMLInputElement>(null);
+  const customMarkerHeadingRef = useRef<HTMLHeadingElement>(null);
+  const progressByPlaceIdRef = useRef<ReadonlyMap<string, ProgressRecord>>(
+    new globalThis.Map<string, ProgressRecord>(),
+  );
+  const placingMarkerRef = useRef(false);
+  const localeRef = useRef<Locale>(localeFromManifest(dataset));
   const regionRef = useRef<RegionFilter>('all');
   const zoomRef = useRef(0);
   const [locale, setLocale] = useState<Locale>(() => localeFromManifest(dataset));
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState<RegionFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
+  const [placingMarker, setPlacingMarker] = useState(false);
+  const [markerError, setMarkerError] = useState<string | null>(null);
   const [cursor, setCursor] = useState<CursorReadout | null>(null);
   const [zoom, setZoom] = useState(0);
+  const progress = useDatasetProgress(dataset.datasetId);
+  const customMarkers = useDatasetCustomMarkers(dataset.datasetId);
   const projectionDescriptor = dataset.map.projection;
   const extent = useMemo<[number, number, number, number]>(() => {
     const [minX, minY, maxX, maxY] = projectionDescriptor.extent;
@@ -190,18 +308,41 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
     () => places.find(({ id }) => id === selectedId) ?? null,
     [places, selectedId],
   );
+  const selectedMarker = selectedMarkerId === null
+    ? null
+    : (customMarkers.byId.get(selectedMarkerId) ?? null);
+  const knownPlaceIds = useMemo(
+    () => new Set(bundle.locations.places.map(({ id }) => id)),
+    [bundle.locations.places],
+  );
+  const regionCustomMarkers = useMemo(
+    () =>
+      customMarkers.records.filter(
+        (marker) =>
+          region === 'all' || markerRegion(marker.position, bundle) === region,
+      ),
+    [bundle, customMarkers.records, region],
+  );
   const visibleMarkerCount = useMemo(
-    () => regionPlaces.filter(({ place }) => place.minZoom <= zoom).length,
-    [regionPlaces, zoom],
+    () =>
+      regionPlaces.filter(({ place }) => place.minZoom <= zoom).length +
+      regionCustomMarkers.length,
+    [regionCustomMarkers.length, regionPlaces, zoom],
   );
 
   useEffect(() => {
     void i18n.changeLanguage(locale);
+    localeRef.current = locale;
   }, [locale]);
 
   useEffect(() => {
     const focusSearch = (event: KeyboardEvent) => {
       const target = event.target;
+      if (event.key === 'Escape' && placingMarkerRef.current) {
+        placingMarkerRef.current = false;
+        setPlacingMarker(false);
+        return;
+      }
       if (
         event.key !== '/' ||
         event.metaKey ||
@@ -224,9 +365,58 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
   }, [selectedId]);
 
   useEffect(() => {
+    selectedMarkerIdRef.current = selectedMarkerId;
+    customMarkerLayerRef.current?.changed();
+    if (selectedMarkerId === null) {
+      return undefined;
+    }
+    const animationFrame = window.requestAnimationFrame(() => {
+      customMarkerEditorInputRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [selectedMarkerId]);
+
+  useEffect(() => {
+    progressByPlaceIdRef.current = progress.byPlaceId;
+    markerLayerRef.current?.changed();
+  }, [progress.byPlaceId]);
+
+  useEffect(() => {
+    placingMarkerRef.current = placingMarker;
+    targetRef.current?.classList.toggle('map-canvas--placing-marker', placingMarker);
+  }, [placingMarker]);
+
+  useEffect(() => {
     regionRef.current = region;
     markerLayerRef.current?.changed();
+    customMarkerLayerRef.current?.changed();
   }, [region]);
+
+  const createMarkerAt = useCallback(
+    (position: readonly [number, number]) => {
+      placingMarkerRef.current = false;
+      setPlacingMarker(false);
+      setMarkerError(null);
+      void saveCustomMarker(userDatabase, {
+        datasetId: dataset.datasetId,
+        label: localeRef.current === 'ru' ? 'Личная отметка' : 'Personal marker',
+        note: '',
+        position,
+      })
+        .then((marker) => {
+          setSelectedId(null);
+          setSelectedMarkerId(marker.id);
+        })
+        .catch((error: unknown) => setMarkerError(errorMessage(error)));
+    },
+    [
+      dataset.datasetId,
+      setMarkerError,
+      setPlacingMarker,
+      setSelectedId,
+      setSelectedMarkerId,
+    ],
+  );
 
   useEffect(() => {
     if (!targetRef.current) {
@@ -266,13 +456,33 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
         ) {
           return undefined;
         }
-        return placeId === selectedIdRef.current ? SELECTED_STYLE : UNVISITED_STYLE;
+        const status = progressByPlaceIdRef.current.get(placeId)?.status ?? 'unvisited';
+        return placeId === selectedIdRef.current
+          ? SELECTED_PLACE_STYLES[status]
+          : PLACE_STYLES[status];
       },
       updateWhileAnimating: true,
       updateWhileInteracting: true,
     });
     markerLayer.setZIndex(10);
     markerLayerRef.current = markerLayer;
+    const customMarkerLayer = new VectorLayer({
+      source: new VectorSource(),
+      style: (feature) => {
+        const featureRegion = feature.get('regionId') as string | null;
+        if (regionRef.current !== 'all' && featureRegion !== regionRef.current) {
+          return undefined;
+        }
+        const markerId = feature.get('markerId') as string;
+        return markerId === selectedMarkerIdRef.current
+          ? SELECTED_CUSTOM_MARKER_STYLE
+          : CUSTOM_MARKER_STYLE;
+      },
+      updateWhileAnimating: true,
+      updateWhileInteracting: true,
+    });
+    customMarkerLayer.setZIndex(20);
+    customMarkerLayerRef.current = customMarkerLayer;
     const view = new View({
       projection,
       center,
@@ -285,7 +495,7 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
     });
     const map = new Map({
       target: targetRef.current,
-      layers: [...rasterLayers, markerLayer],
+      layers: [...rasterLayers, markerLayer, customMarkerLayer],
       view,
       controls: [],
     });
@@ -304,17 +514,29 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
       setCursor({ world, cell: worldToCell(world, projectionDescriptor.cellSize) });
       const hit = map.hasFeatureAtPixel(event.pixel, {
         hitTolerance: 5,
-        layerFilter: (layer) => layer === markerLayer,
+        layerFilter: (layer) => layer === markerLayer || layer === customMarkerLayer,
       });
       map.getTargetElement().classList.toggle('map-canvas--marker-hover', hit);
     });
     const clickKey = map.on('singleclick', (event) => {
+      if (placingMarkerRef.current) {
+        const [x = 0, y = 0] = event.coordinate;
+        createMarkerAt([x, y]);
+        return;
+      }
       const feature = map.forEachFeatureAtPixel(event.pixel, (candidate) => candidate, {
         hitTolerance: 6,
-        layerFilter: (layer) => layer === markerLayer,
+        layerFilter: (layer) => layer === markerLayer || layer === customMarkerLayer,
       });
       if (feature) {
-        setSelectedId(feature.get('placeId') as string);
+        const markerId = feature.get('markerId') as string | undefined;
+        if (markerId) {
+          setSelectedId(null);
+          setSelectedMarkerId(markerId);
+        } else {
+          setSelectedMarkerId(null);
+          setSelectedId(feature.get('placeId') as string);
+        }
       }
     });
     const resolutionKey = view.on('change:resolution', () => {
@@ -337,8 +559,28 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
       map.setTarget(undefined);
       mapRef.current = null;
       markerLayerRef.current = null;
+      customMarkerLayerRef.current = null;
     };
-  }, [bundle, center, extent, projectionDescriptor.cellSize]);
+  }, [bundle, center, createMarkerAt, extent, projectionDescriptor.cellSize]);
+
+  useEffect(() => {
+    const source = customMarkerLayerRef.current?.getSource();
+    if (!source) {
+      return;
+    }
+    source.clear();
+    source.addFeatures(
+      customMarkers.records.map(
+        (marker) =>
+          new Feature({
+            geometry: new Point([...marker.position]),
+            markerId: marker.id,
+            regionId: markerRegion(marker.position, bundle),
+          }),
+      ),
+    );
+    customMarkerLayerRef.current?.changed();
+  }, [bundle, customMarkers.records]);
 
   const changeZoom = (delta: number) => {
     const view = mapRef.current?.getView();
@@ -375,6 +617,8 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
   };
 
   const selectPlace = (place: PlaceView) => {
+    setPlacingMarker(false);
+    setSelectedMarkerId(null);
     setSelectedId(place.id);
     const view = mapRef.current?.getView();
     if (!view) {
@@ -387,6 +631,51 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
     } else {
       view.animate({ center: [...place.place.mapPosition], zoom: nextZoom, duration: 220 });
     }
+  };
+
+  const selectCustomMarker = (marker: CustomMarkerRecord) => {
+    setPlacingMarker(false);
+    setSelectedId(null);
+    setSelectedMarkerId(marker.id);
+    window.requestAnimationFrame(() => {
+      customMarkerEditorInputRef.current?.focus({ preventScroll: true });
+    });
+    const view = mapRef.current?.getView();
+    if (!view) {
+      return;
+    }
+    const nextZoom = Math.max(view.getZoom() ?? 0, 5);
+    if (prefersReducedMotion()) {
+      view.setCenter([...marker.position]);
+      view.setZoom(nextZoom);
+    } else {
+      view.animate({ center: [...marker.position], zoom: nextZoom, duration: 220 });
+    }
+  };
+
+  const toggleMarkerPlacement = () => {
+    setMarkerError(null);
+    setSelectedId(null);
+    setSelectedMarkerId(null);
+    setPlacingMarker((current) => !current);
+  };
+
+  const closeSelectedCustomMarker = () => {
+    const markerId = selectedMarkerId;
+    setSelectedMarkerId(null);
+    window.requestAnimationFrame(() => {
+      if (markerId) {
+        const returnTarget = customMarkerButtonRefs.current.get(markerId);
+        (returnTarget ?? customMarkerHeadingRef.current)?.focus({ preventScroll: true });
+      }
+    });
+  };
+
+  const finishCustomMarkerDeletion = () => {
+    setSelectedMarkerId(null);
+    window.requestAnimationFrame(() => {
+      customMarkerHeadingRef.current?.focus({ preventScroll: true });
+    });
   };
 
   return (
@@ -445,30 +734,94 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
             ))}
           </fieldset>
 
+          <details className="ledger-data-tools">
+            <summary>{t('map.dataTools')}</summary>
+            <DataTools
+              dataset={dataset}
+              datasetSnapshots={datasetSnapshots}
+              knownPlaceIds={knownPlaceIds}
+              locale={locale}
+            />
+          </details>
+
           <div className="result-summary" aria-live="polite">
             <span>{t('map.found', { count: regionPlaces.length })}</span>
             {query ? <strong>{results.length}</strong> : null}
           </div>
 
           <div className="place-results">
-            {results.length ? (
-              results.map((place) => (
-                <button
-                  key={place.id}
-                  type="button"
-                  className={selectedId === place.id ? 'place-result place-result--selected' : 'place-result'}
-                  onClick={() => selectPlace(place)}
+            <section className="custom-marker-results" aria-labelledby="custom-marker-results-title">
+              <header>
+                <h2
+                  id="custom-marker-results-title"
+                  ref={customMarkerHeadingRef}
+                  tabIndex={-1}
                 >
-                  <span className="result-marker" aria-hidden="true" />
-                  <span>
-                    <strong>{place.name}</strong>
-                    <small>
-                      {t(`placeType.${place.place.type}`)} ·{' '}
-                      {t(place.place.regionId === 'solstheim' ? 'map.solstheim' : 'map.vvardenfell')}
-                    </small>
-                  </span>
-                </button>
-              ))
+                  {t('map.personalMarkers')}
+                </h2>
+                <strong>{regionCustomMarkers.length}</strong>
+              </header>
+              {regionCustomMarkers.length ? (
+                <ul>
+                  {regionCustomMarkers.map((marker) => (
+                    <li key={marker.id}>
+                      <button
+                        ref={(node) => {
+                          if (node) {
+                            customMarkerButtonRefs.current.set(marker.id, node);
+                          } else {
+                            customMarkerButtonRefs.current.delete(marker.id);
+                          }
+                        }}
+                        type="button"
+                        className={
+                          selectedMarkerId === marker.id
+                            ? 'place-result custom-marker-result place-result--selected'
+                            : 'place-result custom-marker-result'
+                        }
+                        aria-pressed={selectedMarkerId === marker.id}
+                        onClick={() => selectCustomMarker(marker)}
+                      >
+                        <span className="result-marker result-marker--custom" aria-hidden="true" />
+                        <span>
+                          <strong>{marker.label}</strong>
+                          <small>
+                            X {formatCoordinate(marker.position[0], locale)} · Y{' '}
+                            {formatCoordinate(marker.position[1], locale)}
+                          </small>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>{t('map.noPersonalMarkers')}</p>
+              )}
+            </section>
+            {results.length ? (
+              results.map((place) => {
+                const status = progress.byPlaceId.get(place.id)?.status ?? 'unvisited';
+                return (
+                  <button
+                    key={place.id}
+                    type="button"
+                    className={selectedId === place.id ? 'place-result place-result--selected' : 'place-result'}
+                    onClick={() => selectPlace(place)}
+                  >
+                    <span
+                      className={`result-marker result-marker--${status}`}
+                      aria-hidden="true"
+                    />
+                    <span>
+                      <strong>{place.name}</strong>
+                      <small>
+                        {t(`placeType.${place.place.type}`)} ·{' '}
+                        {t(place.place.regionId === 'solstheim' ? 'map.solstheim' : 'map.vvardenfell')}
+                      </small>
+                    </span>
+                  </button>
+                );
+              })
             ) : (
               <p className="no-results">{t('map.noResults')}</p>
             )}
@@ -476,7 +829,21 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
         </aside>
 
         <div className="original-map-stage">
-          <div ref={targetRef} className="map-canvas" tabIndex={0} aria-label={t('map.mapAria')} />
+          <div
+            ref={targetRef}
+            className="map-canvas"
+            tabIndex={0}
+            aria-label={t('map.mapAria')}
+            aria-describedby={placingMarker ? 'marker-placement-hint' : undefined}
+            onKeyDown={(event) => {
+              if (!placingMarker || (event.key !== 'Enter' && event.key !== ' ')) {
+                return;
+              }
+              const [x = 0, y = 0] = mapRef.current?.getView().getCenter() ?? center;
+              event.preventDefault();
+              createMarkerAt([x, y]);
+            }}
+          />
 
           <div className="map-tools" aria-label={t('map.zoom')}>
             <button type="button" onClick={() => changeZoom(1)} aria-label={t('map.zoomIn')}>
@@ -488,18 +855,51 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
             <button type="button" onClick={() => changeZoom(-1)} aria-label={t('map.zoomOut')}>
               −
             </button>
+            <button
+              type="button"
+              className="add-marker-tool"
+              aria-label={placingMarker ? t('map.cancelMarker') : t('map.addMarker')}
+              aria-pressed={placingMarker}
+              onClick={toggleMarkerPlacement}
+            >
+              M+
+            </button>
           </div>
 
           <div className="marker-legend" aria-label="Marker legend">
             <span><i className="legend-square" />{t('map.unvisited')}</span>
-            <span><i className="legend-square legend-square--selected" />{t('map.selected')}</span>
+            <span><i className="legend-square legend-square--active" />{t('map.active')}</span>
+            <span><i className="legend-square legend-square--visited" />{t('map.visited')}</span>
+            <span><i className="legend-square legend-square--custom" />{t('map.personalMarker')}</span>
           </div>
+
+          {placingMarker ? (
+            <p id="marker-placement-hint" className="marker-placement-hint" role="status">
+              {t('map.placeMarkerHint')}
+            </p>
+          ) : null}
+          {markerError ? (
+            <p className="marker-placement-error" role="alert">
+              {markerError}
+            </p>
+          ) : null}
 
           {selectedPlace ? (
             <PlaceCard
+              datasetId={dataset.datasetId}
               place={selectedPlace}
               locale={locale}
+              progress={progress.byPlaceId.get(selectedPlace.id)}
               onClose={() => setSelectedId(null)}
+            />
+          ) : null}
+          {selectedMarker ? (
+            <CustomMarkerCard
+              marker={selectedMarker}
+              locale={locale}
+              inputRef={customMarkerEditorInputRef}
+              onClose={closeSelectedCustomMarker}
+              onDeleted={finishCustomMarkerDeletion}
             />
           ) : null}
         </div>
@@ -525,12 +925,14 @@ function OriginalMapReady({ dataset, bundle, onBack }: OriginalMapReadyProps) {
 }
 
 interface PlaceCardProps {
+  readonly datasetId: string;
   readonly place: PlaceView;
   readonly locale: Locale;
+  readonly progress: ProgressRecord | undefined;
   readonly onClose: () => void;
 }
 
-function PlaceCard({ place, locale, onClose }: PlaceCardProps) {
+function PlaceCard({ datasetId, place, locale, progress, onClose }: PlaceCardProps) {
   const { t } = useTranslation();
   const plugins = [...new Set(place.place.sources.map(({ plugin }) => plugin))].join(', ');
   const regionName = t(place.place.regionId === 'solstheim' ? 'map.solstheim' : 'map.vvardenfell');
@@ -576,6 +978,50 @@ function PlaceCard({ place, locale, onClose }: PlaceCardProps) {
           <dd>{plugins}</dd>
         </div>
       </dl>
+      <PlaceProgressEditor
+        key={`${datasetId}\0${place.id}`}
+        datasetId={datasetId}
+        placeId={place.id}
+        locale={locale}
+        {...(progress ? { progress } : {})}
+      />
+    </article>
+  );
+}
+
+interface CustomMarkerCardProps {
+  readonly marker: CustomMarkerRecord;
+  readonly locale: Locale;
+  readonly inputRef: Ref<HTMLInputElement>;
+  readonly onClose: () => void;
+  readonly onDeleted: () => void;
+}
+
+function CustomMarkerCard({ marker, locale, inputRef, onClose, onDeleted }: CustomMarkerCardProps) {
+  const { t } = useTranslation();
+  return (
+    <article className="place-card custom-marker-card" aria-labelledby="selected-marker-title">
+      <button
+        className="place-card-close"
+        type="button"
+        onClick={onClose}
+        aria-label={t('map.closeMarker')}
+      >
+        ×
+      </button>
+      <span className="place-card-index">{t('map.personalMarker')}</span>
+      <h2 id="selected-marker-title">{marker.label}</h2>
+      <p className="custom-marker-coordinate">
+        X {formatCoordinate(marker.position[0], locale)} · Y{' '}
+        {formatCoordinate(marker.position[1], locale)}
+      </p>
+      <CustomMarkerEditor
+        key={marker.id}
+        marker={marker}
+        locale={locale}
+        inputRef={inputRef}
+        onDeleted={onDeleted}
+      />
     </article>
   );
 }

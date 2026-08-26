@@ -531,7 +531,7 @@
     "artifacts": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["locations", "locales", "tiles"],
+      "required": ["locations", "locales", "tiles", "mimImport"],
       "properties": {
         "locations": {
           "anyOf": [
@@ -555,6 +555,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/tileSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mimImport": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/artifact"
             },
             {
               "type": "null"

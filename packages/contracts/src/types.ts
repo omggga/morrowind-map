@@ -1,5 +1,6 @@
 export const DATASET_SCHEMA_VERSION = 1 as const;
 export const ARTIFACT_SCHEMA_VERSION = 1 as const;
+export const PORTABLE_BACKUP_SCHEMA_VERSION = 2 as const;
 export const TES3_PROJECTION_CODE = "TES3:WORLD" as const;
 export const TES3_CELL_SIZE = 8192 as const;
 
@@ -33,6 +34,8 @@ export type PlaceType =
   | "landmark"
   | "other";
 export type PlaceSourceKind = "mim" | "esm";
+export type ProgressStatus = "unvisited" | "active" | "visited";
+export type UserDataProvenanceKind = "manual" | "mim-import";
 
 export type Point = readonly [x: number, y: number];
 export type Extent = readonly [minX: number, minY: number, maxX: number, maxY: number];
@@ -164,6 +167,7 @@ export interface DatasetArtifacts {
   locations: ArtifactReference | null;
   locales: LocaleArtifactReference[];
   tiles: TileSetReference | null;
+  mimImport: ArtifactReference | null;
 }
 
 export interface ProvenanceDescriptor {
@@ -254,4 +258,77 @@ export interface MapAssetsManifest {
   snapshotId: string;
   projection: Tes3ProjectionCode;
   rasters: StaticRasterLayer[];
+}
+
+export interface UserDataProvenance {
+  kind: UserDataProvenanceKind;
+  sourceFingerprint: string | null;
+}
+
+export interface ProgressRecord {
+  datasetId: string;
+  placeId: string;
+  status: ProgressStatus;
+  note: string;
+  updatedAt: string;
+  provenance: UserDataProvenance;
+}
+
+export interface CustomMarkerRecord {
+  id: string;
+  datasetId: string;
+  label: string;
+  note: string;
+  position: Point;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  provenance: UserDataProvenance;
+}
+
+export interface ImportReceipt {
+  id: string;
+  datasetId: string;
+  sourceKind: "mim";
+  sourceFingerprint: string;
+  importedAt: string;
+}
+
+export interface MimSourceFile {
+  path: string;
+  sha256: string;
+}
+
+export interface MimProgressEntry {
+  placeId: string;
+  status: ProgressStatus;
+  note: string;
+}
+
+export interface MimCustomMarkerEntry {
+  id: string;
+  label: string;
+  note: string;
+  position: Point;
+}
+
+export interface MimImportBundle {
+  schemaVersion: typeof ARTIFACT_SCHEMA_VERSION;
+  kind: "mim-progress";
+  targetDatasetId: string;
+  targetSnapshotId: string;
+  sourceFingerprint: string;
+  sourceFiles: MimSourceFile[];
+  progress: MimProgressEntry[];
+  customMarkers: MimCustomMarkerEntry[];
+}
+
+export interface PortableBackup {
+  schemaVersion: typeof PORTABLE_BACKUP_SCHEMA_VERSION;
+  kind: "morrowind-map-backup";
+  exportedAt: string;
+  datasets: Record<string, string>;
+  progress: ProgressRecord[];
+  customMarkers: CustomMarkerRecord[];
+  importReceipts: ImportReceipt[];
 }
