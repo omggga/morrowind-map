@@ -1,4 +1,5 @@
 export {
+  ARTIFACT_SCHEMA_VERSION,
   DATASET_SCHEMA_VERSION,
   TES3_CELL_SIZE,
   TES3_PROJECTION_CODE,
@@ -17,16 +18,25 @@ export type {
   DatasetSchemaVersion,
   Extent,
   Locale,
+  LocationCatalog,
   LocaleArtifactReference,
   LocaleDescriptor,
   LocaleStatus,
   LocalizationDescriptor,
   LocalizedText,
   MapDescriptor,
+  MapAssetsManifest,
   MapKey,
   ModuleDescriptor,
   ModuleStatus,
   Point,
+  PlaceEntrance,
+  PlaceLocaleCatalog,
+  PlaceLocaleRecord,
+  PlaceRecord,
+  PlaceSource,
+  PlaceSourceKind,
+  PlaceType,
   ProfileItemStatus,
   ProfileStatus,
   ProjectionDescriptor,
@@ -38,6 +48,7 @@ export type {
   RegisteredArchiveDescriptor,
   ReleaseDescriptor,
   SourceProfileDescriptor,
+  StaticRasterLayer,
   Tes3CellSize,
   Tes3ProjectionCode,
   TileGridDescriptor,
@@ -47,12 +58,24 @@ export {
   ContractValidationError,
   getDatasetIndexValidationIssues,
   getDatasetManifestValidationIssues,
+  getLocationCatalogValidationIssues,
+  getMapAssetsManifestValidationIssues,
+  getPlaceLocaleCatalogValidationIssues,
   isDatasetIndex,
   isDatasetManifest,
+  isLocationCatalog,
+  isMapAssetsManifest,
+  isPlaceLocaleCatalog,
   parseDatasetIndex,
   parseDatasetManifest,
+  parseLocationCatalog,
+  parseMapAssetsManifest,
+  parsePlaceLocaleCatalog,
 } from "./validation";
 export type { ContractKind, ContractValidationIssue } from "./validation";
 
 export { default as datasetIndexSchema } from "./schemas/dataset-index.schema.json";
 export { default as datasetManifestSchema } from "./schemas/dataset-manifest.schema.json";
+export { default as locationCatalogSchema } from "./schemas/location-catalog.schema.json";
+export { default as mapAssetsSchema } from "./schemas/map-assets.schema.json";
+export { default as placeLocaleCatalogSchema } from "./schemas/place-locale-catalog.schema.json";

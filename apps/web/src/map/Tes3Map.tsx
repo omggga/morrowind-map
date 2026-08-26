@@ -20,6 +20,7 @@ import {
   type CellCoordinate,
   type WorldCoordinate,
 } from './tes3Projection';
+import { OriginalMap } from './OriginalMap';
 
 interface Tes3MapProps {
   readonly dataset: DatasetManifest;
@@ -52,6 +53,14 @@ function prefersReducedMotion(): boolean {
 }
 
 export function Tes3Map({ dataset, onBack }: Tes3MapProps) {
+  if (dataset.mapKey === 'original') {
+    return <OriginalMap dataset={dataset} onBack={onBack} />;
+  }
+
+  return <Tes3PlaceholderMap dataset={dataset} onBack={onBack} />;
+}
+
+function Tes3PlaceholderMap({ dataset, onBack }: Tes3MapProps) {
   const targetRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const [cursor, setCursor] = useState<CursorReadout | null>(null);

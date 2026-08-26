@@ -3,14 +3,25 @@ import type { ErrorObject, ValidateFunction } from "ajv";
 
 import datasetIndexSchema from "./schemas/dataset-index.schema.json";
 import datasetManifestSchema from "./schemas/dataset-manifest.schema.json";
+import locationCatalogSchema from "./schemas/location-catalog.schema.json";
+import mapAssetsSchema from "./schemas/map-assets.schema.json";
+import placeLocaleCatalogSchema from "./schemas/place-locale-catalog.schema.json";
 import type {
   DatasetIndex,
   DatasetManifest,
+  LocationCatalog,
   LocaleDescriptor,
+  MapAssetsManifest,
+  PlaceLocaleCatalog,
   SourceProfileDescriptor,
 } from "./types";
 
-export type ContractKind = "dataset index" | "dataset manifest";
+export type ContractKind =
+  | "dataset index"
+  | "dataset manifest"
+  | "location catalog"
+  | "place locale catalog"
+  | "map assets manifest";
 
 export interface ContractValidationIssue {
   instancePath: string;
@@ -44,6 +55,10 @@ const ajv = new Ajv2020({
 
 const validateIndexSchema = ajv.compile<DatasetIndex>(datasetIndexSchema);
 const validateManifestSchema = ajv.compile<DatasetManifest>(datasetManifestSchema);
+const validateLocationCatalogSchema = ajv.compile<LocationCatalog>(locationCatalogSchema);
+const validatePlaceLocaleCatalogSchema =
+  ajv.compile<PlaceLocaleCatalog>(placeLocaleCatalogSchema);
+const validateMapAssetsSchema = ajv.compile<MapAssetsManifest>(mapAssetsSchema);
 
 function schemaIssues(validate: ValidateFunction): ContractValidationIssue[] {
   return (validate.errors ?? []).map((error: ErrorObject) => ({
@@ -394,12 +409,83 @@ export function getDatasetManifestValidationIssues(value: unknown): ContractVali
   return getManifestSemanticIssues(value);
 }
 
+export function getLocationCatalogValidationIssues(value: unknown): ContractValidationIssue[] {
+  if (!validateLocationCatalogSchema(value)) {
+    return schemaIssues(validateLocationCatalogSchema);
+  }
+
+  const catalog = value;
+  const issues = duplicateIssues(
+    catalog.places.map((place) => place.id),
+    "/places",
+    "place ids",
+  );
+  catalog.places.forEach((place, placeIndex) => {
+    issues.push(
+      ...duplicateIssues(
+        place.entrances.map((entrance) => entrance.id),
+        `/places/${placeIndex}/entrances`,
+        "entrance ids",
+      ),
+    );
+  });
+  return issues;
+}
+
+export function getPlaceLocaleCatalogValidationIssues(
+  value: unknown,
+): ContractValidationIssue[] {
+  if (!validatePlaceLocaleCatalogSchema(value)) {
+    return schemaIssues(validatePlaceLocaleCatalogSchema);
+  }
+  return duplicateIssues(
+    value.places.map((place) => place.placeId),
+    "/places",
+    "localized place ids",
+  );
+}
+
+export function getMapAssetsManifestValidationIssues(
+  value: unknown,
+): ContractValidationIssue[] {
+  if (!validateMapAssetsSchema(value)) {
+    return schemaIssues(validateMapAssetsSchema);
+  }
+
+  const issues = duplicateIssues(
+    value.rasters.map((raster) => raster.id),
+    "/rasters",
+    "raster ids",
+  );
+  value.rasters.forEach((raster, index) => {
+    const [minX, minY, maxX, maxY] = raster.extent;
+    if (!(minX < maxX && minY < maxY)) {
+      issues.push(
+        semanticIssue(`/rasters/${index}/extent`, "must have ordered non-empty bounds"),
+      );
+    }
+  });
+  return issues;
+}
+
 export function isDatasetIndex(value: unknown): value is DatasetIndex {
   return getDatasetIndexValidationIssues(value).length === 0;
 }
 
 export function isDatasetManifest(value: unknown): value is DatasetManifest {
   return getDatasetManifestValidationIssues(value).length === 0;
+}
+
+export function isLocationCatalog(value: unknown): value is LocationCatalog {
+  return getLocationCatalogValidationIssues(value).length === 0;
+}
+
+export function isPlaceLocaleCatalog(value: unknown): value is PlaceLocaleCatalog {
+  return getPlaceLocaleCatalogValidationIssues(value).length === 0;
+}
+
+export function isMapAssetsManifest(value: unknown): value is MapAssetsManifest {
+  return getMapAssetsManifestValidationIssues(value).length === 0;
 }
 
 export function parseDatasetIndex(value: unknown): DatasetIndex {
@@ -416,4 +502,28 @@ export function parseDatasetManifest(value: unknown): DatasetManifest {
     throw new ContractValidationError("dataset manifest", issues);
   }
   return value as DatasetManifest;
+}
+
+export function parseLocationCatalog(value: unknown): LocationCatalog {
+  const issues = getLocationCatalogValidationIssues(value);
+  if (issues.length > 0) {
+    throw new ContractValidationError("location catalog", issues);
+  }
+  return value as LocationCatalog;
+}
+
+export function parsePlaceLocaleCatalog(value: unknown): PlaceLocaleCatalog {
+  const issues = getPlaceLocaleCatalogValidationIssues(value);
+  if (issues.length > 0) {
+    throw new ContractValidationError("place locale catalog", issues);
+  }
+  return value as PlaceLocaleCatalog;
+}
+
+export function parseMapAssetsManifest(value: unknown): MapAssetsManifest {
+  const issues = getMapAssetsManifestValidationIssues(value);
+  if (issues.length > 0) {
+    throw new ContractValidationError("map assets manifest", issues);
+  }
+  return value as MapAssetsManifest;
 }

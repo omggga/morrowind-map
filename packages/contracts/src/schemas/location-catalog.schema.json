@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morrowind-map.local/schemas/location-catalog.schema.json",
+  "title": "Morrowind map location catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "datasetId", "snapshotId", "places"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "datasetId": { "$ref": "#/$defs/identifier" },
+    "snapshotId": { "$ref": "#/$defs/snapshotId" },
+    "places": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/place" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9]+(?:[.:-][a-z0-9]+)*$"
+    },
+    "snapshotId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9][a-z0-9:._-]+$"
+    },
+    "point": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [{ "type": "number" }, { "type": "number" }],
+      "items": false
+    },
+    "cellPoint": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [{ "type": "integer" }, { "type": "integer" }],
+      "items": false
+    },
+    "entrance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "coordinate", "exteriorCell", "sourcePlugin", "sourceRef"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "coordinate": { "$ref": "#/$defs/point" },
+        "exteriorCell": { "$ref": "#/$defs/cellPoint" },
+        "sourcePlugin": { "type": "string", "minLength": 5, "maxLength": 255 },
+        "sourceRef": { "type": "string", "minLength": 1, "maxLength": 255 }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "plugin", "recordId", "mimIndex"],
+      "properties": {
+        "kind": { "enum": ["mim", "esm"] },
+        "plugin": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "recordId": {
+          "anyOf": [
+            { "type": "string", "minLength": 1, "maxLength": 255 },
+            { "type": "null" }
+          ]
+        },
+        "mimIndex": {
+          "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+        }
+      }
+    },
+    "place": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "regionId",
+        "type",
+        "mapPosition",
+        "exteriorCell",
+        "mimCategory",
+        "minZoom",
+        "entrances",
+        "sources"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "regionId": { "$ref": "#/$defs/identifier" },
+        "type": {
+          "enum": [
+            "settlement",
+            "guild",
+            "temple",
+            "cave",
+            "mine",
+            "ship",
+            "shrine",
+            "ancestral-tomb",
+            "stronghold",
+            "dwemer-ruin",
+            "house",
+            "shop",
+            "landmark",
+            "other"
+          ]
+        },
+        "mapPosition": { "$ref": "#/$defs/point" },
+        "exteriorCell": { "$ref": "#/$defs/cellPoint" },
+        "mimCategory": {
+          "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+        },
+        "minZoom": { "type": "number", "minimum": 0, "maximum": 20 },
+        "entrances": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/entrance" }
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/source" }
+        }
+      }
+    }
+  }
+}

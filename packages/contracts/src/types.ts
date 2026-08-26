@@ -1,4 +1,5 @@
 export const DATASET_SCHEMA_VERSION = 1 as const;
+export const ARTIFACT_SCHEMA_VERSION = 1 as const;
 export const TES3_PROJECTION_CODE = "TES3:WORLD" as const;
 export const TES3_CELL_SIZE = 8192 as const;
 
@@ -16,6 +17,22 @@ export type ContentFileKind = "esm" | "esp";
 export type ContentFileInclusion = "required" | "optional" | "candidate" | "excluded";
 export type ProfileItemStatus = "confirmed" | "unconfirmed";
 export type ModuleStatus = "enabled" | "disabled" | "unconfirmed";
+export type PlaceType =
+  | "settlement"
+  | "guild"
+  | "temple"
+  | "cave"
+  | "mine"
+  | "ship"
+  | "shrine"
+  | "ancestral-tomb"
+  | "stronghold"
+  | "dwemer-ruin"
+  | "house"
+  | "shop"
+  | "landmark"
+  | "other";
+export type PlaceSourceKind = "mim" | "esm";
 
 export type Point = readonly [x: number, y: number];
 export type Extent = readonly [minX: number, minY: number, maxX: number, maxY: number];
@@ -170,4 +187,71 @@ export interface DatasetManifest {
   map: MapDescriptor;
   artifacts: DatasetArtifacts;
   provenance: ProvenanceDescriptor;
+}
+
+export interface PlaceSource {
+  kind: PlaceSourceKind;
+  plugin: string;
+  recordId: string | null;
+  mimIndex: number | null;
+}
+
+export interface PlaceEntrance {
+  id: string;
+  coordinate: Point;
+  exteriorCell: Point;
+  sourcePlugin: string;
+  sourceRef: string;
+}
+
+export interface PlaceRecord {
+  id: string;
+  regionId: string;
+  type: PlaceType;
+  mapPosition: Point;
+  exteriorCell: Point;
+  mimCategory: number | null;
+  minZoom: number;
+  entrances: PlaceEntrance[];
+  sources: PlaceSource[];
+}
+
+export interface LocationCatalog {
+  schemaVersion: typeof ARTIFACT_SCHEMA_VERSION;
+  datasetId: string;
+  snapshotId: string;
+  places: PlaceRecord[];
+}
+
+export interface PlaceLocaleRecord {
+  placeId: string;
+  name: string;
+  aliases: string[];
+}
+
+export interface PlaceLocaleCatalog {
+  schemaVersion: typeof ARTIFACT_SCHEMA_VERSION;
+  datasetId: string;
+  snapshotId: string;
+  locale: Locale;
+  places: PlaceLocaleRecord[];
+}
+
+export interface StaticRasterLayer {
+  id: string;
+  regionId: string;
+  kind: "static-image";
+  imageUrl: string;
+  mediaType: "image/jpeg";
+  pixelSize: Point;
+  extent: Extent;
+  sha256: string;
+}
+
+export interface MapAssetsManifest {
+  schemaVersion: typeof ARTIFACT_SCHEMA_VERSION;
+  datasetId: string;
+  snapshotId: string;
+  projection: Tes3ProjectionCode;
+  rasters: StaticRasterLayer[];
 }

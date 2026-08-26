@@ -11,8 +11,11 @@
   },
   "dependencies": {
     "@morrowind-map/contracts": "workspace:*",
+    "fuse.js": "7.5.0",
+    "i18next": "26.4.0",
     "ol": "10.10.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-i18next": "17.0.12"
   }
 }

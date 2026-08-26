@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "datasetId": "original-goty",
   "mapKey": "original",
-  "snapshotId": "original:goty:placeholder-v1",
+  "snapshotId": "original:goty:332684d75ed7e331",
   "title": {
     "en": "Original Morrowind + expansions",
     "ru": "Оригинальный Morrowind + дополнения"
@@ -17,15 +17,13 @@
     "build": null
   },
   "readiness": {
-    "status": "placeholder",
+    "status": "ready",
     "exactProfile": true,
     "blockers": [],
-    "warnings": [
-      "Locations, locale catalogs and tiles have not been generated yet."
-    ]
+    "warnings": []
   },
   "localization": {
-    "defaultLocale": "en",
+    "defaultLocale": "ru",
     "locales": [
       {
         "locale": "en",
@@ -49,7 +47,7 @@
         "ru": "Вварденфелл"
       },
       "kind": "exterior",
-      "status": "planned"
+      "status": "available"
     },
     {
       "id": "solstheim",
@@ -58,7 +56,7 @@
         "ru": "Солстхейм"
       },
       "kind": "exterior",
-      "status": "planned"
+      "status": "available"
     },
     {
       "id": "mournhold",
@@ -104,21 +102,21 @@
     "registeredArchives": [
       {
         "name": "Morrowind.bsa",
-        "sha256": null,
+        "sha256": "3dcd5e6bfa08245521a53374bf733ee5c920df49103898a15aa31144ad64cf48",
         "order": 0,
         "required": true,
         "registered": true
       },
       {
         "name": "Tribunal.bsa",
-        "sha256": null,
+        "sha256": "3901e7a146f7a64a4ae9534c80d5974f7ab15adf5c48c4561d9313c0f7831d69",
         "order": 1,
         "required": true,
         "registered": true
       },
       {
         "name": "Bloodmoon.bsa",
-        "sha256": null,
+        "sha256": "7c20956791400d958cb407f0b7c1c19ceaf46719df7eb724d0b450299360bd7c",
         "order": 2,
         "required": true,
         "registered": true
@@ -163,27 +161,46 @@
     }
   },
   "artifacts": {
-    "locations": null,
+    "locations": {
+      "url": "/datasets/generated/original-goty/locations.json",
+      "mediaType": "application/json",
+      "sha256": "1282c7f3ec38112d113e75a635a2f18ea5f2843c51e575b0d4760330547a7fd8",
+      "bytes": 871016
+    },
     "locales": [
       {
         "locale": "en",
-        "artifact": null
+        "artifact": {
+          "url": "/datasets/generated/original-goty/locales/en.json",
+          "mediaType": "application/json",
+          "sha256": "8be1de9575e9f8fd28152b6288666745970eeee486973110991c3de94967ae27",
+          "bytes": 130403
+        }
       },
       {
         "locale": "ru",
-        "artifact": null
+        "artifact": {
+          "url": "/datasets/generated/original-goty/locales/ru.json",
+          "mediaType": "application/json",
+          "sha256": "34f9f5fd7f0a7df8f3c0f5927ecb62850aa68281d29013036aa3b0629fe14483",
+          "bytes": 143627
+        }
       }
     ],
-    "tiles": null
+    "tiles": {
+      "manifestUrl": "/datasets/generated/original-goty/map-assets.json",
+      "sha256": "bf5bc6cd1ef116c9b3629bbd4f3a5507f136038077dff5b8540cf49743d6b59b"
+    }
   },
   "provenance": {
-    "kind": "placeholder",
+    "kind": "generated",
     "notes": [
-      "Extent and center were derived from the effective LAND cell union of the pinned GOTY ESM metadata.",
-      "This manifest contains metadata only; no Bethesda, MIM or mod assets are included."
+      "The immutable profile hash is derived from the pinned English GOTY ESM files.",
+      "The local artifact pipeline combines 933 MIM markers with 77 additional exterior ESM destinations.",
+      "Bloodmoon uses its exact LAND-cell raster extent; MIM-only points use a 55-door north-up calibration with 469 TES3-unit RMS error.",
+      "MIM JPEG files remain local ignored inputs and are not stored in Git."
     ],
     "knownIssues": [
-      "The legacy Solstheim MIM raster needs an independently verified world-to-pixel transform.",
       "Mournhold needs an interior graph or inset contract before its locations are published."
     ]
   }

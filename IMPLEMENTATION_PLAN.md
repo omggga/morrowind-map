@@ -59,7 +59,7 @@
 - `Tribunal.bsa` — 1 174 записи;
 - `Bloodmoon.bsa` — 1 545 записей.
 
-Russian OpenMW-style `.cel` sidecars из `origin-esm` практически полностью покрывают именованные CELL базовой тройки. Для Original EN названия берутся из английских ESM, для RU — из `.cel` и MIM.
+Russian OpenMW-style `.cel` sidecars из `morr-dev/game/Data Files` практически полностью покрывают именованные CELL базовой тройки. Для Original EN названия берутся из английских ESM, для RU — из `.cel` и MIM.
 
 MIM предоставляет:
 
@@ -74,7 +74,7 @@ MIM предоставляет:
 
 ### 3.2 Fullrest 25.08
 
-`morr-dev/origin-esm` содержит:
+`morr-dev/game/Data Files` содержит установленный профиль Fullrest 5.0.15:
 
 - локализованную base trio;
 - `Tamriel_Data.esm` 25.05;
@@ -86,20 +86,11 @@ MIM предоставляет:
 - grass plugins;
 - `.cel/.top/.mrk` translation sidecars.
 
-Этот набор нельзя смешивать с английской base trio из `morr-dev/bsa`: base ESM имеют разные размеры и хеши. Fullrest snapshot должен использовать собственную base trio из `origin-esm`.
+Этот набор нельзя смешивать с английской base trio из `morr-dev/bsa`: base ESM имеют разные размеры и хеши. Fullrest snapshot должен использовать собственную локализованную base trio из `game/Data Files`.
 
 Для base + TD25 + TR25 без MFR все непустые английские CELL names имеют Russian `.cel` pair. У MFR остаётся отдельный gap: 378 уникальных кириллических CELL names не имеют локального английского соответствия.
 
-Точный Fullrest snapshot пока заблокирован отсутствием:
-
-1. реального `openmw.cfg`, `Morrowind.ini` или экспорта launcher/mod-manager profile;
-2. ordered `data=`, `content=` и `fallback-archive=`;
-3. полного Tamriel Data 25.05 asset package;
-4. полного MFR/Fullrest asset profile;
-5. matching Cyr/Sky assets, если эти landmasses были активны;
-6. решения по английским названиям 378 MFR-only cells.
-
-До получения профиля присутствие файла в `origin-esm` не считается доказательством, что plugin был активен.
+Точный порядок подтверждён сохранённым `game/Fullrest-Provenance/OpenMW_Config/openmw.cfg`; MGE-профиль сохранён рядом в `MGE.ini`. В `Data Files/distantland/world.dds` также есть готовый объединённый terrain preview 2048×2048. Открытым остаётся языковое решение для 378 MFR-only кириллических CELL names и выбор между preview и собственным более детальным renderer.
 
 ### 3.3 Poison Song 26.08
 
@@ -130,12 +121,7 @@ MIM предоставляет:
 
 Для начала Original и Poison Song дополнительных файлов не требуется.
 
-Для завершения exact Fullrest пользователь должен предоставить:
-
-- `openmw.cfg`, `Morrowind.ini` или экспорт профиля;
-- полный старый Fullrest/Tamriel Data/MFR `Data Files` со всеми registered archives и loose directories;
-- Cyr/Sky assets, только если их подтвердит профиль;
-- при наличии — исходные manifests/readmes сборки.
+Для продолжения Fullrest дополнительных файлов не требуется: профиль, masters, loose assets, Cyr/Sky и сохранённый MGE distant-land raster уже находятся в `morr-dev/game`. До реализации нужно выбрать только политику EN fallback и целевой basemap.
 
 Для Fullrest EN необходимо выбрать одно решение:
 
@@ -402,6 +388,13 @@ Portable backup:
 
 Basemap является сменным adapter. Координаты, IDs, markers, search и progress от него не зависят.
 
+Для Original зафиксированы геопривязки:
+
+- Vvardenfell MIM: extent `[-125000, -130000, 175000, 220000]`;
+- Bloodmoon: точный LAND extent `[-229376, 114688, -131072, 237568]`, 32 TES3 units/pixel;
+- ESM-backed точки используют прямые canonical coordinates;
+- MIM-only Bloodmoon points используют north-up least-squares transform по 55 дверям: RMS 469, median 271 TES3 units.
+
 ### 12.2 Owned LAND renderer
 
 Первый собственный renderer читает:
@@ -570,6 +563,8 @@ Node builder → static dist → Nginx runtime
 
 ### Этап 0 — репозиторий и план
 
+Status: complete.
+
 Deliverables:
 
 - private `omggga/morrowind-map`;
@@ -580,6 +575,8 @@ Deliverables:
 - push ветки `main`.
 
 ### Этап 1 — contracts и skeleton
+
+Status: complete.
 
 Deliverables:
 
@@ -593,6 +590,8 @@ Deliverables:
 Exit: landing показывает три cards, каждая открывает пустую карту с корректными TES3 coordinates.
 
 ### Этап 2 — Original vertical slice
+
+Status: complete (2026-08-26): 933 MIM markers + 77 ESM-only destinations, full EN/RU coverage.
 
 Deliverables:
 
