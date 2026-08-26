@@ -1,0 +1,45 @@
+# OS and editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+local-data/
+data-sources/
+
+# JavaScript
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+
+# Generated datasets and map tiles
+generated/
+datasets/generated/
+tiles/
+renders/
+
+# Proprietary game and mod inputs must never enter Git
+*.bsa
+*.ba2
+*.esm
+*.esp
+*.omwaddon
+*.omwgame
+*.fnt
+*.dds
+*.tga
+*.nif
+*.kf
