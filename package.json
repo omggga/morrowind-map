@@ -11,12 +11,14 @@
   "scripts": {
     "dev": "pnpm --filter @morrowind-map/web dev",
     "data:original": "python3 -m tools.data_pipeline.build_original",
+    "data:renderer-spike": "python3 -m tools.land_renderer.spike",
     "build": "pnpm --filter @morrowind-map/web build",
     "typecheck": "tsc --project tsconfig.json --pretty false && pnpm -r --if-present typecheck",
     "lint": "eslint . --max-warnings=0",
-    "test": "pnpm test:unit && pnpm test:pipeline",
+    "test": "pnpm test:unit && pnpm test:pipeline && pnpm test:renderer",
     "test:unit": "vitest run",
     "test:pipeline": "python3 -m unittest discover -s tools/data_pipeline/tests -v",
+    "test:renderer": "python3 -m unittest discover -s tools/land_renderer/tests -t . -v",
     "test:watch": "vitest",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
   },

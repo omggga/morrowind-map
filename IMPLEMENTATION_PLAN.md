@@ -635,6 +635,8 @@ Exit: текущие 741 visited, одна note и 6 personal markers воспр
 
 ### Этап 4 — LAND renderer spike
 
+Status: complete (2026-08-27): deterministic LAND/VFS oracle принят, финальный basemap эскалирован к OpenMW.
+
 Deliverables:
 
 - LAND/LTEX parser;
@@ -644,7 +646,17 @@ Deliverables:
 - coordinate/seam/determinism report;
 - решение LAND-only versus OpenMW escalation.
 
-Это основной quality gate проекта.
+Реализованный результат:
+
+- strict TES3 record, LAND/LTEX и BSA parsers, ordered loose/BSA VFS и plugin-scoped LTEX resolution;
+- полный Poison Song audit: 3 986 effective LAND cells, 365/365 plugin-scoped VTEX references, unresolved 0;
+- пять native `512×512` lossless WebP по сетке 16 world units/pixel;
+- world/pixel round-trip error 0; 60 shared edges проверены, максимальный source delta равен одному VHGT quantum (8 units);
+- два независимых полных запуска дали побайтно одинаковые пять WebP и renderer fingerprint;
+- сравнение Balmora с MIM и всех пяти areas с UESP подтвердило terrain alignment, но показало неприемлемую потерю buildings/bridges/trees/statics;
+- LAND renderer остаётся coordinate/resource oracle и fallback; owned basemap переходит к bounded OpenMW offscreen/exporter spike.
+
+Подробности и hashes: `docs/adr/0001-land-renderer-spike.md`.
 
 ### Этап 5 — Poison Song
 

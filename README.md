@@ -8,9 +8,10 @@
 
 Original уже поддерживает локальные MIM-растры Vvardenfell и Solstheim, 1 010 мест из MIM/ESM, EN/RU, поиск, zoom/pan, MIM-цвета статусов `unvisited` / `active` / `visited`, заметки и личные квадратные маркеры. Прогресс хранится локально в IndexedDB через Dexie и жёстко привязан к snapshot; доступны однократный импорт текущего MIM snapshot и общий переносимый JSON backup v2/import со строгой проверкой совместимости и чтением ранних v1-копий.
 
-Текущий статус: **Этап 3 — progress и MIM import завершён**. Fullrest и Poison Song пока открывают координатные заглушки.
+Текущий статус: **Этап 4 — LAND renderer spike завершён**. Собственный parser/VFS доказал точную геопривязку, детерминированные 512px WebP и `0` unresolved effective LAND textures. LAND-only оставлен как terrain/coordinate oracle, а финальный basemap эскалирован к OpenMW из-за отсутствия зданий, мостов, деревьев и других statics. Fullrest и Poison Song в UI пока открывают координатные заглушки.
 
 Подробный план: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+Решение quality gate и измерения: [docs/adr/0001-land-renderer-spike.md](docs/adr/0001-land-renderer-spike.md).
 
 ## Данные
 
@@ -25,6 +26,14 @@ Original собирается локальным offline pipeline из сосе�
 Pipeline проверяет pinned SHA-256 masters, извлекает внешние входы из ESM и пишет ignored-артефакты в `apps/web/public/datasets/generated/original-goty`. Bloodmoon JPEG привязан к точной LAND-сетке; для редких MIM-only точек используется документированная калибровка по 55 входам. Тот же pipeline fail-closed сопоставляет `user.gdb` с `mwmain.gdb` по региону и ordinal и формирует MIM snapshot: 933 статуса (741 visited, 192 unvisited), одну заметку и 6 personal markers.
 
 Повторный импорт того же MIM snapshot является no-op. Более поздние ручные изменения не перезаписываются новым MIM import, а удалённые импортированные markers сохраняются как tombstones и не появляются снова.
+
+LAND renderer spike воспроизводится отдельно из Poison Song 26.08, Tamriel Data 26.08 и трёх vanilla BSA. Требуется ImageMagick 7; ESM/BSA и generated renders остаются вне Git:
+
+```bash
+pnpm data:renderer-spike
+```
+
+Пять контрольных WebP и полный hash/coordinate/resource report появятся в `local-data/renderer-spike/poison-song-26.08`.
 
 ## Локальный запуск
 
@@ -47,4 +56,4 @@ pnpm test
 pnpm build
 ```
 
-Или одной командой: `pnpm verify`. Python pipeline tests входят в `pnpm test`; полная генерация игровых данных запускается отдельно и в CI не выполняется.
+Или одной командой: `pnpm verify`. Python pipeline и LAND renderer fixture tests входят в `pnpm test`; полная генерация игровых данных запускается отдельно и в CI не выполняется.
