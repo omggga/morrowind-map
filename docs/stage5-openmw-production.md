@@ -70,7 +70,9 @@ pnpm data:poison:renderer:render
 pnpm data:poison:renderer:finalize
 ```
 
-Повтор той же команды `render` продолжает checkpoint. Встроенные два workers безопасно публикуют результаты последовательно. Несколько отдельных Terminal processes нельзя направлять в один output одновременно; modulo partitions предназначены для последовательных job slices либо для разных output roots с отдельным последующим merge workflow.
+Повтор той же команды `render` продолжает checkpoint. Встроенные два workers безопасно публикуют результаты последовательно. После проверки provenance Terminal печатает текущее durable значение, например `[227/3984]`, и обновляет его после каждого полностью опубликованного shard. Несколько отдельных Terminal processes нельзя направлять в один output одновременно; modulo partitions предназначены для последовательных job slices либо для разных output roots с отдельным последующим merge workflow.
+
+Информационный OpenMW warning `addAnimSource: can't find bone` возникает после успешной загрузки NIF/KF, когда отдельный animation controller не находит кость. Он остаётся видимым в `resource-resolution.json` как `ignoredCompatibilityWarnings`, но не считается отсутствующим ресурсом. Любой настоящий `Failed to load`, missing mesh/texture/file, отсутствующий ожидаемый лог или non-zero exit остаётся фатальным.
 
 ## Что остаётся в Этапе 5
 

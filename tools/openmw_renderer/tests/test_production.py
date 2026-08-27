@@ -11,10 +11,12 @@ from unittest.mock import patch
 from tools.land_renderer.terrain import RgbaImage
 from tools.openmw_renderer.production import (
     CHECKPOINT_SCHEMA_VERSION,
+    Cell,
     DATASET_ID,
     DEFAULT_PRODUCTION_IMAGE,
     DEFAULT_STAGE45_IMAGE,
     NATIVE_ZOOM,
+    ProductionProvenance,
     SNAPSHOT_ID,
     TileKey,
     build_inventory,
@@ -26,12 +28,15 @@ from tools.openmw_renderer.production import (
     docker_batch_command,
     docker_build_command,
     explicit_3x3_shard,
+    execution_provenance_fingerprint,
     finalize_production,
     group_targets_3x3,
     native_tile_for_cell,
+    migrate_resume_state,
     plan_fingerprint,
     plan_native_targets,
     production_source_fingerprint,
+    production_resource_resolution_report,
     read_shard_runtime,
     render_shard_manifest,
     run_native_batch,
@@ -83,6 +88,54 @@ def _fake_webp(image: RgbaImage) -> bytes:
         f"{image.width}x{image.height}".encode() + image.pixels
     ).digest()
     return b"RIFF" + (4 + len(body)).to_bytes(4, "little") + b"WEBP" + body
+
+
+def _fixture_provenance(source_hash: str, image_digit: str) -> ProductionProvenance:
+    image_id = "sha256:" + image_digit * 64
+    repo_digests = (f"fixture@sha256:{image_digit * 64}",)
+    magick_version = "ImageMagick fixture"
+    fingerprint = execution_provenance_fingerprint(
+        profile_fingerprint=FINGERPRINT_A,
+        production_source_fingerprint_value=source_hash,
+        image_id=image_id,
+        image_repo_digests=repo_digests,
+        magick_version=magick_version,
+    )
+    labels = {
+        "org.opencontainers.image.revision": "f4bec41444214a7903bebd178389ca22ca13f646",
+        "io.morrowind-map.stage": "5",
+        "io.morrowind-map.dataset": DATASET_ID,
+        "io.morrowind-map.snapshot": SNAPSHOT_ID,
+        "io.morrowind-map.stage45-image-id": "sha256:" + "9" * 64,
+        "io.morrowind-map.renderer-fingerprint": "8" * 64,
+        "io.morrowind-map.scene-grid": "5x5",
+        "io.morrowind-map.rtt-grid": "3x3",
+        "io.morrowind-map.production-fingerprint": source_hash,
+    }
+    return ProductionProvenance(
+        fingerprint=fingerprint,
+        payload={
+            "schemaVersion": 1,
+            "datasetId": DATASET_ID,
+            "snapshotId": SNAPSHOT_ID,
+            "rendererVersion": "openmw-export-production-v1",
+            "provenanceFingerprint": fingerprint,
+            "profileFingerprint": FINGERPRINT_A,
+            "productionSourceFingerprint": source_hash,
+            "openmwCommit": "f4bec41444214a7903bebd178389ca22ca13f646",
+            "image": {
+                "requested": "morrowind-map-openmw:fixture",
+                "id": image_id,
+                "repoDigests": list(repo_digests),
+                "os": "linux",
+                "architecture": "amd64",
+                "labels": labels,
+            },
+            "magickVersion": magick_version,
+            "inputAudit": [],
+            "assetAudit": {},
+        },
+    )
 
 
 class CoverageTests(unittest.TestCase):
@@ -338,6 +391,99 @@ class BatchProcessContractTests(unittest.TestCase):
         ])
         self.assertEqual((result.rendered, result.selected_shards), (2, 2))
 
+    def test_parallel_progress_reports_only_durable_checkpoint_counts(self) -> None:
+        cells = ((-3, -3), (0, 0))
+        events: list[tuple[int, int]] = []
+
+        with tempfile.TemporaryDirectory() as directory:
+            output_root = Path(directory) / "output"
+
+            def record_progress(completed: int, total: int) -> None:
+                checkpoint = json.loads(
+                    (output_root / "checkpoint.json").read_text(encoding="utf-8")
+                )
+                self.assertEqual(len(checkpoint["completed"]), completed)
+                events.append((completed, total))
+
+            with (
+                patch("tools.openmw_renderer.production._run_shard_process"),
+                patch(
+                    "tools.openmw_renderer.production.process_raw_master",
+                    return_value=RgbaImage.solid(512, 512, (1, 2, 3, 255)),
+                ),
+                patch(
+                    "tools.openmw_renderer.production._webp_encoder",
+                    return_value=_fake_webp,
+                ),
+            ):
+                run_openmw_production(
+                    source_root=Path(directory),
+                    output_root=output_root,
+                    cells=cells,
+                    provenance_fingerprint=FINGERPRINT_A,
+                    image="morrowind-map-openmw:fixture",
+                    workers=2,
+                    retain_raw=True,
+                    progress=record_progress,
+                )
+
+        self.assertEqual(events, [(0, 2), (1, 2), (2, 2)])
+
+
+class ProductionResourceAuditTests(unittest.TestCase):
+    BONE_WARNING = (
+        "[14:36:17.986 W] Warning: addAnimSource: can't find bone 'bip01' "
+        "in meshes/tr/cr/xtr_skylamp_01.nif "
+        "(referenced by meshes/tr/cr/xtr_skylamp_01.kf)"
+    )
+
+    def test_missing_animation_bone_is_an_audited_compatibility_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output_root = Path(directory)
+            log = output_root / "logs/shard.log"
+            log.parent.mkdir(parents=True)
+            log.write_text(self.BONE_WARNING + "\n", encoding="utf-8")
+
+            report = production_resource_resolution_report(
+                output_root,
+                expected_logs=("logs/shard.log",),
+            )
+
+        self.assertTrue(report["passes"])
+        self.assertEqual(report["missingResourceMessages"], [])
+        self.assertEqual(
+            report["ignoredCompatibilityWarnings"],
+            [{"log": "logs/shard.log", "line": self.BONE_WARNING}],
+        )
+
+    def test_real_missing_resource_still_fails_beside_bone_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output_root = Path(directory)
+            log = output_root / "logs/shard.log"
+            log.parent.mkdir(parents=True)
+            log.write_text(
+                self.BONE_WARNING
+                + "\nFailed to load mesh meshes/missing.nif\n",
+                encoding="utf-8",
+            )
+
+            report = production_resource_resolution_report(
+                output_root,
+                expected_logs=("logs/shard.log",),
+            )
+
+        self.assertFalse(report["passes"])
+        self.assertEqual(
+            report["missingResourceMessages"],
+            [
+                {
+                    "log": "logs/shard.log",
+                    "line": "Failed to load mesh meshes/missing.nif",
+                }
+            ],
+        )
+        self.assertEqual(len(report["ignoredCompatibilityWarnings"]), 1)
+
 
 class CheckpointTests(unittest.TestCase):
     def test_interrupted_batch_resumes_without_reencoding_completed_tile(self) -> None:
@@ -434,6 +580,149 @@ class CheckpointTests(unittest.TestCase):
         self.assertEqual(preserved, b"preexisting-untrusted-output")
         self.assertEqual(checkpoint["completed"], [])
         self.assertEqual(leftovers, [])
+
+
+class ResumeMigrationTests(unittest.TestCase):
+    def test_explicit_migration_preserves_and_resumes_validated_tiles(self) -> None:
+        cells = ((-3, -3),)
+        old = _fixture_provenance("1" * 64, "2")
+        new = _fixture_provenance("3" * 64, "4")
+
+        with tempfile.TemporaryDirectory() as directory:
+            output_root = Path(directory)
+            run_native_batch(
+                output_root=output_root,
+                cells=cells,
+                provenance_fingerprint=old.fingerprint,
+                render_target=lambda _target: RgbaImage.solid(
+                    512, 512, (10, 20, 30, 255)
+                ),
+                encoder=_fake_webp,
+            )
+            (output_root / "provenance.json").write_text(
+                json.dumps(old.payload),
+                encoding="utf-8",
+            )
+            tile = output_root / "tiles/7/25/36.webp"
+            original_tile = tile.read_bytes()
+
+            report = migrate_resume_state(
+                output_root=output_root,
+                cells=cells,
+                new_provenance=new,
+                from_provenance_fingerprint=old.fingerprint,
+                reason="fixture host-only compatibility change",
+            )
+
+            self.assertEqual(report["completedArtifacts"], 1)
+            self.assertEqual(tile.read_bytes(), original_tile)
+            self.assertEqual(
+                json.loads((output_root / "checkpoint.json").read_text())["provenanceFingerprint"],
+                new.fingerprint,
+            )
+            self.assertEqual(
+                json.loads((output_root / "provenance.json").read_text()),
+                new.payload,
+            )
+            self.assertTrue((output_root / report["checkpointBackup"]).is_file())
+            self.assertTrue((output_root / report["provenanceBackup"]).is_file())
+            resumed_calls: list[Cell] = []
+            resumed = run_native_batch(
+                output_root=output_root,
+                cells=cells,
+                provenance_fingerprint=new.fingerprint,
+                render_target=lambda target: resumed_calls.append(target.cell),  # type: ignore[arg-type,return-value]
+                encoder=_fake_webp,
+            )
+
+        self.assertEqual(resumed_calls, [])
+        self.assertEqual((resumed.rendered, resumed.skipped), (0, 1))
+
+    def test_migration_recovers_an_old_checkpoint_with_new_provenance(self) -> None:
+        cells = ((-3, -3),)
+        old = _fixture_provenance("1" * 64, "2")
+        new = _fixture_provenance("3" * 64, "4")
+
+        with tempfile.TemporaryDirectory() as directory:
+            output_root = Path(directory)
+            run_native_batch(
+                output_root=output_root,
+                cells=cells,
+                provenance_fingerprint=old.fingerprint,
+                render_target=lambda _target: RgbaImage.solid(
+                    512, 512, (10, 20, 30, 255)
+                ),
+                encoder=_fake_webp,
+            )
+            (output_root / "provenance.json").write_text(
+                json.dumps(old.payload),
+                encoding="utf-8",
+            )
+            first = migrate_resume_state(
+                output_root=output_root,
+                cells=cells,
+                new_provenance=new,
+                from_provenance_fingerprint=old.fingerprint,
+                reason="fixture host-only compatibility change",
+            )
+            checkpoint_backup = output_root / first["checkpointBackup"]
+            (output_root / "checkpoint.json").write_bytes(checkpoint_backup.read_bytes())
+
+            recovered = migrate_resume_state(
+                output_root=output_root,
+                cells=cells,
+                new_provenance=new,
+                from_provenance_fingerprint=old.fingerprint,
+                reason="fixture host-only compatibility change",
+            )
+
+            self.assertEqual(recovered["status"], "complete")
+            self.assertEqual(
+                json.loads((output_root / "checkpoint.json").read_text())["provenanceFingerprint"],
+                new.fingerprint,
+            )
+            self.assertEqual(
+                json.loads((output_root / "provenance.json").read_text()),
+                new.payload,
+            )
+
+    def test_migration_rejects_a_tampered_tile_without_rewriting_state(self) -> None:
+        cells = ((-3, -3),)
+        old = _fixture_provenance("1" * 64, "2")
+        new = _fixture_provenance("3" * 64, "4")
+
+        with tempfile.TemporaryDirectory() as directory:
+            output_root = Path(directory)
+            run_native_batch(
+                output_root=output_root,
+                cells=cells,
+                provenance_fingerprint=old.fingerprint,
+                render_target=lambda _target: RgbaImage.solid(
+                    512, 512, (10, 20, 30, 255)
+                ),
+                encoder=_fake_webp,
+            )
+            (output_root / "provenance.json").write_text(
+                json.dumps(old.payload),
+                encoding="utf-8",
+            )
+            checkpoint_before = (output_root / "checkpoint.json").read_bytes()
+            provenance_before = (output_root / "provenance.json").read_bytes()
+            tile = output_root / "tiles/7/25/36.webp"
+            tile.write_bytes(tile.read_bytes() + b"tampered")
+
+            with self.assertRaisesRegex(ValueError, "artifact mismatch"):
+                migrate_resume_state(
+                    output_root=output_root,
+                    cells=cells,
+                    new_provenance=new,
+                    from_provenance_fingerprint=old.fingerprint,
+                    reason="fixture host-only compatibility change",
+                )
+
+            self.assertEqual((output_root / "checkpoint.json").read_bytes(), checkpoint_before)
+            self.assertEqual((output_root / "provenance.json").read_bytes(), provenance_before)
+            self.assertFalse((output_root / "provenance-migrations").exists())
 
 
 class PyramidAndInventoryTests(unittest.TestCase):

@@ -84,8 +84,14 @@ PRODUCTION_SOURCE_PATHS = (
 Cell = tuple[int, int]
 ImageReader = Callable[[Path], RgbaImage]
 ImageEncoder = Callable[[RgbaImage], bytes]
+ProgressCallback = Callable[[int, int], None]
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
+_BENIGN_ANIMATION_BONE_WARNING = re.compile(
+    r"\bWarning:\s+addAnimSource:\s+can't find bone '[^']+' in .+ "
+    r"\(referenced by .+\)$",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True, order=True, slots=True)
@@ -712,6 +718,80 @@ def _artifact_for_file(output_root: Path, target: NativeTarget) -> TileArtifact:
     )
 
 
+def _parse_checkpoint_artifact(
+    value: object,
+    *,
+    targets_by_cell: Mapping[Cell, NativeTarget],
+) -> TileArtifact:
+    if not isinstance(value, dict):
+        raise ValueError("Checkpoint artifact must be an object")
+    cell = _validated_cell(value.get("cell"))
+    target = targets_by_cell.get(cell)
+    if target is None:
+        raise ValueError(f"Checkpoint contains a cell outside its plan: {cell}")
+    tile_value = value.get("tile")
+    if not isinstance(tile_value, list) or len(tile_value) != 3:
+        raise ValueError("Checkpoint tile must be a z,x,y array")
+    tile = TileKey(*tile_value)
+    if tile != target.tile:
+        raise ValueError(f"Checkpoint tile mismatch for cell {cell}")
+    relative = value.get("path")
+    if relative != _target_relative_path(target):
+        raise ValueError(f"Checkpoint path mismatch for cell {cell}")
+    byte_length = value.get("bytes")
+    digest = value.get("sha256")
+    if not isinstance(byte_length, int) or isinstance(byte_length, bool) or byte_length <= 0:
+        raise ValueError("Checkpoint artifact bytes must be positive")
+    if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None:
+        raise ValueError("Checkpoint artifact sha256 is invalid")
+    return TileArtifact(target, relative, byte_length, digest)
+
+
+def _validated_checkpoint_artifacts(
+    *,
+    output_root: Path,
+    value: object,
+    provenance_fingerprint: str,
+    targets: Sequence[NativeTarget],
+) -> dict[Cell, TileArtifact]:
+    if not isinstance(value, dict):
+        raise ValueError("Production checkpoint must be a JSON object")
+    targets_by_cell = {target.cell: target for target in targets}
+    expected_identity = {
+        "schemaVersion": CHECKPOINT_SCHEMA_VERSION,
+        "datasetId": DATASET_ID,
+        "snapshotId": SNAPSHOT_ID,
+        "rendererVersion": PRODUCTION_RENDERER_VERSION,
+        "provenanceFingerprint": _validate_fingerprint(provenance_fingerprint),
+        "planFingerprint": plan_fingerprint(targets),
+    }
+    for key, expected in expected_identity.items():
+        if value.get(key) != expected:
+            raise ValueError(
+                f"Production checkpoint {key} mismatch: expected {expected!r}, "
+                f"got {value.get(key)!r}"
+            )
+    completed = value.get("completed")
+    if not isinstance(completed, list):
+        raise ValueError("Production checkpoint completed must be an array")
+    artifacts: dict[Cell, TileArtifact] = {}
+    for item in completed:
+        artifact = _parse_checkpoint_artifact(item, targets_by_cell=targets_by_cell)
+        if artifact.target.cell in artifacts:
+            raise ValueError(f"Duplicate checkpoint cell: {artifact.target.cell}")
+        actual = _artifact_for_file(output_root, artifact.target)
+        if (
+            actual.relative_path != artifact.relative_path
+            or actual.byte_length != artifact.byte_length
+            or actual.sha256 != artifact.sha256
+        ):
+            raise ValueError(
+                f"Checkpoint artifact mismatch for cell {artifact.target.cell}"
+            )
+        artifacts[artifact.target.cell] = artifact
+    return artifacts
+
+
 class _CheckpointSession:
     def __init__(
         self,
@@ -741,63 +821,14 @@ class _CheckpointSession:
             value = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as error:
             raise ValueError(f"Production checkpoint is unreadable: {self.path}") from error
-        if not isinstance(value, dict):
-            raise ValueError("Production checkpoint must be a JSON object")
-        expected_identity = {
-            "schemaVersion": CHECKPOINT_SCHEMA_VERSION,
-            "datasetId": DATASET_ID,
-            "snapshotId": SNAPSHOT_ID,
-            "rendererVersion": PRODUCTION_RENDERER_VERSION,
-            "provenanceFingerprint": self.provenance_fingerprint,
-            "planFingerprint": self.plan_fingerprint,
-        }
-        for key, expected in expected_identity.items():
-            if value.get(key) != expected:
-                raise ValueError(
-                    f"Production checkpoint {key} mismatch: expected {expected!r}, "
-                    f"got {value.get(key)!r}"
-                )
-        completed = value.get("completed")
-        if not isinstance(completed, list):
-            raise ValueError("Production checkpoint completed must be an array")
-        for item in completed:
-            artifact = self._parse_artifact(item)
-            if artifact.target.cell in self.completed:
-                raise ValueError(f"Duplicate checkpoint cell: {artifact.target.cell}")
-            actual = _artifact_for_file(self.output_root, artifact.target)
-            if (
-                actual.relative_path != artifact.relative_path
-                or actual.byte_length != artifact.byte_length
-                or actual.sha256 != artifact.sha256
-            ):
-                raise ValueError(
-                    f"Checkpoint artifact mismatch for cell {artifact.target.cell}"
-                )
-            self.completed[artifact.target.cell] = artifact
-
-    def _parse_artifact(self, value: object) -> TileArtifact:
-        if not isinstance(value, dict):
-            raise ValueError("Checkpoint artifact must be an object")
-        cell = _validated_cell(value.get("cell"))
-        target = self._targets_by_cell.get(cell)
-        if target is None:
-            raise ValueError(f"Checkpoint contains a cell outside its plan: {cell}")
-        tile_value = value.get("tile")
-        if not isinstance(tile_value, list) or len(tile_value) != 3:
-            raise ValueError("Checkpoint tile must be a z,x,y array")
-        tile = TileKey(*tile_value)
-        if tile != target.tile:
-            raise ValueError(f"Checkpoint tile mismatch for cell {cell}")
-        relative = value.get("path")
-        if relative != _target_relative_path(target):
-            raise ValueError(f"Checkpoint path mismatch for cell {cell}")
-        byte_length = value.get("bytes")
-        digest = value.get("sha256")
-        if not isinstance(byte_length, int) or isinstance(byte_length, bool) or byte_length <= 0:
-            raise ValueError("Checkpoint artifact bytes must be positive")
-        if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None:
-            raise ValueError("Checkpoint artifact sha256 is invalid")
-        return TileArtifact(target, relative, byte_length, digest)
+        self.completed.update(
+            _validated_checkpoint_artifacts(
+                output_root=self.output_root,
+                value=value,
+                provenance_fingerprint=self.provenance_fingerprint,
+                targets=self.targets,
+            )
+        )
 
     def publish(
         self,
@@ -843,6 +874,201 @@ class _CheckpointSession:
             ],
         }
         _atomic_write_json(self.path, payload)
+
+
+def _read_json_object(path: Path, label: str) -> tuple[bytes, dict[str, object]]:
+    try:
+        payload = path.read_bytes()
+        value = json.loads(payload)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"{label} is unreadable: {path}") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be a JSON object: {path}")
+    return payload, value
+
+
+def _verified_provenance_fingerprint(value: Mapping[str, object]) -> str:
+    image = value.get("image")
+    if not isinstance(image, dict):
+        raise ValueError("Production provenance image must be an object")
+    profile_hash = value.get("profileFingerprint")
+    source_hash = value.get("productionSourceFingerprint")
+    image_id = image.get("id")
+    repo_digests = image.get("repoDigests")
+    magick_version = value.get("magickVersion")
+    if not isinstance(profile_hash, str) or not isinstance(source_hash, str):
+        raise ValueError("Production provenance source/profile fingerprint is invalid")
+    if not isinstance(image_id, str) or not isinstance(magick_version, str):
+        raise ValueError("Production provenance image/Magick identity is invalid")
+    if not isinstance(repo_digests, list) or not all(
+        isinstance(item, str) for item in repo_digests
+    ):
+        raise ValueError("Production provenance image repo digests are invalid")
+    computed = execution_provenance_fingerprint(
+        profile_fingerprint=profile_hash,
+        production_source_fingerprint_value=source_hash,
+        image_id=image_id,
+        image_repo_digests=repo_digests,
+        magick_version=magick_version,
+    )
+    if value.get("provenanceFingerprint") != computed:
+        raise ValueError("Production provenance fingerprint does not recompute")
+    return computed
+
+
+def _validate_resume_provenance_compatibility(
+    old: Mapping[str, object],
+    new: Mapping[str, object],
+) -> None:
+    for key in (
+        "schemaVersion",
+        "datasetId",
+        "snapshotId",
+        "rendererVersion",
+        "profileFingerprint",
+        "openmwCommit",
+        "magickVersion",
+        "inputAudit",
+        "assetAudit",
+    ):
+        if old.get(key) != new.get(key):
+            raise ValueError(f"Resume migration changes incompatible provenance field {key}")
+    old_image = old.get("image")
+    new_image = new.get("image")
+    if not isinstance(old_image, dict) or not isinstance(new_image, dict):
+        raise ValueError("Resume migration provenance image is invalid")
+    for key in ("requested", "os", "architecture"):
+        if old_image.get(key) != new_image.get(key):
+            raise ValueError(f"Resume migration changes incompatible image field {key}")
+    old_labels = old_image.get("labels")
+    new_labels = new_image.get("labels")
+    if not isinstance(old_labels, dict) or not isinstance(new_labels, dict):
+        raise ValueError("Resume migration image labels are invalid")
+    ignored_label = "io.morrowind-map.production-fingerprint"
+    if {k: v for k, v in old_labels.items() if k != ignored_label} != {
+        k: v for k, v in new_labels.items() if k != ignored_label
+    }:
+        raise ValueError("Resume migration changes renderer image contract labels")
+    if old.get("productionSourceFingerprint") == new.get(
+        "productionSourceFingerprint"
+    ):
+        raise ValueError("Resume migration requires a changed production source")
+
+
+def _write_immutable_backup(path: Path, payload: bytes) -> None:
+    if path.exists():
+        if not path.is_file() or path.read_bytes() != payload:
+            raise ValueError(f"Resume migration backup does not match: {path}")
+        return
+    _atomic_write_bytes(path, payload)
+
+
+def migrate_resume_state(
+    *,
+    output_root: Path,
+    cells: Iterable[Cell],
+    new_provenance: ProductionProvenance,
+    from_provenance_fingerprint: str,
+    reason: str,
+) -> dict[str, object]:
+    """Explicitly adopt verified tiles after an output-compatible host change.
+
+    Normal rendering never calls this function and remains fail-closed.  This
+    migration requires the exact previous fingerprint, verifies every tile,
+    preserves byte-identical backups, and records the old/new producer truth.
+    """
+
+    old_fingerprint = _validate_fingerprint(from_provenance_fingerprint)
+    if not reason.strip():
+        raise ValueError("Resume migration reason cannot be empty")
+    if new_provenance.payload.get("provenanceFingerprint") != new_provenance.fingerprint:
+        raise ValueError("New production provenance payload/fingerprint mismatch")
+    _verified_provenance_fingerprint(new_provenance.payload)
+    output_root = output_root.resolve()
+    checkpoint_path = output_root / "checkpoint.json"
+    provenance_path = output_root / "provenance.json"
+    migration_root = output_root / "provenance-migrations" / old_fingerprint
+    checkpoint_backup = migration_root / "checkpoint.json"
+    provenance_backup = migration_root / "provenance.json"
+
+    active_checkpoint_bytes, active_checkpoint = _read_json_object(
+        checkpoint_path, "Production checkpoint"
+    )
+    active_provenance_bytes, active_provenance = _read_json_object(
+        provenance_path, "Production provenance"
+    )
+    if checkpoint_backup.is_file():
+        old_checkpoint_bytes, old_checkpoint = _read_json_object(
+            checkpoint_backup, "Resume migration checkpoint backup"
+        )
+    else:
+        old_checkpoint_bytes, old_checkpoint = active_checkpoint_bytes, active_checkpoint
+    if provenance_backup.is_file():
+        old_provenance_bytes, old_provenance = _read_json_object(
+            provenance_backup, "Resume migration provenance backup"
+        )
+    else:
+        old_provenance_bytes, old_provenance = active_provenance_bytes, active_provenance
+
+    if _verified_provenance_fingerprint(old_provenance) != old_fingerprint:
+        raise ValueError("Resume migration source provenance does not match --from-provenance")
+    _validate_resume_provenance_compatibility(
+        old_provenance,
+        new_provenance.payload,
+    )
+    targets = plan_native_targets(cells)
+    artifacts = _validated_checkpoint_artifacts(
+        output_root=output_root,
+        value=old_checkpoint,
+        provenance_fingerprint=old_fingerprint,
+        targets=targets,
+    )
+    new_checkpoint = dict(old_checkpoint)
+    new_checkpoint["provenanceFingerprint"] = new_provenance.fingerprint
+    new_checkpoint_bytes = _canonical_json_bytes(new_checkpoint) + b"\n"
+    new_provenance_bytes = _canonical_json_bytes(new_provenance.payload) + b"\n"
+    allowed_checkpoint_states = (old_checkpoint_bytes, new_checkpoint_bytes)
+    allowed_provenance_states = (old_provenance_bytes, new_provenance_bytes)
+    if active_checkpoint_bytes not in allowed_checkpoint_states:
+        raise ValueError("Active checkpoint is neither pre- nor post-migration state")
+    if active_provenance_bytes not in allowed_provenance_states:
+        raise ValueError("Active provenance is neither pre- nor post-migration state")
+
+    completed = old_checkpoint.get("completed")
+    assert isinstance(completed, list)
+    report: dict[str, object] = {
+        "schemaVersion": 1,
+        "status": "prepared",
+        "reason": reason.strip(),
+        "fromProvenanceFingerprint": old_fingerprint,
+        "toProvenanceFingerprint": new_provenance.fingerprint,
+        "planFingerprint": plan_fingerprint(targets),
+        "completedArtifacts": len(artifacts),
+        "completedArtifactBytes": sum(item.byte_length for item in artifacts.values()),
+        "completedArtifactsSha256": _sha256_bytes(_canonical_json_bytes(completed)),
+        "checkpointBeforeSha256": _sha256_bytes(old_checkpoint_bytes),
+        "checkpointAfterSha256": _sha256_bytes(new_checkpoint_bytes),
+        "provenanceBeforeSha256": _sha256_bytes(old_provenance_bytes),
+        "provenanceAfterSha256": _sha256_bytes(new_provenance_bytes),
+        "checkpointBackup": str(checkpoint_backup.relative_to(output_root)),
+        "provenanceBackup": str(provenance_backup.relative_to(output_root)),
+    }
+    _write_immutable_backup(checkpoint_backup, old_checkpoint_bytes)
+    _write_immutable_backup(provenance_backup, old_provenance_bytes)
+    receipt_path = migration_root / "migration.json"
+    _atomic_write_json(receipt_path, report)
+    _atomic_write_bytes(checkpoint_path, new_checkpoint_bytes)
+    _atomic_write_bytes(provenance_path, new_provenance_bytes)
+    _validated_checkpoint_artifacts(
+        output_root=output_root,
+        value=new_checkpoint,
+        provenance_fingerprint=new_provenance.fingerprint,
+        targets=targets,
+    )
+    report["status"] = "complete"
+    report["receipt"] = str(receipt_path.relative_to(output_root))
+    _atomic_write_json(receipt_path, report)
+    return report
 
 
 def run_native_batch(
@@ -1027,6 +1253,45 @@ def process_raw_master(raw_path: Path, *, magick: str = "magick") -> RgbaImage:
     return apply_grade(native)
 
 
+def production_resource_resolution_report(
+    output_root: Path,
+    *,
+    expected_logs: Sequence[str],
+) -> dict[str, object]:
+    """Keep production fail-closed while auditing a known OpenMW NIF warning.
+
+    OpenMW emits ``addAnimSource: can't find bone`` only after both the NIF and
+    KF resources have loaded.  It skips that unmatched controller and continues;
+    this is not evidence of a missing file.  Preserve every such line in the
+    report, but do not mix it with actionable missing-resource messages.
+    """
+
+    report = resource_resolution_report(
+        output_root,
+        expected_logs=expected_logs,
+    )
+    missing = report.get("missingResourceMessages")
+    if not isinstance(missing, list):
+        raise RuntimeError("Resource resolution report has invalid messages")
+    ignored: list[dict[str, str]] = []
+    actionable: list[dict[str, str]] = []
+    for item in missing:
+        if not isinstance(item, dict) or not isinstance(item.get("line"), str):
+            raise RuntimeError("Resource resolution report has an invalid message")
+        if _BENIGN_ANIMATION_BONE_WARNING.search(item["line"]):
+            ignored.append(item)
+        else:
+            actionable.append(item)
+    report["missingResourceMessages"] = actionable
+    report["ignoredCompatibilityWarnings"] = ignored
+    report["passes"] = (
+        bool(report.get("logsInspected"))
+        and not report.get("missingExpectedLogs")
+        and not actionable
+    )
+    return report
+
+
 def _run_shard_process(
     *,
     image: str,
@@ -1096,7 +1361,7 @@ def _run_shard_process(
             f"OpenMW shard {shard.key} is missing exact capture evidence: "
             + ", ".join(missing_evidence)
         )
-    resource_audit = resource_resolution_report(
+    resource_audit = production_resource_resolution_report(
         output_root,
         expected_logs=(
             str(wrapper_log.relative_to(output_root)),
@@ -1193,6 +1458,7 @@ def run_openmw_production(
     workers: int = 1,
     shard_index: int = 0,
     shard_count: int = 1,
+    progress: ProgressCallback | None = None,
 ) -> NativeBatchResult:
     if workers <= 0:
         raise ValueError("workers must be positive")
@@ -1203,6 +1469,8 @@ def run_openmw_production(
         targets=targets,
     )
     skipped = len(session.completed)
+    if progress is not None:
+        progress(skipped, len(targets))
     planned_shards = group_targets_3x3(targets)
     selected_shards = select_shards(
         planned_shards,
@@ -1299,6 +1567,8 @@ def run_openmw_production(
         if not retain_raw:
             for target in shard.targets:
                 _raw_path(output_root, target).unlink(missing_ok=True)
+        if progress is not None:
+            progress(skipped + rendered, len(targets))
     return NativeBatchResult(
         len(targets),
         rendered,
@@ -1632,6 +1902,16 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     finalize = subparsers.choices["finalize"]
     finalize.add_argument("--min-zoom", type=int, default=MIN_ZOOM)
 
+    migrate = subparsers.add_parser(
+        "migrate-resume",
+        help="Explicitly adopt a verified checkpoint after an output-compatible host change.",
+    )
+    _add_source_and_cells(migrate, repo_root)
+    migrate.add_argument("--output", type=Path, default=repo_root / DEFAULT_OUTPUT)
+    _add_runtime_identity(migrate)
+    migrate.add_argument("--from-provenance", required=True)
+    migrate.add_argument("--reason", required=True)
+
     smoke = subparsers.add_parser(
         "smoke",
         help="Render one explicit nine-target 3x3 shard in one OpenMW process.",
@@ -1650,6 +1930,17 @@ def _resolve_cli_provenance(
     *,
     repo_root: Path,
 ) -> ProductionProvenance:
+    provenance = _derive_cli_provenance(args, repo_root=repo_root)
+    if args.output is not None:
+        publish_provenance_receipt(args.output.resolve(), provenance)
+    return provenance
+
+
+def _derive_cli_provenance(
+    args: argparse.Namespace,
+    *,
+    repo_root: Path,
+) -> ProductionProvenance:
     provenance = resolve_production_provenance(
         repo_root=repo_root,
         source_root=args.source_root.resolve(),
@@ -1664,9 +1955,11 @@ def _resolve_cli_provenance(
                 "Expected provenance fingerprint does not match the validated run: "
                 f"expected {expected}, got {provenance.fingerprint}"
             )
-    if args.output is not None:
-        publish_provenance_receipt(args.output.resolve(), provenance)
     return provenance
+
+
+def _print_render_progress(completed: int, total: int) -> None:
+    print(f"[{completed}/{total}]", file=sys.stderr, flush=True)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1736,6 +2029,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     cells = _cells_for_args(args)
+    if args.command == "migrate-resume":
+        print(
+            "[setup] validating new renderer identity and existing checkpoint",
+            file=sys.stderr,
+            flush=True,
+        )
+        provenance = _derive_cli_provenance(args, repo_root=repo_root)
+        report = migrate_resume_state(
+            output_root=args.output.resolve(),
+            cells=cells,
+            new_provenance=provenance,
+            from_provenance_fingerprint=args.from_provenance,
+            reason=args.reason,
+        )
+        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+        return 0
     if args.command == "plan":
         report = plan_report(cells)
         if args.output_plan is not None:
@@ -1743,6 +2052,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(report, ensure_ascii=False, sort_keys=True))
         return 0
     if args.command == "render":
+        print(
+            "[setup] validating renderer image, profile and assets",
+            file=sys.stderr,
+            flush=True,
+        )
         provenance = _resolve_cli_provenance(args, repo_root=repo_root)
         result = run_openmw_production(
             source_root=args.source_root.resolve(),
@@ -1757,6 +2071,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             workers=args.workers,
             shard_index=args.shard_index,
             shard_count=args.shard_count,
+            progress=_print_render_progress,
         )
         print(json.dumps(asdict(result), default=str, sort_keys=True))
         return 0

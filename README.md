@@ -73,7 +73,9 @@ pnpm data:poison:renderer:render
 pnpm data:poison:renderer:finalize
 ```
 
-`render` по умолчанию использует два встроенных workers и безопасно продолжается тем же command после остановки: готовые WebP повторно проверяются по checkpoint и не рендерятся. Для последовательного деления плана доступны `--shard-count N --shard-index I`; несколько отдельных процессов не должны одновременно писать один checkpoint. Raw `544×544` PNG удаляются после публикации WebP, если явно не указан `--retain-raw`.
+`render` по умолчанию использует два встроенных workers и безопасно продолжается тем же command после остановки: готовые WebP повторно проверяются по checkpoint и не рендерятся. Terminal сразу показывает setup, затем после каждой атомарной записи checkpoint печатает прогресс вида `[227/3984]`. Для последовательного деления плана доступны `--shard-count N --shard-index I`; несколько отдельных процессов не должны одновременно писать один checkpoint. Raw `544×544` PNG удаляются после публикации WebP, если явно не указан `--retain-raw`.
+
+OpenMW warning `addAnimSource: can't find bone` означает несовпадение animation controller с уже загруженным NIF, сохраняется в `ignoredCompatibilityWarnings` и не останавливает production render. Настоящие missing mesh/texture/file, отсутствующие логи и non-zero container exit по-прежнему fail closed.
 
 ## Локальный запуск
 
