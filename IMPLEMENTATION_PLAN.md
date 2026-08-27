@@ -1,7 +1,8 @@
 # Morrowind Map — план реализации
 
 - Дата фиксации: 2026-08-26
-- Статус: утверждённый план локальной версии
+- Последний полный аудит: 2026-08-27
+- Статус: этапы 0–4.5 завершены; этап 5 готов к старту; этап 6 ожидает production pipeline и решения по Fullrest gaps; этап 7 выполнен частично
 - Целевой репозиторий: `omggga/morrowind-map`
 
 ## 1. Цель
@@ -75,7 +76,7 @@ MIM предоставляет:
 
 ### 3.2 Fullrest 25.08
 
-`morr-dev/game/Data Files` содержит установленный профиль Fullrest 5.0.15:
+`morr-dev/game/Data Files` содержит установленный профиль Fullrest 5.0.15 и 71 272 loose files общим объёмом около 13 GiB:
 
 - локализованную base trio;
 - `Tamriel_Data.esm` 25.05;
@@ -84,14 +85,23 @@ MIM предоставляет:
 - `MFR.esm` и `MFR_TR_patch.esp`;
 - `Cyr_Main.esm` 25.05a;
 - `Sky_Main.esm` 25.05;
-- grass plugins;
 - `.cel/.top/.mrk` translation sidecars.
 
 Этот набор нельзя смешивать с английской base trio из `morr-dev/bsa`: base ESM имеют разные размеры и хеши. Fullrest snapshot должен использовать собственную локализованную base trio из `game/Data Files`.
 
 Для base + TD25 + TR25 без MFR все непустые английские CELL names имеют Russian `.cel` pair. У MFR остаётся отдельный gap: 378 уникальных кириллических CELL names не имеют локального английского соответствия.
 
-Точный порядок подтверждён сохранённым `game/Fullrest-Provenance/OpenMW_Config/openmw.cfg`; MGE-профиль сохранён рядом в `MGE.ini`. В `Data Files/distantland/world.dds` также есть готовый объединённый terrain preview 2048×2048. Открытым остаётся языковое решение для 378 MFR-only кириллических CELL names и выбор между preview и собственным более детальным renderer.
+Точный порядок подтверждён сохранённым `game/Fullrest-Provenance/OpenMW_Config/openmw.cfg`:
+
+```text
+Morrowind.esm → Tribunal.esm → Bloodmoon.esm → Tamriel_Data.esm →
+MFR.esm → Cyr_Main.esm → Sky_Main.esm → TR_Mainland.esm →
+TR_Factions.esp → MFR_TR_patch.esp → MFR.omwscripts
+```
+
+Provenance также фиксирует OpenMW `0.50.0`, commit `47d78e004bc182def2904986f8bb54aea1f4b3ae`. MGE-профиль сохранён рядом в `MGE.ini`; `Data Files/distantland/world.dds` содержит объединённый preview `2048×2048`, но после Этапа 4.5 он остаётся только reference, а production basemap должен рендериться собственным OpenMW exporter.
+
+В `openmw.cfg` отдельно объявлены `MFR_Grass.esp`, `Cyr_Main_Grass.esp`, `Sky_Main_Grass.esp` и `TR_Mainland_Grass.esp`, однако самих четырёх файлов сейчас нет ни в `game/Data Files`, ни в остальных сохранённых inputs. Поэтому exact cartographic profile можно начать строить без них, но exact groundcover нельзя заявлять до восстановления файлов либо до явного решения исключить grass из статической карты. Второй открытый вопрос — политика для 378 MFR-only кириллических CELL names. `MFR.omwscripts` присутствует, но отсутствующие Lua resources не блокируют статический renderer только при документированном исключении dynamic gameplay scripts.
 
 ### 3.3 Poison Song 26.08
 
@@ -116,13 +126,15 @@ MIM предоставляет:
 - 10 572 teleport references извлекаются;
 - все используемые teleport base records разрешаются.
 
-Между размером TD26, записанным в master metadata core TR, и фактическим TD26 есть небольшое расхождение 776 байт. Это фиксируется в provenance и проверяется при первом полном OpenMW/load-order smoke test; asset coverage оно не блокирует.
+Между размером TD26, записанным в master metadata core TR, и фактическим TD26 есть расхождение 776 байт. Оно зафиксировано в provenance; Этап 4.5 уже принял этот профиль во всех 20 OpenMW captures с `0` missing-resource messages в 40 проверенных логах. Расхождение не блокирует production pipeline, а оставшееся предупреждение в placeholder manifest должно быть удалено при выпуске immutable Poison snapshot.
 
 ## 4. Обязательные дополнительные входы
 
 Для начала Original и Poison Song дополнительных файлов не требуется.
 
-Для продолжения Fullrest дополнительных файлов не требуется: профиль, masters, loose assets, Cyr/Sky и сохранённый MGE distant-land raster уже находятся в `morr-dev/game`. До реализации нужно выбрать только политику EN fallback и целевой basemap.
+Для начала Fullrest profile/catalog/render spike дополнительных core-файлов не требуется: точный load order, masters, loose assets, Cyr/Sky/MFR/TR, translation sidecars и MGE reference уже находятся в `morr-dev/game`, а vanilla BSA — в `morr-dev/bsa`. Выбор basemap также закрыт Этапом 4.5 в пользу собственного offline OpenMW exporter.
+
+Для буквального exact groundcover нужны отсутствующие `MFR_Grass.esp`, `Cyr_Main_Grass.esp`, `Sky_Main_Grass.esp` и `TR_Mainland_Grass.esp`. Если получить их нельзя, допустима явная политика `grass excluded from static cartographic snapshot`; тогда dataset остаётся exact по ESM/ESP world content, но не по растительности groundcover. Для воспроизведения gameplay runtime также потребуются Lua resources, на которые ссылается `MFR.omwscripts`; для статической карты они намеренно исключаются и не являются блокером.
 
 Для Fullrest EN необходимо выбрать одно решение:
 
@@ -173,7 +185,7 @@ Storage изолируется интерфейсом `ProgressRepository`. Бу
 - JSON Schema как межъязыковой контракт;
 - libvips/Sharp для pyramids/WebP;
 - pytest для extractor/importer;
-- OpenMW только как возможный offline scene renderer.
+- pinned OpenMW offline exporter как выбранный scene renderer; LAND renderer остаётся coordinate/resource oracle.
 
 ### 5.4 Проверки
 
@@ -378,14 +390,14 @@ Portable backup:
 
 ## 12. Rendering strategy
 
-### 12.1 Временные basemaps
+### 12.1 Basemap adapters
 
-Для раннего vertical slice:
+Текущее состояние:
 
 - Original Vvardenfell — MIM raster;
 - Original Solstheim — отдельный MIM Bloodmoon raster;
-- Poison Song — временный reference raster/provider;
-- Fullrest — terrain preview до exact assets.
+- Poison Song и Fullrest — coordinate placeholders до выпуска собственных tile pyramids;
+- MIM, UESP и Fullrest `world.dds` используются только как visual/georeference references и не являются production runtime dependency.
 
 Basemap является сменным adapter. Координаты, IDs, markers, search и progress от него не зависят.
 
@@ -430,16 +442,9 @@ Acceptance criteria:
 
 ### 12.3 OpenMW scene renderer
 
-Если LAND-only выглядит слишком пусто, выполняется отдельный OpenMW spike:
+Этап 4.5 завершил выбор: production basemap строится небольшим offline exporter patch поверх pinned OpenMW, а не UI automation. Exporter использует LocalMap scene, orthographic north-up camera, фиксированные lighting/cull settings, render gutters и host-side crop/color grade. LAND pipeline остаётся независимым oracle для координат, effective resources и comparison renders.
 
-1. pin release/commit OpenMW;
-2. собрать isolated config из snapshot manifest;
-3. отрендерить 3×3 cells через LocalMap/offscreen path;
-4. отключить UI, fog, weather variability, actors и dynamic objects;
-5. проверить roofs, bridges, trees, alpha geometry и water;
-6. проверить cell streaming/gutters/seams;
-7. доказать reproducibility и headless Linux execution;
-8. выбрать UI automation либо небольшой offline exporter на базе OpenMW.
+Для production Этап 5 должен расширить single-cell/control runner до arbitrary batch coverage с checkpoint/resume, deterministic inventory, full resource audit и построением нижних zoom из native children. Тот же generic pipeline затем применяется к точному Fullrest profile на Этапе 6.
 
 Полный NIF renderer с нуля не входит в план.
 
@@ -562,9 +567,25 @@ Node builder → static dist → Nginx runtime
 
 ## 17. Этапы реализации
 
+### Сводный аудит на 2026-08-27
+
+| Этап | Текущий статус | Что означает статус |
+| --- | --- | --- |
+| 0 — repository/plan | **100% complete** | Private GitHub repository, plan, ignore rules и initial push проверены |
+| 1 — contracts/skeleton | **100% complete** | Skeleton, contracts, three-card landing, TES3 projection и CI работают |
+| 2 — Original | **100% complete в заявленном scope** | Vvardenfell/Solstheim raster + 1 010 EN/RU places полностью работают без user persistence |
+| 3 — progress/MIM | **100% complete в заявленном scope** | Dataset-scoped persistence, MIM import и portable backup реализованы |
+| 4 — LAND spike | **100% complete в spike scope** | Coordinate/resource oracle принят; LAND-only обоснованно отклонён как финальный basemap |
+| 4.5 — OpenMW spike | **100% complete в spike scope** | Bounded exporter и Linux/Docker quality gate приняты |
+| 5 — Poison Song | **Ready to start; не завершён** | Profile/renderer foundation готов, full pyramid/catalog/runtime integration отсутствуют |
+| 6 — Fullrest exact | **Inputs mostly recovered; не завершён** | Exact content order найден; нужны shared pipeline, EN policy и решение по отсутствующему groundcover |
+| 7 — visual/UX polish | **Partially complete** | Базовый MIM-like/responsive/a11y слой есть в Original; cross-dataset acceptance отсутствует |
+
+Этапы 0–4.5 считаются закрытыми именно в их зафиксированных границах. Полный Poison/Fullrest basemap не является «хвостом» спайков: это отдельная production-работа Этапов 5–6.
+
 ### Этап 0 — репозиторий и план
 
-Status: complete.
+Status: **100% complete** (verified 2026-08-27).
 
 Deliverables:
 
@@ -575,9 +596,11 @@ Deliverables:
 - первый commit `docs: add implementation plan`;
 - push ветки `main`.
 
+Evidence: GitHub repository `omggga/morrowind-map` приватный, default branch — `main`; первый commit `0c99cdc` содержит ровно plan, `.gitignore` и `README.md`. Remaining: none.
+
 ### Этап 1 — contracts и skeleton
 
-Status: complete.
+Status: **100% complete** (verified 2026-08-27).
 
 Deliverables:
 
@@ -588,11 +611,11 @@ Deliverables:
 - dataset index и три manifests-заглушки;
 - CI install/typecheck/lint/unit/build.
 
-Exit: landing показывает три cards, каждая открывает пустую карту с корректными TES3 coordinates.
+Exit был достигнут в commit `06693d9`: landing показывал три cards, каждая открывала пустую карту с корректными TES3 coordinates. Затем Original placeholder был заменён реализацией Этапа 2; Fullrest и Poison остаются coordinate placeholders до Этапов 5–6. Текущие CI typecheck/lint/unit/build зелёные. Remaining: none within Stage 1.
 
 ### Этап 2 — Original vertical slice
 
-Status: complete (2026-08-26): 933 MIM markers + 77 ESM-only destinations, full EN/RU coverage.
+Status: **100% complete within the defined Original Vvardenfell/Solstheim scope** (verified 2026-08-27): 933 MIM markers + 77 ESM-only destinations, full EN/RU coverage.
 
 Deliverables:
 
@@ -603,11 +626,11 @@ Deliverables:
 - search;
 - zoom/pan/place panel.
 
-Exit: Original функционально работает без user persistence.
+Exit: выполнен. Два локальных raster имеют размеры `3300×3800` и `3072×3840` и совпадают с manifest hashes; audit содержит 1 010 places, EN/RU по 1 010 и unresolved names `0`. Original функционально работает без user persistence. Mournhold inset остаётся будущей отдельной функцией и не входил в acceptance этого vertical slice. Remaining: none within Stage 2.
 
 ### Этап 3 — progress и MIM import
 
-Status: complete (2026-08-26): Dexie schema v3, real MIM snapshot, local editing and portable backup verified end-to-end.
+Status: **100% complete for local persistence and MIM import scope** (verified 2026-08-27): Dexie schema v3, real MIM snapshot, local editing and portable backup реализованы.
 
 Deliverables:
 
@@ -633,9 +656,11 @@ Deliverables:
 
 Exit: текущие 741 visited, одна note и 6 personal markers воспроизводятся без duplicate-name loss.
 
+Remaining within Stage 3: none. Сохранённого pinned Playwright E2E для настоящего Canvas/browser reload пока нет; прежний browser smoke является ручным evidence. Воспроизводимый E2E для выбора версии, raster load, pan/zoom, search, EN/RU, MIM duplicate protection, JSON round-trip и reload перенесён в cross-cutting acceptance Этапа 7.
+
 ### Этап 4 — LAND renderer spike
 
-Status: complete (2026-08-27): deterministic LAND/VFS oracle принят, финальный basemap эскалирован к OpenMW.
+Status: **100% complete in LAND spike scope** (verified 2026-08-27): deterministic LAND/VFS oracle принят, финальный basemap эскалирован к OpenMW.
 
 Deliverables:
 
@@ -651,16 +676,18 @@ Deliverables:
 - strict TES3 record, LAND/LTEX и BSA parsers, ordered loose/BSA VFS и plugin-scoped LTEX resolution;
 - полный Poison Song audit: 3 986 effective LAND cells, 365/365 plugin-scoped VTEX references, unresolved 0;
 - пять native `512×512` lossless WebP по сетке 16 world units/pixel;
-- world/pixel round-trip error 0; 60 shared edges проверены, максимальный source delta равен одному VHGT quantum (8 units);
-- два независимых полных запуска дали побайтно одинаковые пять WebP и renderer fingerprint;
+- world/pixel round-trip error 0; 60 shared edges проверены в пяти `3×3` control neighborhoods, максимальный source delta равен одному VHGT quantum (8 units);
+- два независимых complete five-control spike runs дали побайтно одинаковые пять WebP и renderer fingerprint;
 - сравнение Balmora с MIM и всех пяти areas с UESP подтвердило terrain alignment, но показало неприемлемую потерю buildings/bridges/trees/statics;
 - LAND renderer остаётся coordinate/resource oracle и fallback; owned basemap переходит к bounded OpenMW offscreen/exporter spike.
 
 Подробности и hashes: `docs/adr/0001-land-renderer-spike.md`.
 
+Exit: выполнен. Remaining within Stage 4: none; генерация полного basemap намеренно относится к Этапу 5.
+
 ### Этап 4.5 — OpenMW renderer spike
 
-Status: complete (2026-08-27): все automated и hash-bound visual checks пройдены; полный Poison Song basemap намеренно не генерировался.
+Status: **100% complete in bounded OpenMW spike scope** (verified 2026-08-27): все automated и hash-bound visual checks пройдены; полный Poison Song basemap намеренно не генерировался.
 
 Цель: проверить, может ли ограниченный headless/offscreen pipeline на базе OpenMW дать воспроизводимую полноценную подложку со статическими объектами, сохранив доказанную на Этапе 4 координатную модель.
 
@@ -685,7 +712,7 @@ Deliverables:
 - OpenMW LocalMap scene используется с orthographic north-up camera, fixed lighting и cull mask `Scene | SimpleWater | Terrain | Static`; `Mask_Object` (items/containers и прочие runtime objects), UI, actor/player, sky/weather, fog и shadows исключены, а здания/деревья/двери/activator geometry остаются в OpenMW `Mask_Static`;
 - exporter создаёт raw `544×544` PNG на world extent `8704×8704`: центральная TES3 CELL остаётся `8192×8192`, то есть `16` world units/pixel, и окружена render gutter по `16` pixels (`256` world units) с каждой стороны;
 - host pipeline делает точный crop `16 px` до native `512×512`, применяет детерминированный MIM-like grade и пишет lossless WebP; соседние независимые renders сравниваются по всему общему raw overlap `32 px`;
-- для Balmora, Old Ebonheart, Othrenis, Gorne и Nan Iban выполняются center/east/north renders, повторный center render и проверки resource logs, runtime camera transform, содержательности изображения, bounded raw-overlap seam deltas и побайтной воспроизводимости; hashes всего seam evidence входят в обязательную визуальную квитанцию;
+- для Balmora, Old Ebonheart, Othrenis, Gorne и Nan Iban выполняются center/east/north renders, повторный center render и проверки resource logs, runtime camera transform, содержательности изображения и bounded raw-overlap/repeat deltas; exact hashes и hashes всего seam evidence входят в обязательную визуальную квитанцию, а заранее заданный строгий tolerance применяется только к редким alpha-edge pixels;
 - контейнер запускается без сети, с read-only root filesystem и game mounts, без capabilities, с `no-new-privileges`, Xvfb и Mesa `llvmpipe`; профиль и output находятся только в ignored `local-data/openmw-spike/poison-song-26.08`.
 
 Команды проверки:
@@ -701,7 +728,7 @@ python3 -m tools.openmw_renderer.spike --skip-build --smoke-only
 python3 -m tools.openmw_renderer.spike --skip-build
 ```
 
-`smoke-report.json` доказывает только работоспособность одного capture и не закрывает gate. Канонический `report.json` полного запуска подтверждает пять controls, реальный runtime world-to-pixel transform с ошибкой не более одного native pixel, ограниченные raster deltas соседних gutter overlaps, идентичные repeat WebP/RGBA, отсутствие missing resource messages, непустое изображение и Linux/amd64 `llvmpipe` runtime. Визуальное наличие roofs, buildings, bridges, trees, walls, water и alpha geometry отдельно сверяется с LAND/MIM/UESP references; receipt связана с profile/execution fingerprints, WebP/native hashes и полным seam evidence fingerprint.
+`smoke-report.json` доказывает только работоспособность одного capture и не закрывает gate. Канонический `report.json` полного запуска подтверждает пять controls, реальный runtime world-to-pixel transform с ошибкой не более одного native pixel, ограниченные raster deltas соседних gutter overlaps, repeat comparisons с сохранёнными hashes и строгим tolerance, отсутствие missing resource messages, непустое изображение и Linux/amd64 `llvmpipe` runtime. Визуальное наличие roofs, buildings, bridges, trees, walls, water и alpha geometry отдельно сверяется с LAND/MIM/UESP references; receipt связана с profile/execution fingerprints, WebP/native hashes и полным seam evidence fingerprint.
 
 Фактический результат: **pass**. Образ `sha256:d96ddae3e12196d6b624ffb98dd87e721e3ba6c2a04ce1b410b02fe0e39e3a5b` воспроизводимо выполнил 20 изолированных captures. Четыре repeat WebP/native/graded RGBA совпали побайтно; в Nan Iban изменились 8 из 262 144 alpha-edge pixels (`0.000030518` fraction, `0.000033379/255` mean delta, `4/255` max delta), что укладывается в заранее заданный узкий tolerance. Maximum runtime coordinate error `0 px`; missing resources `0` в 40 проверенных логах. Для десяти east/north overlaps худшие raster deltas составили `0.319738` differing fraction, `0.281264/255` mean absolute channel delta и `25/255` maximum channel delta — ниже зафиксированных пределов, без видимого шва при review в native resolution. Visual receipt подтвердила весь набор statics и LAND/MIM/UESP reference coverage.
 
@@ -709,46 +736,101 @@ python3 -m tools.openmw_renderer.spike --skip-build
 
 Архитектурное решение и ожидаемые artifacts: `docs/adr/0002-openmw-offline-exporter.md`.
 
-Exit: выполнен — все пять участков воспроизводимо рендерятся с необходимыми statics, world coordinate → pixel error равен `0`, между соседними tiles нет видимых швов и подтверждён headless Linux/Docker pipeline. Полный Poison Song basemap до закрытия gate не генерировался.
+Exit: выполнен — все пять участков воспроизводимо в пределах принятого tolerance рендерятся с необходимыми statics, world coordinate → pixel error равен `0`, между соседними tiles нет видимых швов и подтверждён headless Linux/Docker pipeline. Remaining within Stage 4.5: none. Runtime report и manual visual receipt хранятся в ignored local artifacts и для повторной генерации требуют proprietary game assets и Docker; core-only render profile намеренно исключает `.omwscripts`, `TR_Factions.esp` и Firemoth patch. Полный Poison Song basemap относится к Этапу 5.
 
 ### Этап 5 — Poison Song
 
+Status: **ready to start; production foundation complete, stage deliverables not complete**.
+
+Уже готово для переиспользования:
+
+- exact Poison core profile, canonical TES3 grid и `0` unresolved LAND textures/direct exterior models;
+- LAND coordinate/resource oracle и прошедший quality gate OpenMW exporter;
+- contracts, Place/Entrance model, search primitives, dataset-scoped Dexie progress/notes/personal markers и portable backup;
+- placeholder manifest с подтверждённым core load order, extent и hashes.
+
+Фактический остаток работ:
+
+1. **Production renderer:** построить effective-cell coverage mask; принимать arbitrary/batched targets; добавить atomic checkpoint/resume; рендерить native `512×512` WebP с gutters/crop; строить lower zoom из children; выпускать deterministic tile inventory с hashes/sizes и полный resource audit. Текущий runner обслуживает control CELL по одному и не является производительным генератором тысяч tiles.
+2. **Generic catalog pipeline:** применить effective record merge по pinned load order, включая deleted/overridden records, CELL/DOOR/teleport/base resolution; сгруппировать entrances в stable Place IDs; построить полный EN catalog, aliases, types и regions с deterministic audit. Текущий extractor одного plugin недостаточен для полного TR snapshot.
+3. **Contracts/runtime:** расширить `map-assets` contract с `static-image` JPEG до WebP tile pyramid; зафиксировать renderer/extractor/asset-tree fingerprints; заменить `placeholder-v1` immutable ready manifest; удалить уже устаревшее warning о необходимом OpenMW smoke; сделать generic dataset loader/map вместо Original-only `ImageStatic` и non-Original placeholder; подключить TileLayer и динамические regions/locales.
+4. **Product integration:** переиспользовать search, statuses, notes и personal markers для EN-only snapshot с независимым progress; добавить missing-tile/loading/error states и network-free browser acceptance.
+
 Deliverables:
 
-- immutable Poison manifest;
-- полный EN catalog;
-- owned либо временно approved tiles;
-- search/statuses/personal markers;
-- independent progress;
-- offline operation.
+- immutable ready Poison manifest, связанный hashes с profile, assets, extractor, renderer, catalog и tile inventory;
+- полный EN location catalog;
+- собственная полная WebP pyramid без UESP/CDN runtime dependency;
+- search, statuses, notes, personal markers и independent reload persistence;
+- offline/no-network E2E и full-scope resource/coordinate/seam/determinism reports.
 
-Exit: Poison Song работает без UESP/CDN и с `0` unresolved effective LAND resources.
+Exit: полный Poison catalog и owned tile pyramid hash-bound immutable manifest-ом; приложение без сети поддерживает search/status/note/personal markers/reload; effective LAND textures и direct exterior models имеют `0` unresolved; coordinate, seam и determinism gates проходят на полном scope.
 
 ### Этап 6 — Fullrest exact
 
-Зависит от получения profile/assets.
+Status: **inputs mostly recovered; implementation not started; depends on Stage 5 generic pipeline, EN fallback decision and groundcover policy**.
+
+Устаревший блокер «неизвестны profile/assets» снят. Сохранены Fullrest `5.0.15`, OpenMW `0.50.0` commit `47d78e004bc182def2904986f8bb54aea1f4b3ae`, exact `openmw.cfg`, все ESM/ESP из content order, `MFR.omwscripts`, translation sidecars и loose mesh/texture tree; vanilla BSA находятся в `morr-dev/bsa`. Подтверждённый content order приведён в §3.2. Старый blocked manifest и тест, ожидающий blocked/inexact state, теперь описывают устаревшее состояние и должны быть заменены на generated manifest после profile audit.
+
+Открытые входные/продуктовые решения:
+
+- четыре объявленных `groundcover=` ESP отсутствуют; их нужно восстановить либо явно исключить grass из static cartographic snapshot;
+- для 378 MFR RU-only CELL names выбрать sourced/manual EN mapping либо честный RU fallback в EN mode с `localeStatus: partial`, badge и audit count; рекомендуемый v1 — явный RU fallback без скрытой подмены;
+- `MFR.omwscripts` fingerprint-ится, но отсутствующие referenced Lua resources исключаются из static renderer. В таком режиме `exact` означает exact ESM/ESP cartographic world, а не воспроизводимый gameplay runtime.
+
+Фактический остаток работ:
+
+1. Пересчитать и закрепить hashes всех plugins, BSA и полного loose tree; формализовать asset override order `vanilla BSA → game/Data Files`; проверить сохранённую OpenMW 0.50 profile semantics с pinned 0.51 exporter.
+2. Параметризовать Poison-specific exporter/profile builder для Fullrest; добавить controls в MFR/Cyr/Sky/TR/base regions; выполнить полный LAND/model resource audit и сгенерировать собственную pyramid. `distantland/world.dds` остаётся reference, не финальной подложкой.
+3. Построить effective EN/RU catalog по exact content order и CP1251 `.cel` pairs; зафиксировать fallback policy/count в immutable manifest и UI.
+4. Явно описать MFR, Cyr, Sky, TR_Factions, MFR_TR patch, grass и dynamic scripts в profile contract; убрать stale `unconfirmed` modules/blockers.
+5. Реализовать не прямой MIM import, а reviewed migration `Original placeId → Fullrest placeId` по record/entrance identity с duplicate/unmapped/archive tests и независимым Fullrest progress.
 
 Deliverables:
 
 - подтверждённый load order и asset override order;
 - immutable Fullrest manifest;
-- old TD/TR/MFR render;
+- полный old TD/TR/MFR/Cyr/Sky render;
 - выбранная политика 378 MFR EN gaps;
 - EN/RU search;
-- MIM progress import;
-- явная политика Cyr/Sky/grass/optional plugins.
+- explicit MIM progress migration;
+- явная политика Cyr/Sky/grass/optional/dynamic plugins;
+- independent offline persistence и full-scope acceptance reports.
+
+Exit: ready immutable Fullrest manifest точно отражает сохранённый cartographic profile и asset order; все enabled landmasses/modules представлены собственной pyramid и EN/RU catalog; fallback и groundcover policies аудируемы; LAND/direct exterior model unresolved равен `0`; reviewed MIM migration не теряет mapped duplicates; offline search и независимый progress переживают reload.
 
 ### Этап 7 — visual/UX polish
 
+Status: **partially complete foundation; cross-dataset acceptance pending**.
+
+Уже реализовано преимущественно для Original:
+
+- MIM-like palette, square markers и базовая typography/pixel стилизация;
+- responsive breakpoints для desktop/mobile, `focus-visible`, reduced-motion и tab-focus карты;
+- базовые keyboard actions (`/`, `Escape`), возврат focus на landing и ARIA labels;
+- loading/error/no-results states и ручной mobile/browser smoke.
+
+Остаток работ:
+
+1. Сделать regions, types, statuses, strings и controls generic для трёх реальных datasets; убрать Original/Vvardenfell/Solstheim hardcode.
+2. Добавить OpenLayers text-label layer с deterministic declutter и zoom/type/status/region filters; сейчас labels на карте отсутствуют.
+3. Ввести стабильный URL contract как минимум для `dataset`, `region`, `x`, `y`, `z`, `lang`, `place`, включая back/forward, invalid-state fallback и shareable deep links. Сейчас `App` хранит выбор только в React state.
+4. Закрыть tile loading/progress/error/empty/retry states на больших catalogs и pyramids.
+5. Провести финальный MIM-like font/icon/pixel tuning уже на готовых Poison/Fullrest подложках.
+6. Добавить pinned Playwright browser/visual fixtures для трёх datasets, desktop/mobile/landscape и ключевых states; OpenMW visual receipt проверяет basemap, но не UI.
+7. Выполнить keyboard-only/manual focus matrix и automated accessibility checks, включая dialog focus, contrast, touch, 200% reflow и screen-reader names.
+
 Deliverables:
 
-- MIM-like typography и pixel tuning;
-- responsive/mobile layout;
-- keyboard navigation и accessibility;
-- label declutter/filtering;
-- loading/error/empty states;
-- visual regression fixtures;
-- stable URL/deep links.
+- MIM-like typography/pixel tuning для всех datasets;
+- responsive/mobile/touch layout без overflow;
+- keyboard navigation и accessibility acceptance;
+- deterministic label declutter/filtering;
+- complete loading/error/empty/retry states;
+- pinned Playwright functional/visual regression fixtures;
+- stable URL/deep links с browser history.
+
+Exit: все три готовых datasets проходят URL round-trip/back-forward, keyboard-only flow, automated + manual accessibility checks, desktop/mobile/landscape visual fixtures, deterministic label/filter behavior и полные loading/error/empty scenarios.
 
 ### Этап 8 — Docker local release
 
@@ -783,15 +865,18 @@ Deliverables:
 
 | Риск | Ответ |
 | --- | --- |
-| Неизвестный Fullrest load order | Не называть dataset exact до получения profile |
-| Нет старых Fullrest assets | Этап 6 блокируется, остальные этапы продолжаются |
+| Fullrest profile/asset order | **Resolved:** сохранён exact `openmw.cfg`, content order и loose tree; manifest должен закрепить их hashes |
+| Отсутствуют четыре Fullrest groundcover ESP | Восстановить файлы либо явно документировать `grass excluded`; не заявлять exact groundcover без evidence |
 | 378 MFR RU-only names | Явный fallback или отдельный mapping, без скрытой подмены |
-| LAND-only выглядит пусто | Controlled escalation к OpenMW renderer |
-| OpenMW не имеет stable export CLI | Отдельный 3×3-cell spike до fork/automation решения |
+| MFR Lua resources отсутствуют | Fingerprint `.omwscripts`, исключить dynamic gameplay из static snapshot; не называть его gameplay-exact |
+| LAND-only выглядит пусто | **Resolved:** LAND остаётся oracle, финальный basemap строится OpenMW exporter |
+| OpenMW exporter/reproducibility | **Resolved for bounded spike:** offline exporter принят; production batch throughput остаётся задачей Этапа 5 |
+| Тысячи OpenMW captures слишком медленны/велики | Batch targets, checkpoint/resume, native masters, lower zoom from children, inventory/hash/size budget до полного run |
 | Изменение TR под тем же названием | Immutable snapshot/content hash |
 | Межверсионная порча progress | Dataset-scoped storage и explicit migration map |
 | Browser storage eviction | Persistent storage request + portable JSON backup |
 | Очень большие tiles | 512px pyramid, active dataset loading, external volume |
+| Ручной browser smoke невоспроизводим | Pinned Playwright functional/visual/a11y acceptance в Этапе 7 |
 | Случайная публикация игровых файлов | External paths, `.gitignore`, verification перед commit/push |
 
 ## 20. Полезные технические источники
