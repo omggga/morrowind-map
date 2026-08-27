@@ -1,0 +1,2 @@
+# Patch artifacts carry their own diff markers; do not reinterpret nested whitespace.
+tools/openmw_renderer/patches/*.patch -whitespace

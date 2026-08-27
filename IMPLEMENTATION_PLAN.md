@@ -2,7 +2,7 @@
 
 - Дата фиксации: 2026-08-26
 - Последний полный аудит: 2026-08-27
-- Статус: этапы 0–4.5 завершены; этап 5 готов к старту; этап 6 ожидает production pipeline и решения по Fullrest gaps; этап 7 выполнен частично
+- Статус: этапы 0–4.5 завершены; этап 5 в работе — подэтапы 5.1/5.2 завершены, full render/catalog/UI ещё впереди; этап 6 ожидает generic pipeline и решения по Fullrest gaps; этап 7 выполнен частично
 - Целевой репозиторий: `omggga/morrowind-map`
 
 ## 1. Цель
@@ -740,7 +740,7 @@ Exit: выполнен — все пять участков воспроизво
 
 ### Этап 5 — Poison Song
 
-Status: **ready to start; production foundation complete, stage deliverables not complete**.
+Status: **in progress; 5.1 production pipeline и 5.2 benchmark завершены, полный Poison Song dataset ещё не выпускался**.
 
 Уже готово для переиспользования:
 
@@ -749,12 +749,14 @@ Status: **ready to start; production foundation complete, stage deliverables not
 - contracts, Place/Entrance model, search primitives, dataset-scoped Dexie progress/notes/personal markers и portable backup;
 - placeholder manifest с подтверждённым core load order, extent и hashes.
 
-Фактический остаток работ:
+Подэтапы:
 
-1. **Production renderer:** построить effective-cell coverage mask; принимать arbitrary/batched targets; добавить atomic checkpoint/resume; рендерить native `512×512` WebP с gutters/crop; строить lower zoom из children; выпускать deterministic tile inventory с hashes/sizes и полный resource audit. Текущий runner обслуживает control CELL по одному и не является производительным генератором тысяч tiles.
-2. **Generic catalog pipeline:** применить effective record merge по pinned load order, включая deleted/overridden records, CELL/DOOR/teleport/base resolution; сгруппировать entrances в stable Place IDs; построить полный EN catalog, aliases, types и regions с deterministic audit. Текущий extractor одного plugin недостаточен для полного TR snapshot.
-3. **Contracts/runtime:** расширить `map-assets` contract с `static-image` JPEG до WebP tile pyramid; зафиксировать renderer/extractor/asset-tree fingerprints; заменить `placeholder-v1` immutable ready manifest; удалить уже устаревшее warning о необходимом OpenMW smoke; сделать generic dataset loader/map вместо Original-only `ImageStatic` и non-Original placeholder; подключить TileLayer и динамические regions/locales.
-4. **Product integration:** переиспользовать search, statuses, notes и personal markers для EN-only snapshot с независимым progress; добавить missing-tile/loading/error states и network-free browser acceptance.
+1. **5.1 — production renderer: выполнено на 100%.** Реализованы effective LAND/CELL coverage, immutable plan `3 984 CELL → 492 shard`, exporter-only `5×5` scene context с `3×3` RTT, arbitrary cell sets, стабильные modulo partitions, `--workers`, atomic checkpoint/resume, fail-closed profile/source/image/encoder provenance, resource audit, cgroup memory evidence, gutter crop/grade, pixel-exact lossless WebP, sparse `z0…z7` pyramid и deterministic inventory. CLI запускается пользователем из Terminal; отдельные процессы с одним checkpoint нельзя запускать одновременно, для параллелизма используется встроенный `--workers`.
+2. **5.2 — five-control production benchmark: выполнено на 100%.** На тех же Balmora, Old Ebonheart, Othrenis, Gorne и Nan Iban реально отрендерены пять полных `3×3` batch (`45` native tiles) с двумя workers. Render wall `178.977 s`, container mean `52.4 s`, peak одного shard `1.137 GB`, сумма двух наибольших peaks `2.209 GB`, повторный запуск по checkpoint `0.080 s` без OpenMW. Проверены `60` overlaps, `0 px` coordinate error, сравнение со старыми `1×1`, lower zoom и inventory (`101` tiles, hash `6528bcc…`). Экстраполяция на эту машину: `4.89 h` native render + `0.29 h` pyramid + `36 s` provenance = `5.19 h`; рабочий запас для полного запуска — `5–6 h`. Полный отчёт: `docs/stage5-openmw-production.md`.
+3. **5.3 — full Poison basemap: не начат.** Запустить все `492` shard, затем полный `z0…z7` finalize; проверить full-scope resource audit, все соседние overlaps, inventory hashes/determinism и только после этого опубликовать generated assets. Это намеренно не выполнялось в 5.1/5.2.
+4. **5.4 — generic catalog pipeline: не начат.** Применить effective record merge по pinned load order, включая deleted/overridden records, CELL/DOOR/teleport/base resolution; сгруппировать entrances в stable Place IDs; построить полный EN catalog, aliases, types и regions с deterministic audit. Текущий extractor одного plugin недостаточен для полного TR snapshot.
+5. **5.5 — contracts/runtime: не начат.** Расширить `map-assets` contract с `static-image` JPEG до WebP tile pyramid; связать renderer/extractor/asset-tree fingerprints; заменить `placeholder-v1` immutable ready manifest; сделать generic dataset loader/map и подключить TileLayer.
+6. **5.6 — product integration: не начат.** Переиспользовать search, statuses, notes и personal markers для EN-only snapshot с независимым progress; добавить missing-tile/loading/error states и network-free browser acceptance.
 
 Deliverables:
 

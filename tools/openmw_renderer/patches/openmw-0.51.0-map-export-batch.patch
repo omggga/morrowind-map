@@ -1,0 +1,340 @@
+diff --git a/apps/openmw/engine.cpp b/apps/openmw/engine.cpp
+index bfd3ca6..997e431 100644
+--- a/apps/openmw/engine.cpp
++++ b/apps/openmw/engine.cpp
+@@ -954,7 +954,7 @@ void OMW::Engine::go()
+     mViewer = new osgViewer::Viewer;
+     mViewer->setReleaseContextAtEndOfFrameHint(false);
+ 
+-    if (std::getenv("MWMAP_EXPORT_PATH") != nullptr)
++    if (std::getenv("MWMAP_EXPORT_BATCH_FILE") != nullptr)
+         mViewer->setThreadingModel(osgViewer::ViewerBase::SingleThreaded);
+ 
+     // Do not try to outsmart the OS thread scheduler (see bug #4785).
+diff --git a/apps/openmw/mwrender/localmap.cpp b/apps/openmw/mwrender/localmap.cpp
+index 539d9ac..affab5e 100644
+--- a/apps/openmw/mwrender/localmap.cpp
++++ b/apps/openmw/mwrender/localmap.cpp
+@@ -1,11 +1,15 @@
+ #include "localmap.hpp"
+ 
++#include <algorithm>
+ #include <charconv>
+ #include <cstdint>
+ #include <cstdlib>
+ #include <filesystem>
++#include <fstream>
+ #include <optional>
++#include <string>
+ #include <string_view>
++#include <vector>
+ 
+ #include <osg/ComputeBoundsVisitor>
+ #include <osg/CopyOp>
+@@ -44,13 +48,22 @@
+ 
+ namespace
+ {
+-    struct LocalMapExportConfig
++    struct LocalMapExportTarget
+     {
+         int mCellX;
+         int mCellY;
+-        int mGutterPixels;
+         std::filesystem::path mOutputPath;
+         bool mClaimed = false;
++        bool mCompleted = false;
++    };
++
++    struct LocalMapExportConfig
++    {
++        int mCenterX;
++        int mCenterY;
++        int mGutterPixels;
++        std::vector<LocalMapExportTarget> mTargets;
++        bool mScheduled = false;
+     };
+ 
+     int parseInteger(std::string_view value, std::string_view label)
+@@ -65,17 +77,18 @@ namespace
+     std::optional<LocalMapExportConfig>& getLocalMapExportConfig()
+     {
+         static std::optional<LocalMapExportConfig> config = []() -> std::optional<LocalMapExportConfig> {
+-            const char* cellValue = std::getenv("MWMAP_EXPORT_CELL");
+-            const char* outputValue = std::getenv("MWMAP_EXPORT_PATH");
+-            if (cellValue == nullptr && outputValue == nullptr)
++            const char* batchValue = std::getenv("MWMAP_EXPORT_BATCH_FILE");
++            if (batchValue == nullptr)
+                 return std::nullopt;
+-            if (cellValue == nullptr || outputValue == nullptr)
+-                throw std::runtime_error("MWMAP_EXPORT_CELL and MWMAP_EXPORT_PATH must be set together");
+-
+-            const std::string_view cell(cellValue);
+-            const std::size_t comma = cell.find(',');
+-            if (comma == std::string_view::npos || cell.find(',', comma + 1) != std::string_view::npos)
+-                throw std::runtime_error("MWMAP_EXPORT_CELL must use the exact x,y form");
++            const char* centerValue = std::getenv("MWMAP_EXPORT_BATCH_CENTER");
++            if (centerValue == nullptr)
++                throw std::runtime_error("MWMAP_EXPORT_BATCH_CENTER is required");
++            const std::string_view center(centerValue);
++            const std::size_t centerComma = center.find(',');
++            if (centerComma == std::string_view::npos || center.find(',', centerComma + 1) != std::string_view::npos)
++                throw std::runtime_error("MWMAP_EXPORT_BATCH_CENTER must use the exact x,y form");
++            const int centerX = parseInteger(center.substr(0, centerComma), "export batch center x");
++            const int centerY = parseInteger(center.substr(centerComma + 1), "export batch center y");
+ 
+             int gutterPixels = 16;
+             if (const char* gutterValue = std::getenv("MWMAP_EXPORT_GUTTER_PIXELS"))
+@@ -83,17 +96,102 @@ namespace
+             if (gutterPixels < 0 || gutterPixels > 128)
+                 throw std::runtime_error("MWMAP_EXPORT_GUTTER_PIXELS must be between 0 and 128");
+ 
+-            std::filesystem::path outputPath(outputValue);
+-            if (!outputPath.is_absolute())
+-                throw std::runtime_error("MWMAP_EXPORT_PATH must be absolute");
++            const std::filesystem::path batchPath(batchValue);
++            if (!batchPath.is_absolute())
++                throw std::runtime_error("MWMAP_EXPORT_BATCH_FILE must be absolute");
++            std::ifstream stream(batchPath);
++            if (!stream)
++                throw std::runtime_error("Could not open MWMAP_EXPORT_BATCH_FILE: " + batchPath.string());
++
++            LocalMapExportConfig result{ centerX, centerY, gutterPixels, {} };
++            std::string line;
++            std::size_t lineNumber = 0;
++            while (std::getline(stream, line))
++            {
++                ++lineNumber;
++                const std::size_t tab = line.find('\t');
++                if (tab == std::string::npos || line.find('\t', tab + 1) != std::string::npos)
++                    throw std::runtime_error("Invalid export batch line " + std::to_string(lineNumber));
++                const std::string_view cell(line.data(), tab);
++                const std::size_t comma = cell.find(',');
++                if (comma == std::string_view::npos || cell.find(',', comma + 1) != std::string_view::npos)
++                    throw std::runtime_error("Invalid export batch cell at line " + std::to_string(lineNumber));
++
++                std::filesystem::path outputPath(line.substr(tab + 1));
++                if (!outputPath.is_absolute())
++                    throw std::runtime_error("Export batch output paths must be absolute");
++                const int cellX = parseInteger(cell.substr(0, comma), "export batch cell x");
++                const int cellY = parseInteger(cell.substr(comma + 1), "export batch cell y");
++                if (std::abs(cellX - centerX) > 1 || std::abs(cellY - centerY) > 1)
++                    throw std::runtime_error("Export batch target is outside the declared 3x3 center");
++                for (const auto& target : result.mTargets)
++                {
++                    if (target.mCellX == cellX && target.mCellY == cellY)
++                        throw std::runtime_error("Duplicate export batch cell");
++                    if (target.mOutputPath == outputPath)
++                        throw std::runtime_error("Duplicate export batch output path");
++                }
++                result.mTargets.push_back(LocalMapExportTarget{ cellX, cellY, std::move(outputPath) });
++            }
++            if (!stream.eof())
++                throw std::runtime_error("Could not read MWMAP_EXPORT_BATCH_FILE");
++            if (result.mTargets.empty() || result.mTargets.size() > 9)
++                throw std::runtime_error("Export batch must contain between one and nine targets");
++
++            int minX = result.mTargets.front().mCellX;
++            int maxX = minX;
++            int minY = result.mTargets.front().mCellY;
++            int maxY = minY;
++            for (const auto& target : result.mTargets)
++            {
++                minX = std::min(minX, target.mCellX);
++                maxX = std::max(maxX, target.mCellX);
++                minY = std::min(minY, target.mCellY);
++                maxY = std::max(maxY, target.mCellY);
++            }
++            if (maxX - minX > 2 || maxY - minY > 2)
++                throw std::runtime_error("Export batch targets must fit one 3x3 neighborhood");
+ 
+-            return LocalMapExportConfig{ parseInteger(cell.substr(0, comma), "MWMAP_EXPORT_CELL x"),
+-                parseInteger(cell.substr(comma + 1), "MWMAP_EXPORT_CELL y"), gutterPixels,
+-                std::move(outputPath) };
++            return result;
+         }();
+         return config;
+     }
+ 
++    LocalMapExportTarget* claimLocalMapExportTarget(int cellX, int cellY)
++    {
++        auto& config = getLocalMapExportConfig();
++        if (!config)
++            return nullptr;
++        for (auto& target : config->mTargets)
++        {
++            if (target.mCellX == cellX && target.mCellY == cellY && !target.mClaimed)
++            {
++                target.mClaimed = true;
++                return &target;
++            }
++        }
++        return nullptr;
++    }
++
++    bool finishLocalMapExportTarget(const std::filesystem::path& outputPath, bool written)
++    {
++        auto& config = getLocalMapExportConfig();
++        if (!config)
++            return false;
++        for (auto& target : config->mTargets)
++        {
++            if (target.mOutputPath == outputPath)
++            {
++                target.mCompleted = written;
++                if (!written)
++                    return true;
++                return std::all_of(config->mTargets.begin(), config->mTargets.end(),
++                    [](const LocalMapExportTarget& value) { return value.mCompleted; });
++            }
++        }
++        return true;
++    }
++
+     float square(float val)
+     {
+         return val * val;
+@@ -237,14 +335,17 @@ namespace MWRender
+         float worldSize = static_cast<float>(mMapWorldSize);
+         std::filesystem::path exportPath;
+         auto& exportConfig = getLocalMapExportConfig();
+-        if (exportConfig && exportConfig->mCellX == segmentX && exportConfig->mCellY == segmentY
+-            && !exportConfig->mClaimed)
++        LocalMapExportTarget* exportTarget = claimLocalMapExportTarget(segmentX, segmentY);
++        // The exporter loads a 5x5 scene for context, but only requested cells
++        // receive RTT cameras. Normal interactive LocalMap behavior is unchanged.
++        if (exportConfig && exportTarget == nullptr)
++            return;
++        if (exportTarget != nullptr)
+         {
+-            exportConfig->mClaimed = true;
+             const float unitsPerPixel = static_cast<float>(mMapWorldSize) / mMapResolution;
+             resolution += 2 * exportConfig->mGutterPixels;
+             worldSize += 2.f * exportConfig->mGutterPixels * unitsPerPixel;
+-            exportPath = exportConfig->mOutputPath;
++            exportPath = exportTarget->mOutputPath;
+             const float halfWorldSize = worldSize / 2.f;
+             Log(Debug::Info) << "MWMAP export target " << segmentX << ',' << segmentY << ": " << resolution
+                              << "px over " << worldSize << " world units; center=(" << left << ',' << top
+@@ -272,8 +374,64 @@ namespace MWRender
+         }
+ 
+         int cellX = cell->getCell()->getGridX();
+         int cellY = cell->getCell()->getGridY();
+ 
++        auto& exportConfig = getLocalMapExportConfig();
++        if (exportConfig)
++        {
++            if (exportConfig->mScheduled)
++                return;
++
++            if (cellX != exportConfig->mCenterX || cellY != exportConfig->mCenterY)
++            {
++                Log(Debug::Info) << "MWMAP export batch waiting at startup cell " << cellX << ',' << cellY
++                                 << "; target center=" << exportConfig->mCenterX << ',' << exportConfig->mCenterY;
++                return;
++            }
++
++            // Scene::changeCellGrid loads every CELL and calls LocalMap::addCell
++            // before WindowManager::changeCell invokes this requestMap call.
++            for (int dx = -2; dx <= 2; ++dx)
++            {
++                for (int dy = -2; dy <= 2; ++dy)
++                {
++                    const auto contextCell
++                        = std::make_pair(exportConfig->mCenterX + dx, exportConfig->mCenterY + dy);
++                    if (mExteriorSegments.find(contextCell) == mExteriorSegments.end())
++                    {
++                        Log(Debug::Error) << "MWMAP export batch missing 5x5 context CELL "
++                                          << contextCell.first << ',' << contextCell.second;
++                        MWBase::Environment::get().getStateManager()->requestQuit();
++                        return;
++                    }
++                }
++            }
++
++            const osg::BoundingSphere bound = mSceneRoot->getBound();
++            const float zmin = bound.center().z() - bound.radius();
++            const float zmax = bound.center().z() + bound.radius();
++            for (const auto& target : exportConfig->mTargets)
++            {
++                setupRenderToTexture(target.mCellX, target.mCellY,
++                    target.mCellX * mMapWorldSize + mMapWorldSize / 2.f,
++                    target.mCellY * mMapWorldSize + mMapWorldSize / 2.f,
++                    osg::Vec3d(0, 1, 0), zmin, zmax);
++            }
++
++            exportConfig->mScheduled = std::all_of(exportConfig->mTargets.begin(), exportConfig->mTargets.end(),
++                [](const LocalMapExportTarget& target) { return target.mClaimed; });
++            if (!exportConfig->mScheduled)
++            {
++                Log(Debug::Error) << "MWMAP export batch did not claim every configured target";
++                MWBase::Environment::get().getStateManager()->requestQuit();
++                return;
++            }
++
++            Log(Debug::Info) << "MWMAP export batch scheduled: center=" << cellX << ',' << cellY
++                             << "; targets=" << exportConfig->mTargets.size() << "; context=5x5";
++            return;
++        }
++
+         MapSegment& segment = mExteriorSegments[std::make_pair(cellX, cellY)];
+         const std::uint8_t neighbourFlags = getExteriorNeighbourFlags(cellX, cellY);
+         if (segment.mLastRenderNeighbourFlags != 0
+@@ -905,7 +1063,8 @@ namespace MWRender
+ 
+                 node->setNodeMask(0);
+                 node->mActive = false;
+-                MWBase::Environment::get().getStateManager()->requestQuit();
++                if (finishLocalMapExportTarget(node->mExportPath, written))
++                    MWBase::Environment::get().getStateManager()->requestQuit();
+                 return;
+             }
+ 
+diff --git a/apps/openmw/mwworld/scene.cpp b/apps/openmw/mwworld/scene.cpp
+index 316c1b9..294add9 100644
+--- a/apps/openmw/mwworld/scene.cpp
++++ b/apps/openmw/mwworld/scene.cpp
+@@ -2,6 +2,7 @@
+ 
+ #include <atomic>
+ #include <chrono>
++#include <cstdlib>
+ #include <limits>
+ 
+ #include <BulletCollision/CollisionDispatch/btCollisionObject.h>
+@@ -56,6 +57,15 @@ namespace
+ {
+     using MWWorld::RotationOrder;
+ 
++    int getExteriorCellGridRadius(bool esm4)
++    {
++        if (esm4)
++            return Constants::ESM4CellGridRadius;
++        // Exported 3x3 targets need one additional cell of scene context for
++        // gutters and large statics crossing the target boundary.
++        return std::getenv("MWMAP_EXPORT_BATCH_FILE") != nullptr ? 2 : Constants::CellGridRadius;
++    }
++
+     osg::Quat makeActorOsgQuat(const ESM::Position& position)
+     {
+         return osg::Quat(position.rot[2], osg::Vec3(0, 0, -1));
+@@ -614,8 +624,7 @@ namespace MWWorld
+ 
+     void Scene::changeCellGrid(const osg::Vec3f& pos, ESM::ExteriorCellLocation playerCellIndex, bool changeEvent)
+     {
+-        const int halfGridSize
+-            = isEsm4Ext(playerCellIndex.mWorldspace) ? Constants::ESM4CellGridRadius : Constants::CellGridRadius;
++        const int halfGridSize = getExteriorCellGridRadius(isEsm4Ext(playerCellIndex.mWorldspace));
+         auto navigatorUpdateGuard = mNavigator.makeUpdateGuard();
+         const int playerCellX = playerCellIndex.mX;
+         const int playerCellY = playerCellIndex.mY;
+@@ -848,7 +857,7 @@ namespace MWWorld
+ 
+     void Scene::changePlayerCell(CellStore& cell, const ESM::Position& pos, bool adjustPlayerPos)
+     {
+-        mHalfGridSize = cell.getCell()->isEsm4() ? Constants::ESM4CellGridRadius : Constants::CellGridRadius;
++        mHalfGridSize = getExteriorCellGridRadius(cell.getCell()->isEsm4());
+         mCurrentCell = &cell;
+ 
+         mRendering.enableTerrain(cell.isExterior(), cell.getCell()->getWorldSpace());

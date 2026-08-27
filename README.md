@@ -8,11 +8,12 @@
 
 Original уже поддерживает локальные MIM-растры Vvardenfell и Solstheim, 1 010 мест из MIM/ESM, EN/RU, поиск, zoom/pan, MIM-цвета статусов `unvisited` / `active` / `visited`, заметки и личные квадратные маркеры. Прогресс хранится локально в IndexedDB через Dexie и жёстко привязан к snapshot; доступны однократный импорт текущего MIM snapshot и общий переносимый JSON backup v2/import со строгой проверкой совместимости и чтением ранних v1-копий.
 
-Текущий статус: **Этап 4.5 — OpenMW renderer spike пройден**. Собственный LAND parser/VFS доказал точную геопривязку, а pinned headless OpenMW exporter воспроизводимо отрендерил пять `512×512` control WebP со зданиями, мостами, деревьями, стенами, водой и alpha geometry при отключённых actors и `Mask_Object` runtime objects. Итоговый gate: `0 px` coordinate error, `0` missing resources в 40 логах, 4/5 побайтно идентичных повторов и только 8 alpha-edge pixels в Nan Iban в пределах узкого tolerance, невидимые швы и подтверждённый Linux/amd64 `llvmpipe` pipeline. Полный Poison Song basemap намеренно ещё не генерировался; Fullrest и Poison Song в UI пока открывают координатные заглушки.
+Текущий статус: **Этап 5 в работе; production renderer 5.1 и benchmark 5.2 завершены**. Pinned headless OpenMW pipeline строит `3×3` native batches с `5×5` scene context, поддерживает два workers, checkpoint/resume, exact provenance, lossless WebP, lower zoom и deterministic inventory. Реальный gate пяти областей прошёл: `45` native tiles за `178.977 s`, resume за `0.080 s`, `0 px` coordinate error и 60 бесшовных overlaps. Оценка полного render + pyramid на текущей машине — около `5.2 h`, разумный рабочий диапазон `5–6 h`. Полный Poison Song basemap намеренно ещё не генерировался; catalog, immutable ready manifest и UI integration остаются следующими подэтапами.
 
 Подробный план: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 Результаты LAND gate: [docs/adr/0001-land-renderer-spike.md](docs/adr/0001-land-renderer-spike.md).
 Архитектура OpenMW exporter: [docs/adr/0002-openmw-offline-exporter.md](docs/adr/0002-openmw-offline-exporter.md).
+Production pipeline и реальные измерения: [docs/stage5-openmw-production.md](docs/stage5-openmw-production.md).
 
 ## Данные
 
@@ -52,11 +53,31 @@ python3 -m tools.openmw_renderer.spike --skip-build
 python3 -m tools.openmw_renderer.spike --skip-build --evaluate-only
 ```
 
-Smoke пишет `local-data/openmw-spike/poison-song-26.08/smoke-report.json`, полный запуск — `report.json`, пять `controls/*.webp` и хэш-привязанный шаблон ручной визуальной квитанции. Полный basemap создаётся отдельным будущим этапом; BSA/ESM/ESP/omwscripts, loose Tamriel Data/TR assets, raw PNG, WebP, reports и заполненная visual receipt являются локальными ignored artifacts и в Git/Docker image не входят.
+Smoke пишет `local-data/openmw-spike/poison-song-26.08/smoke-report.json`, полный gate — `report.json`, пять `controls/*.webp` и хэш-привязанный шаблон ручной визуальной квитанции. Production runner уже реализован, но полный basemap пока не запускался. BSA/ESM/ESP/omwscripts, loose Tamriel Data/TR assets, raw PNG, WebP и reports являются локальными ignored artifacts и в Git/Docker image не входят.
+
+### Poison Song production renderer
+
+Нужны соседний `../morr-dev`, Docker Desktop и ImageMagick 7. Команды полностью локальные; профиль, image и encoder проверяются автоматически, вручную придумывать provenance hash не требуется:
+
+```bash
+pnpm data:poison:plan
+pnpm data:poison:renderer:build
+pnpm data:poison:renderer:smoke
+pnpm data:poison:renderer:benchmark
+```
+
+Полный basemap пока запускается отдельно осознанным решением:
+
+```bash
+pnpm data:poison:renderer:render
+pnpm data:poison:renderer:finalize
+```
+
+`render` по умолчанию использует два встроенных workers и безопасно продолжается тем же command после остановки: готовые WebP повторно проверяются по checkpoint и не рендерятся. Для последовательного деления плана доступны `--shard-count N --shard-index I`; несколько отдельных процессов не должны одновременно писать один checkpoint. Raw `544×544` PNG удаляются после публикации WebP, если явно не указан `--retain-raw`.
 
 ## Локальный запуск
 
-Требуются Node.js 24+ и pnpm 11.
+Требуются Node.js `^20.19.0` либо `>=22.12.0` и pnpm `11.19.0`.
 
 ```bash
 pnpm install
@@ -75,4 +96,4 @@ pnpm test
 pnpm build
 ```
 
-Или одной командой: `pnpm verify`. Python pipeline и LAND renderer fixture tests входят в `pnpm test`; полная генерация игровых данных запускается отдельно и в CI не выполняется.
+Или одной командой: `pnpm verify`. Python data pipeline, LAND и OpenMW spike/production fixture tests входят в `pnpm test`; полная генерация игровых данных запускается отдельно и в CI не выполняется.
