@@ -1,0 +1,253 @@
+diff --git a/apps/openmw/engine.cpp b/apps/openmw/engine.cpp
+index 55b8a8f..bfd3ca6 100644
+--- a/apps/openmw/engine.cpp
++++ b/apps/openmw/engine.cpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cerrno>
+ #include <chrono>
++#include <cstdlib>
+ #include <future>
+ #include <system_error>
+ 
+@@ -953,6 +954,9 @@ void OMW::Engine::go()
+     mViewer = new osgViewer::Viewer;
+     mViewer->setReleaseContextAtEndOfFrameHint(false);
+ 
++    if (std::getenv("MWMAP_EXPORT_PATH") != nullptr)
++        mViewer->setThreadingModel(osgViewer::ViewerBase::SingleThreaded);
++
+     // Do not try to outsmart the OS thread scheduler (see bug #4785).
+     mViewer->setUseConfigureAffinity(false);
+ 
+diff --git a/apps/openmw/mwrender/localmap.cpp b/apps/openmw/mwrender/localmap.cpp
+index 39d0880..97dc459 100644
+--- a/apps/openmw/mwrender/localmap.cpp
++++ b/apps/openmw/mwrender/localmap.cpp
+@@ -1,15 +1,23 @@
+ #include "localmap.hpp"
+ 
++#include <charconv>
+ #include <cstdint>
++#include <cstdlib>
++#include <filesystem>
++#include <optional>
++#include <string_view>
+ 
+ #include <osg/ComputeBoundsVisitor>
++#include <osg/CopyOp>
+ #include <osg/Fog>
++#include <osg/Image>
+ #include <osg/LightModel>
+ #include <osg/LightSource>
+ #include <osg/PolygonMode>
+ #include <osg/Texture2D>
+ 
+ #include <osgDB/ReadFile>
++#include <osgDB/WriteFile>
+ 
+ #include <components/debug/debuglog.hpp>
+ #include <components/esm3/fogstate.hpp>
+@@ -26,6 +34,7 @@
+ #include <components/stereo/multiview.hpp>
+ 
+ #include "../mwbase/environment.hpp"
++#include "../mwbase/statemanager.hpp"
+ #include "../mwbase/windowmanager.hpp"
+ 
+ #include "../mwworld/cellstore.hpp"
+@@ -35,6 +44,55 @@
+ 
+ namespace
+ {
++    struct LocalMapExportConfig
++    {
++        int mCellX;
++        int mCellY;
++        int mGutterPixels;
++        std::filesystem::path mOutputPath;
++    };
++
++    int parseInteger(std::string_view value, std::string_view label)
++    {
++        int result = 0;
++        const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), result);
++        if (error != std::errc{} || end != value.data() + value.size())
++            throw std::runtime_error("Invalid " + std::string(label) + ": " + std::string(value));
++        return result;
++    }
++
++    const std::optional<LocalMapExportConfig>& getLocalMapExportConfig()
++    {
++        static const std::optional<LocalMapExportConfig> config = []() -> std::optional<LocalMapExportConfig> {
++            const char* cellValue = std::getenv("MWMAP_EXPORT_CELL");
++            const char* outputValue = std::getenv("MWMAP_EXPORT_PATH");
++            if (cellValue == nullptr && outputValue == nullptr)
++                return std::nullopt;
++            if (cellValue == nullptr || outputValue == nullptr)
++                throw std::runtime_error("MWMAP_EXPORT_CELL and MWMAP_EXPORT_PATH must be set together");
++
++            const std::string_view cell(cellValue);
++            const std::size_t comma = cell.find(',');
++            if (comma == std::string_view::npos || cell.find(',', comma + 1) != std::string_view::npos)
++                throw std::runtime_error("MWMAP_EXPORT_CELL must use the exact x,y form");
++
++            int gutterPixels = 16;
++            if (const char* gutterValue = std::getenv("MWMAP_EXPORT_GUTTER_PIXELS"))
++                gutterPixels = parseInteger(gutterValue, "MWMAP_EXPORT_GUTTER_PIXELS");
++            if (gutterPixels < 0 || gutterPixels > 128)
++                throw std::runtime_error("MWMAP_EXPORT_GUTTER_PIXELS must be between 0 and 128");
++
++            std::filesystem::path outputPath(outputValue);
++            if (!outputPath.is_absolute())
++                throw std::runtime_error("MWMAP_EXPORT_PATH must be absolute");
++
++            return LocalMapExportConfig{ parseInteger(cell.substr(0, comma), "MWMAP_EXPORT_CELL x"),
++                parseInteger(cell.substr(comma + 1), "MWMAP_EXPORT_CELL y"), gutterPixels,
++                std::move(outputPath) };
++        }();
++        return config;
++    }
++
+     float square(float val)
+     {
+         return val * val;
+@@ -56,8 +114,8 @@ namespace MWRender
+     class LocalMapRenderToTexture : public SceneUtil::RTTNode
+     {
+     public:
+-        LocalMapRenderToTexture(osg::Node* sceneRoot, int res, int mapWorldSize, float x, float y,
+-            const osg::Vec3d& upVector, float zmin, float zmax);
++        LocalMapRenderToTexture(osg::Node* sceneRoot, int res, float mapWorldSize, float x, float y,
++            const osg::Vec3d& upVector, float zmin, float zmax, std::filesystem::path exportPath);
+ 
+         void setDefaults(osg::Camera* camera) override;
+ 
+@@ -65,6 +123,9 @@ namespace MWRender
+         osg::Matrix mProjectionMatrix;
+         osg::Matrix mViewMatrix;
+         bool mActive;
++        std::filesystem::path mExportPath;
++        osg::ref_ptr<osg::Image> mExportImage;
++        unsigned int mExportFramesSeen = 0;
+     };
+ 
+     class CameraLocalUpdateCallback
+@@ -77,7 +138,9 @@ namespace MWRender
+     LocalMap::LocalMap(osg::Group* root)
+         : mRoot(root)
+         , mMapResolution(static_cast<int>(
+-              Settings::map().mLocalMapResolution * MWBase::Environment::get().getWindowManager()->getScalingFactor()))
++              Settings::map().mLocalMapResolution
++              * (getLocalMapExportConfig() ? 1.f
++                                           : MWBase::Environment::get().getWindowManager()->getScalingFactor())))
+         , mMapWorldSize(Constants::CellSizeInUnits)
+         , mCellDistance(Constants::CellGridRadius)
+         , mAngle(0.f)
+@@ -169,8 +232,26 @@ namespace MWRender
+     void LocalMap::setupRenderToTexture(
+         int segmentX, int segmentY, float left, float top, const osg::Vec3d& upVector, float zmin, float zmax)
+     {
+-        mLocalMapRTTs.emplace_back(
+-            new LocalMapRenderToTexture(mSceneRoot, mMapResolution, mMapWorldSize, left, top, upVector, zmin, zmax));
++        int resolution = mMapResolution;
++        float worldSize = static_cast<float>(mMapWorldSize);
++        std::filesystem::path exportPath;
++        const auto& exportConfig = getLocalMapExportConfig();
++        if (exportConfig && exportConfig->mCellX == segmentX && exportConfig->mCellY == segmentY)
++        {
++            const float unitsPerPixel = static_cast<float>(mMapWorldSize) / mMapResolution;
++            resolution += 2 * exportConfig->mGutterPixels;
++            worldSize += 2.f * exportConfig->mGutterPixels * unitsPerPixel;
++            exportPath = exportConfig->mOutputPath;
++            const float halfWorldSize = worldSize / 2.f;
++            Log(Debug::Info) << "MWMAP export target " << segmentX << ',' << segmentY << ": " << resolution
++                             << "px over " << worldSize << " world units; center=(" << left << ',' << top
++                             << "); bounds=[" << left - halfWorldSize << ',' << left + halfWorldSize << "]x["
++                             << top - halfWorldSize << ',' << top + halfWorldSize
++                             << "]; raster=top-left,+x,-y,flipVertical=true -> " << exportPath;
++        }
++
++        mLocalMapRTTs.emplace_back(new LocalMapRenderToTexture(
++            mSceneRoot, resolution, worldSize, left, top, upVector, zmin, zmax, std::move(exportPath)));
+ 
+         mRoot->addChild(mLocalMapRTTs.back());
+ 
+@@ -683,11 +764,12 @@ namespace MWRender
+         fog.mImageData = std::vector<char>(data.begin(), data.end());
+     }
+ 
+-    LocalMapRenderToTexture::LocalMapRenderToTexture(osg::Node* sceneRoot, int res, int mapWorldSize, float x, float y,
+-        const osg::Vec3d& upVector, float zmin, float zmax)
++    LocalMapRenderToTexture::LocalMapRenderToTexture(osg::Node* sceneRoot, int res, float mapWorldSize, float x,
++        float y, const osg::Vec3d& upVector, float zmin, float zmax, std::filesystem::path exportPath)
+         : RTTNode(res, res, 0, false, 0, StereoAwareness::Unaware_MultiViewShaders, shouldAddMSAAIntermediateTarget())
+         , mSceneRoot(sceneRoot)
+         , mActive(true)
++        , mExportPath(std::move(exportPath))
+     {
+         setNodeMask(Mask_RenderToTexture);
+ 
+@@ -774,10 +856,62 @@ namespace MWRender
+ 
+         camera->addChild(lightSource);
+         camera->addChild(mSceneRoot);
++
++        if (!mExportPath.empty())
++        {
++            mExportImage = new osg::Image;
++            mExportImage->allocateImage(width(), height(), 1, GL_RGBA, GL_UNSIGNED_BYTE);
++            camera->attach(osg::Camera::COLOR_BUFFER, mExportImage);
++        }
+     }
+ 
+     void CameraLocalUpdateCallback::operator()(LocalMapRenderToTexture* node, osg::NodeVisitor* nv)
+     {
++        if (!node->mExportPath.empty())
++        {
++            if (node->mExportFramesSeen > 0)
++            {
++                bool written = false;
++                try
++                {
++                    std::filesystem::create_directories(node->mExportPath.parent_path());
++                    osg::ref_ptr<osg::Image> output
++                        = new osg::Image(*node->mExportImage, osg::CopyOp::DEEP_COPY_ALL);
++                    output->flipVertical();
++                    const std::filesystem::path temporary
++                        = node->mExportPath.parent_path() / (node->mExportPath.filename().string() + ".tmp.png");
++                    if (osgDB::writeImageFile(*output, temporary.string()))
++                    {
++                        std::error_code error;
++                        std::filesystem::rename(temporary, node->mExportPath, error);
++                        if (!error)
++                            written = true;
++                        else
++                            Log(Debug::Error) << "MWMAP failed to publish " << node->mExportPath << ": "
++                                              << error.message();
++                    }
++                }
++                catch (const std::exception& error)
++                {
++                    Log(Debug::Error) << "MWMAP export failed: " << error.what();
++                }
++
++                if (written)
++                    Log(Debug::Info) << "MWMAP export complete: " << node->mExportPath;
++                else
++                    Log(Debug::Error) << "MWMAP export produced no output: " << node->mExportPath;
++
++                node->setNodeMask(0);
++                node->mActive = false;
++                MWBase::Environment::get().getStateManager()->requestQuit();
++                return;
++            }
++
++            ++node->mExportFramesSeen;
++            traverse(node, nv);
++            return;
++        }
++
+         if (!node->mActive)
+             node->setNodeMask(0);
+ 

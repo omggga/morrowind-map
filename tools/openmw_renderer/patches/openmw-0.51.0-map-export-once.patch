@@ -1,0 +1,68 @@
+diff --git a/apps/openmw/mwrender/localmap.cpp b/apps/openmw/mwrender/localmap.cpp
+--- a/apps/openmw/mwrender/localmap.cpp
++++ b/apps/openmw/mwrender/localmap.cpp
+@@ -49,6 +49,7 @@ namespace
+         int mCellY;
+         int mGutterPixels;
+         std::filesystem::path mOutputPath;
++        bool mClaimed = false;
+     };
+ 
+     int parseInteger(std::string_view value, std::string_view label)
+@@ -64,9 +65,9 @@ namespace
+         return result;
+     }
+ 
+-    const std::optional<LocalMapExportConfig>& getLocalMapExportConfig()
++    std::optional<LocalMapExportConfig>& getLocalMapExportConfig()
+     {
+-        static const std::optional<LocalMapExportConfig> config = []() -> std::optional<LocalMapExportConfig> {
++        static std::optional<LocalMapExportConfig> config = []() -> std::optional<LocalMapExportConfig> {
+             const char* cellValue = std::getenv("MWMAP_EXPORT_CELL");
+             const char* outputValue = std::getenv("MWMAP_EXPORT_PATH");
+             if (cellValue == nullptr && outputValue == nullptr)
+@@ -237,9 +238,11 @@ namespace MWRender
+         int resolution = mMapResolution;
+         float worldSize = static_cast<float>(mMapWorldSize);
+         std::filesystem::path exportPath;
+-        const auto& exportConfig = getLocalMapExportConfig();
+-        if (exportConfig && exportConfig->mCellX == segmentX && exportConfig->mCellY == segmentY)
++        auto& exportConfig = getLocalMapExportConfig();
++        if (exportConfig && exportConfig->mCellX == segmentX && exportConfig->mCellY == segmentY
++            && !exportConfig->mClaimed)
+         {
++            exportConfig->mClaimed = true;
+             const float unitsPerPixel = static_cast<float>(mMapWorldSize) / mMapResolution;
+             resolution += 2 * exportConfig->mGutterPixels;
+             worldSize += 2.f * exportConfig->mGutterPixels * unitsPerPixel;
+@@ -247,8 +250,8 @@ namespace MWRender
+             Log(Debug::Info) << "MWMAP export target " << segmentX << ',' << segmentY << ": " << resolution
+                              << "px over " << worldSize << " world units; center=(" << left << ',' << top
+                              << "); bounds=[" << left - halfWorldSize << ',' << left + halfWorldSize << "]x["
+                              << top - halfWorldSize << ',' << top + halfWorldSize
+-                             << "]; raster=top-left,+x,-y,flipVertical=true -> " << exportPath;
++                             << "]; raster=top-left,+x,-y,flipVertical=false -> " << exportPath;
+         }
+ 
+         mLocalMapRTTs.emplace_back(new LocalMapRenderToTexture(
+@@ -797,9 +800,9 @@ namespace MWRender
+         camera->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+         camera->setRenderOrder(osg::Camera::PRE_RENDER);
+ 
+-        camera->setCullMask(Mask_Scene | Mask_SimpleWater | Mask_Terrain | Mask_Object | Mask_Static);
+-        camera->setCullMaskLeft(Mask_Scene | Mask_SimpleWater | Mask_Terrain | Mask_Object | Mask_Static);
+-        camera->setCullMaskRight(Mask_Scene | Mask_SimpleWater | Mask_Terrain | Mask_Object | Mask_Static);
++        camera->setCullMask(Mask_Scene | Mask_SimpleWater | Mask_Terrain | Mask_Static);
++        camera->setCullMaskLeft(Mask_Scene | Mask_SimpleWater | Mask_Terrain | Mask_Static);
++        camera->setCullMaskRight(Mask_Scene | Mask_SimpleWater | Mask_Terrain | Mask_Static);
+         camera->setNodeMask(Mask_RenderToTexture);
+         camera->setProjectionMatrix(mProjectionMatrix);
+         camera->setViewMatrix(mViewMatrix);
+@@ -877,7 +880,6 @@ namespace MWRender
+                     std::filesystem::create_directories(node->mExportPath.parent_path());
+                     osg::ref_ptr<osg::Image> output
+                         = new osg::Image(*node->mExportImage, osg::CopyOp::DEEP_COPY_ALL);
+-                    output->flipVertical();
+                     const std::filesystem::path temporary
+                         = node->mExportPath.parent_path() / (node->mExportPath.filename().string() + ".tmp.png");
+                     if (osgDB::writeImageFile(*output, temporary.string()))

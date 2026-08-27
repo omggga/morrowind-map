@@ -8,10 +8,11 @@
 
 Original уже поддерживает локальные MIM-растры Vvardenfell и Solstheim, 1 010 мест из MIM/ESM, EN/RU, поиск, zoom/pan, MIM-цвета статусов `unvisited` / `active` / `visited`, заметки и личные квадратные маркеры. Прогресс хранится локально в IndexedDB через Dexie и жёстко привязан к snapshot; доступны однократный импорт текущего MIM snapshot и общий переносимый JSON backup v2/import со строгой проверкой совместимости и чтением ранних v1-копий.
 
-Текущий статус: **Этап 4 — LAND renderer spike завершён**. Собственный parser/VFS доказал точную геопривязку, детерминированные 512px WebP и `0` unresolved effective LAND textures. LAND-only оставлен как terrain/coordinate oracle, а финальный basemap эскалирован к OpenMW из-за отсутствия зданий, мостов, деревьев и других statics. Fullrest и Poison Song в UI пока открывают координатные заглушки.
+Текущий статус: **Этап 4.5 — OpenMW renderer spike пройден**. Собственный LAND parser/VFS доказал точную геопривязку, а pinned headless OpenMW exporter воспроизводимо отрендерил пять `512×512` control WebP со зданиями, мостами, деревьями, стенами, водой и alpha geometry при отключённых actors и `Mask_Object` runtime objects. Итоговый gate: `0 px` coordinate error, `0` missing resources в 40 логах, 4/5 побайтно идентичных повторов и только 8 alpha-edge pixels в Nan Iban в пределах узкого tolerance, невидимые швы и подтверждённый Linux/amd64 `llvmpipe` pipeline. Полный Poison Song basemap намеренно ещё не генерировался; Fullrest и Poison Song в UI пока открывают координатные заглушки.
 
 Подробный план: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
-Решение quality gate и измерения: [docs/adr/0001-land-renderer-spike.md](docs/adr/0001-land-renderer-spike.md).
+Результаты LAND gate: [docs/adr/0001-land-renderer-spike.md](docs/adr/0001-land-renderer-spike.md).
+Архитектура OpenMW exporter: [docs/adr/0002-openmw-offline-exporter.md](docs/adr/0002-openmw-offline-exporter.md).
 
 ## Данные
 
@@ -34,6 +35,24 @@ pnpm data:renderer-spike
 ```
 
 Пять контрольных WebP и полный hash/coordinate/resource report появятся в `local-data/renderer-spike/poison-song-26.08`.
+
+OpenMW renderer spike использует тот же внешний `../morr-dev`, Docker Desktop и ImageMagick 7. Первый запуск собирает pinned `linux/amd64` image и делает Balmora smoke; следующие команды переиспользуют image:
+
+```bash
+# Build + smoke.
+python3 -m tools.openmw_renderer.spike --smoke-only
+
+# Smoke без rebuild.
+pnpm data:openmw-smoke
+
+# Полный gate пяти участков без rebuild.
+python3 -m tools.openmw_renderer.spike --skip-build
+
+# Повторная оценка готовых artifacts после визуального review.
+python3 -m tools.openmw_renderer.spike --skip-build --evaluate-only
+```
+
+Smoke пишет `local-data/openmw-spike/poison-song-26.08/smoke-report.json`, полный запуск — `report.json`, пять `controls/*.webp` и хэш-привязанный шаблон ручной визуальной квитанции. Полный basemap создаётся отдельным будущим этапом; BSA/ESM/ESP/omwscripts, loose Tamriel Data/TR assets, raw PNG, WebP, reports и заполненная visual receipt являются локальными ignored artifacts и в Git/Docker image не входят.
 
 ## Локальный запуск
 

@@ -9,6 +9,7 @@ export default tseslint.config(
     ignores: [
       '**/dist/**',
       '**/coverage/**',
+      'local-data/**',
       '**/node_modules/**',
       '**/*.tsbuildinfo',
     ],

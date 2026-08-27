@@ -1,0 +1,7 @@
+**
+!tools/
+!tools/openmw_renderer/
+!tools/openmw_renderer/Dockerfile
+!tools/openmw_renderer/entrypoint.sh
+!tools/openmw_renderer/patches/
+!tools/openmw_renderer/patches/openmw-0.51.0-map-export.patch

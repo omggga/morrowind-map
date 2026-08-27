@@ -660,7 +660,7 @@ Deliverables:
 
 ### Этап 4.5 — OpenMW renderer spike
 
-Status: planned, not started.
+Status: complete (2026-08-27): все automated и hash-bound visual checks пройдены; полный Poison Song basemap намеренно не генерировался.
 
 Цель: проверить, может ли ограниченный headless/offscreen pipeline на базе OpenMW дать воспроизводимую полноценную подложку со статическими объектами, сохранив доказанную на Этапе 4 координатную модель.
 
@@ -675,7 +675,41 @@ Deliverables:
 - отчёт по resource resolution, coordinate alignment, reproducibility и headless Linux/Docker execution;
 - решение между OpenMW UI automation и небольшим offline exporter на базе OpenMW.
 
-Exit: все пять участков воспроизводимо рендерятся с необходимыми statics, world coordinate → pixel error не превышает 1 native pixel, между соседними tiles нет швов и подтверждён реализуемый headless Linux/Docker pipeline. До выполнения этих условий полный Poison Song basemap не генерируется.
+Реализованная архитектура:
+
+- выбран небольшой offline exporter patch поверх официального OpenMW `openmw-0.51.0`, commit `f4bec41444214a7903bebd178389ca22ca13f646`; UI automation отклонена как источник лишней вариативности камеры, масштаба UI, input timing и framebuffer capture;
+- build закреплён на `linux/amd64`, base image `ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517` и Ubuntu package snapshot `20260826T000000Z`; Docker label и runtime manifest проверяют commit, platform, base image, snapshot и renderer fingerprint;
+- каждый render получает отдельный generated OpenMW profile. Data override order: vanilla `bsa` → Tamriel Data 26.08 `00 Data Files` → Poison Song `00 Core/Data Files`; archives: `Morrowind.bsa` → `Tribunal.bsa` → `Bloodmoon.bsa`; render content: base trio → `Tamriel_Data.esm` → `TR_Mainland.esm`;
+- `Tamriel_Data.omwscripts` и `tamrielrebuilt.omwscripts` остаются pinned/fingerprinted source inputs, но исключены из статического render profile: в предоставленных distributions отсутствуют указанные ими Lua resources, а UI, actors и dynamic gameplay не входят в задачу exporter;
+- `TR_Factions.esp` и Firemoth patch намеренно не входят в bounded core profile; все pinned ESM/BSA/omwscripts и целиком все три asset trees fingerprint-ятся до запуска;
+- OpenMW LocalMap scene используется с orthographic north-up camera, fixed lighting и cull mask `Scene | SimpleWater | Terrain | Static`; `Mask_Object` (items/containers и прочие runtime objects), UI, actor/player, sky/weather, fog и shadows исключены, а здания/деревья/двери/activator geometry остаются в OpenMW `Mask_Static`;
+- exporter создаёт raw `544×544` PNG на world extent `8704×8704`: центральная TES3 CELL остаётся `8192×8192`, то есть `16` world units/pixel, и окружена render gutter по `16` pixels (`256` world units) с каждой стороны;
+- host pipeline делает точный crop `16 px` до native `512×512`, применяет детерминированный MIM-like grade и пишет lossless WebP; соседние независимые renders сравниваются по всему общему raw overlap `32 px`;
+- для Balmora, Old Ebonheart, Othrenis, Gorne и Nan Iban выполняются center/east/north renders, повторный center render и проверки resource logs, runtime camera transform, содержательности изображения, bounded raw-overlap seam deltas и побайтной воспроизводимости; hashes всего seam evidence входят в обязательную визуальную квитанцию;
+- контейнер запускается без сети, с read-only root filesystem и game mounts, без capabilities, с `no-new-privileges`, Xvfb и Mesa `llvmpipe`; профиль и output находятся только в ignored `local-data/openmw-spike/poison-song-26.08`.
+
+Команды проверки:
+
+```bash
+# Pinned Docker build и первый Balmora smoke.
+python3 -m tools.openmw_renderer.spike --smoke-only
+
+# Повторный smoke на уже собранном образе.
+python3 -m tools.openmw_renderer.spike --skip-build --smoke-only
+
+# Полный gate: 15 primary/relation renders и 5 independent repeats.
+python3 -m tools.openmw_renderer.spike --skip-build
+```
+
+`smoke-report.json` доказывает только работоспособность одного capture и не закрывает gate. Канонический `report.json` полного запуска подтверждает пять controls, реальный runtime world-to-pixel transform с ошибкой не более одного native pixel, ограниченные raster deltas соседних gutter overlaps, идентичные repeat WebP/RGBA, отсутствие missing resource messages, непустое изображение и Linux/amd64 `llvmpipe` runtime. Визуальное наличие roofs, buildings, bridges, trees, walls, water и alpha geometry отдельно сверяется с LAND/MIM/UESP references; receipt связана с profile/execution fingerprints, WebP/native hashes и полным seam evidence fingerprint.
+
+Фактический результат: **pass**. Образ `sha256:d96ddae3e12196d6b624ffb98dd87e721e3ba6c2a04ce1b410b02fe0e39e3a5b` воспроизводимо выполнил 20 изолированных captures. Четыре repeat WebP/native/graded RGBA совпали побайтно; в Nan Iban изменились 8 из 262 144 alpha-edge pixels (`0.000030518` fraction, `0.000033379/255` mean delta, `4/255` max delta), что укладывается в заранее заданный узкий tolerance. Maximum runtime coordinate error `0 px`; missing resources `0` в 40 проверенных логах. Для десяти east/north overlaps худшие raster deltas составили `0.319738` differing fraction, `0.281264/255` mean absolute channel delta и `25/255` maximum channel delta — ниже зафиксированных пределов, без видимого шва при review в native resolution. Visual receipt подтвердила весь набор statics и LAND/MIM/UESP reference coverage.
+
+Решение quality gate: для дальнейшего basemap используется bounded offline exporter поверх OpenMW, а не UI automation. Этап 5 разблокирован, однако в рамках Этапа 4.5 полный Poison Song basemap не создавался.
+
+Архитектурное решение и ожидаемые artifacts: `docs/adr/0002-openmw-offline-exporter.md`.
+
+Exit: выполнен — все пять участков воспроизводимо рендерятся с необходимыми statics, world coordinate → pixel error равен `0`, между соседними tiles нет видимых швов и подтверждён headless Linux/Docker pipeline. Полный Poison Song basemap до закрытия gate не генерировался.
 
 ### Этап 5 — Poison Song
 
