@@ -8,7 +8,7 @@
 
 Original уже поддерживает локальные MIM-растры Vvardenfell и Solstheim, 1 010 мест из MIM/ESM, EN/RU, поиск, zoom/pan, MIM-цвета статусов `unvisited` / `active` / `visited`, заметки и личные квадратные маркеры. Прогресс хранится локально в IndexedDB через Dexie и жёстко привязан к snapshot; доступны однократный импорт текущего MIM snapshot и общий переносимый JSON backup v2/import со строгой проверкой совместимости и чтением ранних v1-копий.
 
-Текущий статус: **Этап 5 в работе; production renderer 5.1 и benchmark 5.2 завершены**. Pinned headless OpenMW pipeline строит `3×3` native batches с `5×5` scene context, поддерживает два workers, checkpoint/resume, exact provenance, lossless WebP, lower zoom и deterministic inventory. Реальный gate пяти областей прошёл: `45` native tiles за `178.977 s`, resume за `0.080 s`, `0 px` coordinate error и 60 бесшовных overlaps. Оценка полного render + pyramid на текущей машине — около `5.2 h`, разумный рабочий диапазон `5–6 h`. Полный Poison Song basemap намеренно ещё не генерировался; catalog, immutable ready manifest и UI integration остаются следующими подэтапами.
+Текущий статус: **Этап 5 в работе; production renderer 5.1 и benchmark 5.2 завершены, локальный full render начат**. Pinned headless OpenMW pipeline строит `3×3` native batches с `5×5` scene context, поддерживает два workers, checkpoint/resume, exact provenance, lossless WebP, lower zoom и deterministic inventory. Реальный gate пяти областей прошёл: `45` native tiles за `178.977 s`, resume за `0.080 s`, `0 px` coordinate error и 60 бесшовных overlaps. Оценка полного render + pyramid на текущей машине — около `5.2 h`, разумный рабочий диапазон `5–6 h`. Poison Song basemap ещё не завершён и не прошёл finalize; catalog, immutable ready manifest и UI integration остаются следующими подэтапами.
 
 Подробный план: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 Результаты LAND gate: [docs/adr/0001-land-renderer-spike.md](docs/adr/0001-land-renderer-spike.md).
@@ -76,6 +76,8 @@ pnpm data:poison:renderer:finalize
 `render` по умолчанию использует два встроенных workers и безопасно продолжается тем же command после остановки: готовые WebP повторно проверяются по checkpoint и не рендерятся. Terminal сразу показывает setup, затем после каждой атомарной записи checkpoint печатает прогресс вида `[227/3984]`. Для последовательного деления плана доступны `--shard-count N --shard-index I`; несколько отдельных процессов не должны одновременно писать один checkpoint. Raw `544×544` PNG удаляются после публикации WebP, если явно не указан `--retain-raw`.
 
 OpenMW warning `addAnimSource: can't find bone` означает несовпадение animation controller с уже загруженным NIF, сохраняется в `ignoredCompatibilityWarnings` и не останавливает production render. Настоящие missing mesh/texture/file, отсутствующие логи и non-zero container exit по-прежнему fail closed.
+
+Production profile явно направляет snow/blizzard weather на существующие Bloodmoon-ресурсы `Tx_BM_Sky_Snow.dds` и `Tx_BM_Sky_Blizzard.dds`: универсальные OpenMW defaults с именами `Tx_Sky_*` отсутствуют в GOTY BSA. Контролируемая смена producer source сохраняет готовые тайлы только через отдельный `migrate-resume`; смена profile fingerprint дополнительно требует явного `--allow-profile-change`, полного совпадения `inputAudit`/`assetAudit`, byte-identical backups старого состояния и migration receipt.
 
 ## Локальный запуск
 

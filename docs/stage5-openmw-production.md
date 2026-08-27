@@ -1,6 +1,6 @@
 # Stage 5.1–5.2 — OpenMW production renderer
 
-Дата измерения: 2026-08-27. Статус: **5.1 и 5.2 выполнены; полный Poison Song basemap не запускался**.
+Дата измерения: 2026-08-27. Статус: **5.1 и 5.2 выполнены; локальный full render 5.3 начат, но ещё не завершён и не finalized**.
 
 ## Что реализовано
 
@@ -12,6 +12,8 @@
 - per-shard engine/resource logs, `process.json`, cgroup `memory.peak` и resource-resolution report.
 
 Stage 4.5 parent сначала проверяется по labels, затем получает уникальный local tag из image ID. Production image хранит этот parent ID в labels. Docker compile отделён от host provenance-label layer, поэтому изменения CLI не компилируют OpenMW заново.
+
+OpenMW generic defaults называют погодные текстуры `Tx_Sky_Snow.dds` и `Tx_Sky_Blizzard.dds`, которых нет в исходных loose assets и GOTY BSA. Production profile поэтому фиксирует канонические Bloodmoon overrides `Tx_BM_Sky_Snow.dds` и `Tx_BM_Sky_Blizzard.dds`; оба ресурса проверены asset audit и реально разрешаются из Bloodmoon data. Это не ослабляет missing-resource gate.
 
 ## Реальный benchmark 5.2
 
@@ -71,6 +73,8 @@ pnpm data:poison:renderer:finalize
 ```
 
 Повтор той же команды `render` продолжает checkpoint. Встроенные два workers безопасно публикуют результаты последовательно. После проверки provenance Terminal печатает текущее durable значение, например `[227/3984]`, и обновляет его после каждого полностью опубликованного shard. Несколько отдельных Terminal processes нельзя направлять в один output одновременно; modulo partitions предназначены для последовательных job slices либо для разных output roots с отдельным последующим merge workflow.
+
+После совместимого изменения host producer готовый checkpoint переносится только отдельной командой `migrate-resume` с точным старым provenance и причиной. По умолчанию смена profile fingerprint запрещена; осознанная коррекция профиля требует `--allow-profile-change`. Перед записью pipeline повторно проверяет каждый WebP и полное совпадение игровых `inputAudit`/`assetAudit`, сохраняет byte-identical backup старого checkpoint/provenance и пишет migration receipt со старыми и новыми fingerprint.
 
 Информационный OpenMW warning `addAnimSource: can't find bone` возникает после успешной загрузки NIF/KF, когда отдельный animation controller не находит кость. Он остаётся видимым в `resource-resolution.json` как `ignoredCompatibilityWarnings`, но не считается отсутствующим ресурсом. Любой настоящий `Failed to load`, missing mesh/texture/file, отсутствующий ожидаемый лог или non-zero exit остаётся фатальным.
 

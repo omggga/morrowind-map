@@ -38,6 +38,7 @@ from tools.openmw_renderer.production import (
     production_source_fingerprint,
     production_resource_resolution_report,
     read_shard_runtime,
+    render_production_openmw_cfg,
     render_shard_manifest,
     run_native_batch,
     run_openmw_production,
@@ -90,12 +91,17 @@ def _fake_webp(image: RgbaImage) -> bytes:
     return b"RIFF" + (4 + len(body)).to_bytes(4, "little") + b"WEBP" + body
 
 
-def _fixture_provenance(source_hash: str, image_digit: str) -> ProductionProvenance:
+def _fixture_provenance(
+    source_hash: str,
+    image_digit: str,
+    *,
+    profile_hash: str = FINGERPRINT_A,
+) -> ProductionProvenance:
     image_id = "sha256:" + image_digit * 64
     repo_digests = (f"fixture@sha256:{image_digit * 64}",)
     magick_version = "ImageMagick fixture"
     fingerprint = execution_provenance_fingerprint(
-        profile_fingerprint=FINGERPRINT_A,
+        profile_fingerprint=profile_hash,
         production_source_fingerprint_value=source_hash,
         image_id=image_id,
         image_repo_digests=repo_digests,
@@ -120,7 +126,7 @@ def _fixture_provenance(source_hash: str, image_digit: str) -> ProductionProvena
             "snapshotId": SNAPSHOT_ID,
             "rendererVersion": "openmw-export-production-v1",
             "provenanceFingerprint": fingerprint,
-            "profileFingerprint": FINGERPRINT_A,
+            "profileFingerprint": profile_hash,
             "productionSourceFingerprint": source_hash,
             "openmwCommit": "f4bec41444214a7903bebd178389ca22ca13f646",
             "image": {
@@ -257,6 +263,24 @@ class BatchProcessContractTests(unittest.TestCase):
         self.assertEqual(lines[0], "-4,-2\t/out/raw/7/24/35.png")
         self.assertEqual(lines[-1], "-2,-4\t/out/raw/7/26/37.png")
         self.assertEqual(len(set(lines)), 9)
+
+    def test_production_profile_overrides_missing_generic_bloodmoon_weather_textures(self) -> None:
+        config = render_production_openmw_cfg()
+
+        self.assertEqual(
+            config.count(
+                "fallback=Weather_Snow_Cloud_Texture,Tx_BM_Sky_Snow.dds\n"
+            ),
+            1,
+        )
+        self.assertEqual(
+            config.count(
+                "fallback=Weather_Blizzard_Cloud_Texture,Tx_BM_Sky_Blizzard.dds\n"
+            ),
+            1,
+        )
+        self.assertNotIn("Weather_Snow_Cloud_Texture,Tx_Sky_Snow", config)
+        self.assertNotIn("Weather_Blizzard_Cloud_Texture,Tx_Sky_Blizzard", config)
 
     def test_docker_command_runs_one_isolated_process_for_the_whole_shard(self) -> None:
         with (
@@ -583,6 +607,53 @@ class CheckpointTests(unittest.TestCase):
 
 
 class ResumeMigrationTests(unittest.TestCase):
+    def test_profile_change_requires_explicit_approval_and_is_recorded(self) -> None:
+        cells = ((-3, -3),)
+        old = _fixture_provenance("1" * 64, "2")
+        new = _fixture_provenance(
+            "3" * 64,
+            "4",
+            profile_hash=FINGERPRINT_B,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            output_root = Path(directory)
+            run_native_batch(
+                output_root=output_root,
+                cells=cells,
+                provenance_fingerprint=old.fingerprint,
+                render_target=lambda _target: RgbaImage.solid(
+                    512, 512, (10, 20, 30, 255)
+                ),
+                encoder=_fake_webp,
+            )
+            (output_root / "provenance.json").write_text(
+                json.dumps(old.payload),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "profileFingerprint"):
+                migrate_resume_state(
+                    output_root=output_root,
+                    cells=cells,
+                    new_provenance=new,
+                    from_provenance_fingerprint=old.fingerprint,
+                    reason="fixture profile compatibility correction",
+                )
+
+            report = migrate_resume_state(
+                output_root=output_root,
+                cells=cells,
+                new_provenance=new,
+                from_provenance_fingerprint=old.fingerprint,
+                reason="fixture profile compatibility correction",
+                allow_profile_change=True,
+            )
+
+        self.assertTrue(report["profileChangeApproved"])
+        self.assertEqual(report["fromProfileFingerprint"], FINGERPRINT_A)
+        self.assertEqual(report["toProfileFingerprint"], FINGERPRINT_B)
+
     def test_explicit_migration_preserves_and_resumes_validated_tiles(self) -> None:
         cells = ((-3, -3),)
         old = _fixture_provenance("1" * 64, "2")

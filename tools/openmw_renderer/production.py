@@ -52,7 +52,7 @@ from tools.tes3.records import iter_records, iter_subrecords
 DATASET_ID = "poison-song-26.08"
 SNAPSHOT_ID = "tr:poison-song-26.08:6964517551e0fcb0"
 PINNED_PROFILE_FINGERPRINT = (
-    "6964517551e0fcb0ab7614cf27c7099087eaf88075007ce2b10784809cfd5469"
+    "57ac91859cd48cf6a511b8300782c77d2205d431fe1106244c6fc84da1e7850c"
 )
 PRODUCTION_RENDERER_VERSION = "openmw-export-production-v1"
 CHECKPOINT_SCHEMA_VERSION = 1
@@ -93,6 +93,11 @@ _BENIGN_ANIMATION_BONE_WARNING = re.compile(
     re.IGNORECASE,
 )
 
+_BLOODMOON_WEATHER_FALLBACKS = (
+    "fallback=Weather_Snow_Cloud_Texture,Tx_BM_Sky_Snow.dds",
+    "fallback=Weather_Blizzard_Cloud_Texture,Tx_BM_Sky_Blizzard.dds",
+)
+
 
 @dataclass(frozen=True, order=True, slots=True)
 class TileKey:
@@ -116,6 +121,12 @@ class TileKey:
 class NativeTarget:
     cell: Cell
     tile: TileKey
+
+
+def render_production_openmw_cfg() -> str:
+    """Add the Bloodmoon fallbacks absent from OpenMW's generic defaults."""
+
+    return render_openmw_cfg() + "\n".join(_BLOODMOON_WEATHER_FALLBACKS) + "\n"
 
 
 @dataclass(frozen=True, slots=True)
@@ -388,7 +399,7 @@ def resolve_production_provenance(
     actual_profile_fingerprint = profile_fingerprint(
         input_audit,
         asset_audit=asset_audit,
-        openmw_cfg=render_openmw_cfg(),
+        openmw_cfg=render_production_openmw_cfg(),
         settings_cfg=render_settings_cfg(),
     )
     if actual_profile_fingerprint != PINNED_PROFILE_FINGERPRINT:
@@ -919,13 +930,14 @@ def _verified_provenance_fingerprint(value: Mapping[str, object]) -> str:
 def _validate_resume_provenance_compatibility(
     old: Mapping[str, object],
     new: Mapping[str, object],
+    *,
+    allow_profile_change: bool,
 ) -> None:
     for key in (
         "schemaVersion",
         "datasetId",
         "snapshotId",
         "rendererVersion",
-        "profileFingerprint",
         "openmwCommit",
         "magickVersion",
         "inputAudit",
@@ -933,6 +945,16 @@ def _validate_resume_provenance_compatibility(
     ):
         if old.get(key) != new.get(key):
             raise ValueError(f"Resume migration changes incompatible provenance field {key}")
+    old_profile = old.get("profileFingerprint")
+    new_profile = new.get("profileFingerprint")
+    if not isinstance(old_profile, str) or not isinstance(new_profile, str):
+        raise ValueError("Resume migration profile fingerprint is invalid")
+    _validate_fingerprint(old_profile, "old profile fingerprint")
+    _validate_fingerprint(new_profile, "new profile fingerprint")
+    if old_profile != new_profile and not allow_profile_change:
+        raise ValueError(
+            "Resume migration changes incompatible provenance field profileFingerprint"
+        )
     old_image = old.get("image")
     new_image = new.get("image")
     if not isinstance(old_image, dict) or not isinstance(new_image, dict):
@@ -970,6 +992,7 @@ def migrate_resume_state(
     new_provenance: ProductionProvenance,
     from_provenance_fingerprint: str,
     reason: str,
+    allow_profile_change: bool = False,
 ) -> dict[str, object]:
     """Explicitly adopt verified tiles after an output-compatible host change.
 
@@ -1015,6 +1038,7 @@ def migrate_resume_state(
     _validate_resume_provenance_compatibility(
         old_provenance,
         new_provenance.payload,
+        allow_profile_change=allow_profile_change,
     )
     targets = plan_native_targets(cells)
     artifacts = _validated_checkpoint_artifacts(
@@ -1036,12 +1060,20 @@ def migrate_resume_state(
 
     completed = old_checkpoint.get("completed")
     assert isinstance(completed, list)
+    old_profile = old_provenance["profileFingerprint"]
+    new_profile = new_provenance.payload["profileFingerprint"]
+    assert isinstance(old_profile, str)
+    assert isinstance(new_profile, str)
+    profile_changed = old_profile != new_profile
     report: dict[str, object] = {
         "schemaVersion": 1,
         "status": "prepared",
         "reason": reason.strip(),
         "fromProvenanceFingerprint": old_fingerprint,
         "toProvenanceFingerprint": new_provenance.fingerprint,
+        "profileChangeApproved": profile_changed and allow_profile_change,
+        "fromProfileFingerprint": old_profile,
+        "toProfileFingerprint": new_profile,
         "planFingerprint": plan_fingerprint(targets),
         "completedArtifacts": len(artifacts),
         "completedArtifactBytes": sum(item.byte_length for item in artifacts.values()),
@@ -1133,7 +1165,7 @@ def prepare_shard_profile(output_root: Path, shard: RenderShard) -> Path:
     config_root = profile_root / "config"
     config_root.mkdir(parents=True, exist_ok=True)
     (profile_root / "user-data").mkdir(parents=True, exist_ok=True)
-    _atomic_write_text(config_root / "openmw.cfg", render_openmw_cfg())
+    _atomic_write_text(config_root / "openmw.cfg", render_production_openmw_cfg())
     _atomic_write_text(config_root / "settings.cfg", render_settings_cfg())
     _atomic_write_text(profile_root / "commands.txt", render_console_script(shard.center))
     _atomic_write_text(profile_root / "export-targets.tsv", render_shard_manifest(shard))
@@ -1911,6 +1943,14 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     _add_runtime_identity(migrate)
     migrate.add_argument("--from-provenance", required=True)
     migrate.add_argument("--reason", required=True)
+    migrate.add_argument(
+        "--allow-profile-change",
+        action="store_true",
+        help=(
+            "Explicitly approve a profile-only compatibility correction while "
+            "inputAudit and assetAudit remain byte-identical."
+        ),
+    )
 
     smoke = subparsers.add_parser(
         "smoke",
@@ -2042,6 +2082,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             new_provenance=provenance,
             from_provenance_fingerprint=args.from_provenance,
             reason=args.reason,
+            allow_profile_change=args.allow_profile_change,
         )
         print(json.dumps(report, ensure_ascii=False, sort_keys=True))
         return 0
