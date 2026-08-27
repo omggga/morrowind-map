@@ -658,6 +658,25 @@ Deliverables:
 
 Подробности и hashes: `docs/adr/0001-land-renderer-spike.md`.
 
+### Этап 4.5 — OpenMW renderer spike
+
+Status: planned, not started.
+
+Цель: проверить, может ли ограниченный headless/offscreen pipeline на базе OpenMW дать воспроизводимую полноценную подложку со статическими объектами, сохранив доказанную на Этапе 4 координатную модель.
+
+Deliverables:
+
+- pinned release/commit OpenMW и воспроизводимый способ сборки;
+- isolated Poison Song 26.08 profile с точным load order и asset override order;
+- рендер тех же пяти контрольных областей для прямого сравнения с LAND/MIM/UESP;
+- roofs, buildings, bridges, trees, walls, water и alpha geometry при отключённых UI, actors, fog, weather variability и dynamic objects;
+- фиксированные orthographic camera, lighting, world-to-pixel transform и MIM-like color grade;
+- native `512×512` WebP с render gutters и crop без tile seams;
+- отчёт по resource resolution, coordinate alignment, reproducibility и headless Linux/Docker execution;
+- решение между OpenMW UI automation и небольшим offline exporter на базе OpenMW.
+
+Exit: все пять участков воспроизводимо рендерятся с необходимыми statics, world coordinate → pixel error не превышает 1 native pixel, между соседними tiles нет швов и подтверждён реализуемый headless Linux/Docker pipeline. До выполнения этих условий полный Poison Song basemap не генерируется.
+
 ### Этап 5 — Poison Song
 
 Deliverables:
