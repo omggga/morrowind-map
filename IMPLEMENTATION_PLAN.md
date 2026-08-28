@@ -1,8 +1,8 @@
 # Morrowind Map — план реализации
 
 - Дата фиксации: 2026-08-26
-- Последний полный аудит: 2026-08-27
-- Статус: этапы 0–4.5 завершены; этап 5 в работе — подэтапы 5.1/5.2 завершены, full render 5.3 выполняется локально, catalog/UI ещё впереди; этап 6 ожидает generic pipeline и решения по Fullrest gaps; этап 7 выполнен частично
+- Последний полный аудит: 2026-08-29
+- Статус: этапы 0–4.5 завершены; этап 5 в работе — 5.1–5.3 и basemap contracts/publication завершены, catalog/runtime/UI ещё впереди; этап 6 ожидает generic pipeline и решения по Fullrest gaps; этап 7 выполнен частично
 - Целевой репозиторий: `omggga/morrowind-map`
 
 ## 1. Цель
@@ -567,7 +567,7 @@ Node builder → static dist → Nginx runtime
 
 ## 17. Этапы реализации
 
-### Сводный аудит на 2026-08-27
+### Сводный аудит на 2026-08-29
 
 | Этап | Текущий статус | Что означает статус |
 | --- | --- | --- |
@@ -577,7 +577,7 @@ Node builder → static dist → Nginx runtime
 | 3 — progress/MIM | **100% complete в заявленном scope** | Dataset-scoped persistence, MIM import и portable backup реализованы |
 | 4 — LAND spike | **100% complete в spike scope** | Coordinate/resource oracle принят; LAND-only обоснованно отклонён как финальный basemap |
 | 4.5 — OpenMW spike | **100% complete в spike scope** | Bounded exporter и Linux/Docker quality gate приняты |
-| 5 — Poison Song | **Ready to start; не завершён** | Profile/renderer foundation готов, full pyramid/catalog/runtime integration отсутствуют |
+| 5 — Poison Song | **В работе** | Полная audited WebP pyramid подготовлена и опубликована локально; catalog/runtime/UI отсутствуют |
 | 6 — Fullrest exact | **Inputs mostly recovered; не завершён** | Exact content order найден; нужны shared pipeline, EN policy и решение по отсутствующему groundcover |
 | 7 — visual/UX polish | **Partially complete** | Базовый MIM-like/responsive/a11y слой есть в Original; cross-dataset acceptance отсутствует |
 
@@ -740,22 +740,22 @@ Exit: выполнен — все пять участков воспроизво
 
 ### Этап 5 — Poison Song
 
-Status: **in progress; 5.1 production pipeline и 5.2 benchmark завершены, full render 5.3 начат, полный Poison Song dataset ещё не выпускался**.
+Status: **in progress; 5.1–5.3 завершены, basemap contracts/versioned publication из 5.5 готовы; 5.4 catalog, остаток 5.5 runtime и 5.6 UI ещё не выполнены**.
 
 Уже готово для переиспользования:
 
 - exact Poison core profile, canonical TES3 grid и `0` unresolved LAND textures/direct exterior models;
 - LAND coordinate/resource oracle и прошедший quality gate OpenMW exporter;
 - contracts, Place/Entrance model, search primitives, dataset-scoped Dexie progress/notes/personal markers и portable backup;
-- placeholder manifest с подтверждённым core load order, extent и hashes.
+- basemap-bound placeholder manifest с подтверждённым core load order, extent, BSA hashes и прямой content-addressed ссылкой на immutable tile metadata.
 
 Подэтапы:
 
 1. **5.1 — production renderer: выполнено на 100%.** Реализованы effective LAND/CELL coverage, immutable plan `3 984 CELL → 492 shard`, exporter-only `5×5` scene context с `3×3` RTT, arbitrary cell sets, стабильные modulo partitions, `--workers`, atomic checkpoint/resume, fail-closed profile/source/image/encoder provenance, resource audit, cgroup memory evidence, gutter crop/grade, pixel-exact lossless WebP, sparse `z0…z7` pyramid и deterministic inventory. Production profile явно заменяет отсутствующие generic OpenMW snow/blizzard filenames на существующие Bloodmoon DDS; контролируемая миграция producer/profile повторно проверяет все готовые WebP и игровые audits, сохраняет immutable backups и receipt. CLI запускается пользователем из Terminal; отдельные процессы с одним checkpoint нельзя запускать одновременно, для параллелизма используется встроенный `--workers`.
 2. **5.2 — five-control production benchmark: выполнено на 100%.** На тех же Balmora, Old Ebonheart, Othrenis, Gorne и Nan Iban реально отрендерены пять полных `3×3` batch (`45` native tiles) с двумя workers. Render wall `178.977 s`, container mean `52.4 s`, peak одного shard `1.137 GB`, сумма двух наибольших peaks `2.209 GB`, повторный запуск по checkpoint `0.080 s` без OpenMW. Проверены `60` overlaps, `0 px` coordinate error, сравнение со старыми `1×1`, lower zoom и inventory (`101` tiles, hash `6528bcc…`). Экстраполяция на эту машину: `4.89 h` native render + `0.29 h` pyramid + `36 s` provenance = `5.19 h`; рабочий запас для полного запуска — `5–6 h`. Полный отчёт: `docs/stage5-openmw-production.md`.
-3. **5.3 — full Poison basemap: в работе.** Локальный resumable render запущен; на момент аудита 2026-08-27 durable checkpoint успешно прошёл исправленный snow-region shard и достиг `1 154 / 3 984` native tiles. После завершения всех `492` shard выполнить полный `z0…z7` finalize; проверить full-scope resource audit, все соседние overlaps, inventory hashes/determinism и только после этого опубликовать generated assets.
+3. **5.3 — full Poison basemap: выполнено на 100%.** Все `492` shards дали `3 984` native tiles; после deterministic cross-shard stabilization и полного rebuild lower zoom опубликована sparse lossless WebP pyramid `z0…z7`: `5 464` tiles (`1 480` lower), `1 879 019 148` bytes, inventory `d409e627a75beac2caea56cea35bea132091bc851e1b22edbb4dbe3791f5cd17`. Full audit декодировал каждый tile, точно воспроизвёл `1 480 / 1 480` parents, проверил все `10 467` соседств и `2 571` native cross-shard boundaries, `492` runtime reports, `16` независимых raw seam probes / `32` cells и coordinate error `0 px`. Cross-shard flagged/structural failures — `0/0`, actionable missing resources — `0`; повтор с reused evidence дал тот же audit SHA `4439782ab6e2cdf0d8330168428c4c5550629beaf607f4b9f5507700daf270d5`.
 4. **5.4 — generic catalog pipeline: не начат.** Применить effective record merge по pinned load order, включая deleted/overridden records, CELL/DOOR/teleport/base resolution; сгруппировать entrances в stable Place IDs; построить полный EN catalog, aliases, types и regions с deterministic audit. Текущий extractor одного plugin недостаточен для полного TR snapshot.
-5. **5.5 — contracts/runtime: не начат.** Расширить `map-assets` contract с `static-image` JPEG до WebP tile pyramid; связать renderer/extractor/asset-tree fingerprints; заменить `placeholder-v1` immutable ready manifest; сделать generic dataset loader/map и подключить TileLayer.
+5. **5.5 — contracts/runtime: выполнено частично.** Готовы WebP tile-pyramid/coverage/derivation contracts, полная fingerprint binding, строгий dataset validator, immutable content-addressed tile tree и атомарная exclusive публикация полного versioned metadata package вместе с `map-assets.json`. Poison manifest переведён с `placeholder-v1` на реальный snapshot и прямо ссылается на audited immutable basemap, но правильно остаётся `placeholder` до catalog. Осталось сделать generic dataset loader/map, подключить OpenLayers TileLayer и после catalog/UI acceptance выпустить целиком `ready` manifest.
 6. **5.6 — product integration: не начат.** Переиспользовать search, statuses, notes и personal markers для EN-only snapshot с независимым progress; добавить missing-tile/loading/error states и network-free browser acceptance.
 
 Deliverables:

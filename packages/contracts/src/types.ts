@@ -252,12 +252,76 @@ export interface StaticRasterLayer {
   sha256: string;
 }
 
+export interface TilePyramidIntegrity {
+  tileCount: number;
+  totalBytes: number;
+  inventorySha256: string;
+  inventoryFileSha256: string;
+  provenanceFingerprint: string;
+  planFingerprint: string;
+  profileFingerprint: string;
+  rendererFingerprint: string;
+  productionSourceFingerprint: string;
+  assetTreeFingerprint: string;
+  inputFingerprint: string;
+}
+
+export interface TilePyramidDerivation {
+  kind: "cross-shard-seam-stabilization";
+  version: string;
+  sourceInventorySha256: string;
+  implementationSha256: string;
+  receipt: ArtifactReference;
+}
+
+export interface TilePyramid {
+  id: string;
+  regionIds: string[];
+  kind: "xyz-pyramid";
+  urlTemplate: string;
+  mediaType: "image/webp";
+  tileSize: 512;
+  extent: Extent;
+  origin: Point;
+  resolutions: number[];
+  minZoom: number;
+  maxZoom: number;
+  sparse: true;
+  coverage: ArtifactReference;
+  qualityReport: ArtifactReference;
+  derivation: TilePyramidDerivation;
+  integrity: TilePyramidIntegrity;
+}
+
 export interface MapAssetsManifest {
   schemaVersion: typeof ARTIFACT_SCHEMA_VERSION;
   datasetId: string;
   snapshotId: string;
   projection: Tes3ProjectionCode;
   rasters: StaticRasterLayer[];
+  tilePyramids?: TilePyramid[];
+}
+
+export type TileYRange = readonly [minY: number, maxY: number];
+
+export interface TileCoverageColumn {
+  x: number;
+  yRanges: TileYRange[];
+}
+
+export interface TileCoverageLevel {
+  z: number;
+  columns: TileCoverageColumn[];
+}
+
+export interface TileCoverage {
+  schemaVersion: typeof ARTIFACT_SCHEMA_VERSION;
+  datasetId: string;
+  snapshotId: string;
+  tilePyramidId: string;
+  encoding: "x-y-ranges-v1";
+  tileCount: number;
+  levels: TileCoverageLevel[];
 }
 
 export interface UserDataProvenance {

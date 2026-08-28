@@ -60,8 +60,14 @@ export type {
   StaticRasterLayer,
   Tes3CellSize,
   Tes3ProjectionCode,
+  TileCoverage,
+  TileCoverageColumn,
+  TileCoverageLevel,
   TileGridDescriptor,
+  TilePyramid,
+  TilePyramidIntegrity,
   TileSetReference,
+  TileYRange,
   ImportReceipt,
   UserDataProvenance,
   UserDataProvenanceKind,
@@ -72,6 +78,7 @@ export {
   getDatasetManifestValidationIssues,
   getLocationCatalogValidationIssues,
   getMapAssetsManifestValidationIssues,
+  getTileCoverageValidationIssues,
   getMimImportBundleValidationIssues,
   getPlaceLocaleCatalogValidationIssues,
   getPortableBackupValidationIssues,
@@ -79,6 +86,7 @@ export {
   isDatasetManifest,
   isLocationCatalog,
   isMapAssetsManifest,
+  isTileCoverage,
   isMimImportBundle,
   isPlaceLocaleCatalog,
   isPortableBackup,
@@ -86,6 +94,7 @@ export {
   parseDatasetManifest,
   parseLocationCatalog,
   parseMapAssetsManifest,
+  parseTileCoverage,
   parseMimImportBundle,
   parsePlaceLocaleCatalog,
   parsePortableBackup,
@@ -97,6 +106,7 @@ export { default as datasetIndexSchema } from "./schemas/dataset-index.schema.js
 export { default as datasetManifestSchema } from "./schemas/dataset-manifest.schema.json";
 export { default as locationCatalogSchema } from "./schemas/location-catalog.schema.json";
 export { default as mapAssetsSchema } from "./schemas/map-assets.schema.json";
+export { default as tileCoverageSchema } from "./schemas/tile-coverage.schema.json";
 export { default as mimImportSchema } from "./schemas/mim-import.schema.json";
 export { default as placeLocaleCatalogSchema } from "./schemas/place-locale-catalog.schema.json";
 export { default as portableBackupSchema } from "./schemas/portable-backup.schema.json";

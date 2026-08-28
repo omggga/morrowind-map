@@ -8,6 +8,7 @@ import mapAssetsSchema from "./schemas/map-assets.schema.json";
 import mimImportSchema from "./schemas/mim-import.schema.json";
 import placeLocaleCatalogSchema from "./schemas/place-locale-catalog.schema.json";
 import portableBackupSchema from "./schemas/portable-backup.schema.json";
+import tileCoverageSchema from "./schemas/tile-coverage.schema.json";
 import { createMimImportReceiptId } from "./import-receipt";
 import { PORTABLE_BACKUP_SCHEMA_VERSION } from "./types";
 import type {
@@ -20,6 +21,7 @@ import type {
   PlaceLocaleCatalog,
   PortableBackup,
   SourceProfileDescriptor,
+  TileCoverage,
 } from "./types";
 
 export type ContractKind =
@@ -28,6 +30,7 @@ export type ContractKind =
   | "location catalog"
   | "place locale catalog"
   | "map assets manifest"
+  | "tile coverage"
   | "MIM import bundle"
   | "portable backup";
 
@@ -67,6 +70,7 @@ const validateLocationCatalogSchema = ajv.compile<LocationCatalog>(locationCatal
 const validatePlaceLocaleCatalogSchema =
   ajv.compile<PlaceLocaleCatalog>(placeLocaleCatalogSchema);
 const validateMapAssetsSchema = ajv.compile<MapAssetsManifest>(mapAssetsSchema);
+const validateTileCoverageSchema = ajv.compile<TileCoverage>(tileCoverageSchema);
 const validateMimImportSchema = ajv.compile<MimImportBundle>(mimImportSchema);
 const validatePortableBackupSchema = ajv.compile<PortableBackup>(portableBackupSchema);
 
@@ -462,11 +466,24 @@ export function getMapAssetsManifestValidationIssues(
     return schemaIssues(validateMapAssetsSchema);
   }
 
-  const issues = duplicateIssues(
-    value.rasters.map((raster) => raster.id),
-    "/rasters",
-    "raster ids",
-  );
+  const tilePyramids = value.tilePyramids ?? [];
+  const issues = [
+    ...duplicateIssues(
+      value.rasters.map((raster) => raster.id),
+      "/rasters",
+      "raster ids",
+    ),
+    ...duplicateIssues(
+      tilePyramids.map((pyramid) => pyramid.id),
+      "/tilePyramids",
+      "tile pyramid ids",
+    ),
+    ...duplicateIssues(
+      [...value.rasters.map((raster) => raster.id), ...tilePyramids.map((pyramid) => pyramid.id)],
+      "/",
+      "map asset ids",
+    ),
+  ];
   value.rasters.forEach((raster, index) => {
     const [minX, minY, maxX, maxY] = raster.extent;
     if (!(minX < maxX && minY < maxY)) {
@@ -475,6 +492,191 @@ export function getMapAssetsManifestValidationIssues(
       );
     }
   });
+  tilePyramids.forEach((pyramid, index) => {
+    const path = `/tilePyramids/${index}`;
+    const [minX, minY, maxX, maxY] = pyramid.extent;
+    if (!(minX < maxX && minY < maxY)) {
+      issues.push(
+        semanticIssue(`${path}/extent`, "must have ordered non-empty bounds"),
+      );
+    }
+    if (pyramid.origin[0] !== minX || pyramid.origin[1] !== maxY) {
+      issues.push(
+        semanticIssue(`${path}/origin`, "must equal [extent.minX, extent.maxY]"),
+      );
+    }
+    if (pyramid.minZoom > pyramid.maxZoom) {
+      issues.push(semanticIssue(`${path}/minZoom`, "must not exceed maxZoom"));
+    }
+    if (pyramid.resolutions.length !== pyramid.maxZoom - pyramid.minZoom + 1) {
+      issues.push(
+        semanticIssue(
+          `${path}/resolutions`,
+          "must contain exactly one resolution for every zoom from minZoom through maxZoom",
+        ),
+      );
+    }
+    for (
+      let resolutionIndex = 1;
+      resolutionIndex < pyramid.resolutions.length;
+      resolutionIndex += 1
+    ) {
+      const previous = pyramid.resolutions[resolutionIndex - 1];
+      const current = pyramid.resolutions[resolutionIndex];
+      if (previous === undefined || current === undefined || previous <= current) {
+        issues.push(
+          semanticIssue(`${path}/resolutions`, "must be strictly descending"),
+        );
+        break;
+      }
+    }
+  });
+  return issues;
+}
+
+export function getTileCoverageValidationIssues(
+  value: unknown,
+  mapAssets?: MapAssetsManifest,
+): ContractValidationIssue[] {
+  if (!validateTileCoverageSchema(value)) {
+    return schemaIssues(validateTileCoverageSchema);
+  }
+
+  const issues: ContractValidationIssue[] = [];
+  let countedTiles = 0;
+  let previousZ: number | undefined;
+
+  value.levels.forEach((level, levelIndex) => {
+    const levelPath = `/levels/${levelIndex}`;
+    if (previousZ !== undefined && level.z <= previousZ) {
+      issues.push(semanticIssue(`${levelPath}/z`, "must be strictly increasing"));
+    }
+    previousZ = level.z;
+
+    let previousX: number | undefined;
+    level.columns.forEach((column, columnIndex) => {
+      const columnPath = `${levelPath}/columns/${columnIndex}`;
+      if (previousX !== undefined && column.x <= previousX) {
+        issues.push(semanticIssue(`${columnPath}/x`, "must be strictly increasing"));
+      }
+      previousX = column.x;
+
+      let previousMaxY: number | undefined;
+      column.yRanges.forEach(([minY, maxY], rangeIndex) => {
+        const rangePath = `${columnPath}/yRanges/${rangeIndex}`;
+        if (minY > maxY) {
+          issues.push(semanticIssue(rangePath, "must have ordered inclusive bounds"));
+          return;
+        }
+        if (previousMaxY !== undefined && minY <= previousMaxY + 1) {
+          issues.push(
+            semanticIssue(
+              rangePath,
+              "must be sorted, non-overlapping and maximally merge adjacent values",
+            ),
+          );
+        }
+        countedTiles += maxY - minY + 1;
+        previousMaxY = maxY;
+      });
+    });
+  });
+
+  if (countedTiles !== value.tileCount) {
+    issues.push(
+      semanticIssue(
+        "/tileCount",
+        `must equal the ${countedTiles} tiles encoded by levels`,
+      ),
+    );
+  }
+
+  if (mapAssets !== undefined) {
+    if (getMapAssetsManifestValidationIssues(mapAssets).length > 0) {
+      issues.push(
+        semanticIssue("/", "cannot validate coverage against an invalid map assets manifest"),
+      );
+      return issues;
+    }
+
+    if (value.datasetId !== mapAssets.datasetId) {
+      issues.push(semanticIssue("/datasetId", "must match the map assets manifest"));
+    }
+    if (value.snapshotId !== mapAssets.snapshotId) {
+      issues.push(semanticIssue("/snapshotId", "must match the map assets manifest"));
+    }
+
+    const pyramid = mapAssets.tilePyramids?.find(
+      (candidate) => candidate.id === value.tilePyramidId,
+    );
+    if (pyramid === undefined) {
+      issues.push(
+        semanticIssue("/tilePyramidId", "must reference a tile pyramid in the map assets manifest"),
+      );
+    } else {
+      if (value.tileCount !== pyramid.integrity.tileCount) {
+        issues.push(
+          semanticIssue("/tileCount", "must match tile pyramid integrity.tileCount"),
+        );
+      }
+      const expectedZooms = Array.from(
+        { length: pyramid.maxZoom - pyramid.minZoom + 1 },
+        (_, index) => pyramid.minZoom + index,
+      );
+      if (
+        value.levels.length !== expectedZooms.length ||
+        value.levels.some((level, index) => level.z !== expectedZooms[index])
+      ) {
+        issues.push(
+          semanticIssue(
+            "/levels",
+            "must contain exactly one ordered level for every tile pyramid zoom",
+          ),
+        );
+      }
+      value.levels.forEach((level, levelIndex) => {
+        if (level.z < pyramid.minZoom || level.z > pyramid.maxZoom) {
+          issues.push(
+            semanticIssue(
+              `/levels/${levelIndex}/z`,
+              `must be between tile pyramid minZoom ${pyramid.minZoom} and maxZoom ${pyramid.maxZoom}`,
+            ),
+          );
+          return;
+        }
+        const resolution = pyramid.resolutions[level.z - pyramid.minZoom];
+        if (resolution === undefined) {
+          return;
+        }
+        const [minX, minY, maxX, maxY] = pyramid.extent;
+        const tileWorldSize = pyramid.tileSize * resolution;
+        const columnCount = Math.ceil((maxX - minX) / tileWorldSize);
+        const rowCount = Math.ceil((maxY - minY) / tileWorldSize);
+        level.columns.forEach((column, columnIndex) => {
+          const columnPath = `/levels/${levelIndex}/columns/${columnIndex}`;
+          if (column.x >= columnCount) {
+            issues.push(
+              semanticIssue(
+                `${columnPath}/x`,
+                `must be inside the ${columnCount}-column tile grid at z${level.z}`,
+              ),
+            );
+          }
+          column.yRanges.forEach(([, rangeMaxY], rangeIndex) => {
+            if (rangeMaxY >= rowCount) {
+              issues.push(
+                semanticIssue(
+                  `${columnPath}/yRanges/${rangeIndex}`,
+                  `must be inside the ${rowCount}-row tile grid at z${level.z}`,
+                ),
+              );
+            }
+          });
+        });
+      });
+    }
+  }
+
   return issues;
 }
 
@@ -728,6 +930,13 @@ export function isMapAssetsManifest(value: unknown): value is MapAssetsManifest 
   return getMapAssetsManifestValidationIssues(value).length === 0;
 }
 
+export function isTileCoverage(
+  value: unknown,
+  mapAssets?: MapAssetsManifest,
+): value is TileCoverage {
+  return getTileCoverageValidationIssues(value, mapAssets).length === 0;
+}
+
 export function isMimImportBundle(value: unknown): value is MimImportBundle {
   return getMimImportBundleValidationIssues(value).length === 0;
 }
@@ -774,6 +983,17 @@ export function parseMapAssetsManifest(value: unknown): MapAssetsManifest {
     throw new ContractValidationError("map assets manifest", issues);
   }
   return value as MapAssetsManifest;
+}
+
+export function parseTileCoverage(
+  value: unknown,
+  mapAssets?: MapAssetsManifest,
+): TileCoverage {
+  const issues = getTileCoverageValidationIssues(value, mapAssets);
+  if (issues.length > 0) {
+    throw new ContractValidationError("tile coverage", issues);
+  }
+  return value as TileCoverage;
 }
 
 export function parseMimImportBundle(value: unknown): MimImportBundle {

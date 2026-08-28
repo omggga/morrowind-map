@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morrowind-map.local/schemas/tile-coverage.schema.json",
+  "title": "Sparse XYZ tile coverage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "datasetId",
+    "snapshotId",
+    "tilePyramidId",
+    "encoding",
+    "tileCount",
+    "levels"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "datasetId": { "$ref": "#/$defs/identifier" },
+    "snapshotId": { "$ref": "#/$defs/snapshotId" },
+    "tilePyramidId": { "$ref": "#/$defs/identifier" },
+    "encoding": { "const": "x-y-ranges-v1" },
+    "tileCount": { "type": "integer", "minimum": 1 },
+    "levels": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/level" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9]+(?:[.:-][a-z0-9]+)*$"
+    },
+    "snapshotId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9][a-z0-9:._-]+$"
+    },
+    "yRange": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "integer", "minimum": 0 }
+      ],
+      "items": false
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "yRanges"],
+      "properties": {
+        "x": { "type": "integer", "minimum": 0 },
+        "yRanges": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/yRange" }
+        }
+      }
+    },
+    "level": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["z", "columns"],
+      "properties": {
+        "z": { "type": "integer", "minimum": 0 },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/column" }
+        }
+      }
+    }
+  }
+}

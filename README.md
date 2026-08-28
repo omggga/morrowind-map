@@ -8,7 +8,7 @@
 
 Original уже поддерживает локальные MIM-растры Vvardenfell и Solstheim, 1 010 мест из MIM/ESM, EN/RU, поиск, zoom/pan, MIM-цвета статусов `unvisited` / `active` / `visited`, заметки и личные квадратные маркеры. Прогресс хранится локально в IndexedDB через Dexie и жёстко привязан к snapshot; доступны однократный импорт текущего MIM snapshot и общий переносимый JSON backup v2/import со строгой проверкой совместимости и чтением ранних v1-копий.
 
-Текущий статус: **Этап 5 в работе; production renderer 5.1 и benchmark 5.2 завершены, локальный full render начат**. Pinned headless OpenMW pipeline строит `3×3` native batches с `5×5` scene context, поддерживает два workers, checkpoint/resume, exact provenance, lossless WebP, lower zoom и deterministic inventory. Реальный gate пяти областей прошёл: `45` native tiles за `178.977 s`, resume за `0.080 s`, `0 px` coordinate error и 60 бесшовных overlaps. Оценка полного render + pyramid на текущей машине — около `5.2 h`, разумный рабочий диапазон `5–6 h`. Poison Song basemap ещё не завершён и не прошёл finalize; catalog, immutable ready manifest и UI integration остаются следующими подэтапами.
+Текущий статус: **Этап 5 в работе; production renderer, benchmark и полный Poison Song basemap завершены, catalog/UI ещё впереди**. Pinned headless OpenMW pipeline построил `3 984` native tiles, после cross-shard stabilization — полную sparse lossless WebP pyramid `z0…z7`: `5 464` tiles, `1 879 019 148` bytes. Full audit проверил декодирование каждого tile, все `10 467` соседств, точное происхождение всех `1 480` lower-zoom tiles, `492` runtime resource reports, `0 px` coordinate error и независимый raw rerender `32` cells; все release gates прошли. Basemap подготовлен как immutable локальный dataset, но общий Poison Song manifest честно остаётся `placeholder` до EN location catalog и generic runtime/UI integration.
 
 Подробный план: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 Результаты LAND gate: [docs/adr/0001-land-renderer-spike.md](docs/adr/0001-land-renderer-spike.md).
@@ -53,7 +53,7 @@ python3 -m tools.openmw_renderer.spike --skip-build
 python3 -m tools.openmw_renderer.spike --skip-build --evaluate-only
 ```
 
-Smoke пишет `local-data/openmw-spike/poison-song-26.08/smoke-report.json`, полный gate — `report.json`, пять `controls/*.webp` и хэш-привязанный шаблон ручной визуальной квитанции. Production runner уже реализован, но полный basemap пока не запускался. BSA/ESM/ESP/omwscripts, loose Tamriel Data/TR assets, raw PNG, WebP и reports являются локальными ignored artifacts и в Git/Docker image не входят.
+Smoke пишет `local-data/openmw-spike/poison-song-26.08/smoke-report.json`, полный gate — `report.json`, пять `controls/*.webp` и хэш-привязанный шаблон ручной визуальной квитанции. BSA/ESM/ESP/omwscripts, loose Tamriel Data/TR assets и полный WebP payload остаются локальными ignored artifacts и в Docker image не входят; Git хранит код, contracts и компактные publication/quality metadata.
 
 ### Poison Song production renderer
 
@@ -66,11 +66,15 @@ pnpm data:poison:renderer:smoke
 pnpm data:poison:renderer:benchmark
 ```
 
-Полный basemap пока запускается отдельно осознанным решением:
+Полный pipeline от resumable render до локально подключаемого dataset:
 
 ```bash
 pnpm data:poison:renderer:render
 pnpm data:poison:renderer:finalize
+pnpm data:poison:renderer:stabilize
+pnpm data:poison:renderer:audit
+pnpm data:poison:dataset:validate
+pnpm data:poison:dataset:prepare
 ```
 
 `render` по умолчанию использует два встроенных workers и безопасно продолжается тем же command после остановки: готовые WebP повторно проверяются по checkpoint и не рендерятся. Terminal сразу показывает setup, затем после каждой атомарной записи checkpoint печатает прогресс вида `[227/3984]`. Для последовательного деления плана доступны `--shard-count N --shard-index I`; несколько отдельных процессов не должны одновременно писать один checkpoint. Raw `544×544` PNG удаляются после публикации WebP, если явно не указан `--retain-raw`.
@@ -78,6 +82,8 @@ pnpm data:poison:renderer:finalize
 OpenMW warning `addAnimSource: can't find bone` означает несовпадение animation controller с уже загруженным NIF, сохраняется в `ignoredCompatibilityWarnings` и не останавливает production render. Настоящие missing mesh/texture/file, отсутствующие логи и non-zero container exit по-прежнему fail closed.
 
 Production profile явно направляет snow/blizzard weather на существующие Bloodmoon-ресурсы `Tx_BM_Sky_Snow.dds` и `Tx_BM_Sky_Blizzard.dds`: универсальные OpenMW defaults с именами `Tx_Sky_*` отсутствуют в GOTY BSA. Контролируемая смена producer source сохраняет готовые тайлы только через отдельный `migrate-resume`; смена profile fingerprint дополнительно требует явного `--allow-profile-change`, полного совпадения `inputAudit`/`assetAudit`, byte-identical backups старого состояния и migration receipt.
+
+`stabilize` создаёт immutable release в `local-data/openmw-release/poison-song-26.08`, исправляет только границы разных render shards и заново выводит lower zoom. `audit` fail-closed проверяет всю release tree; для доказательства воспроизводимого resume готовые raw probes можно повторно использовать через `python3 -m tools.openmw_renderer.audit full --workers 4 --render-workers 2 --reuse-evidence`. `dataset:prepare` сначала повторяет строгую валидацию, затем APFS clone/copy публикует tiles по immutable inventory hash в `apps/web/public/datasets/generated/poison-song-26.08/<inventory-sha256>` и одним atomic exclusive rename публикует полный metadata package, включая `map-assets.json`, по тому же content-addressed version path. Отдельного изменяемого stable pointer и metadata-only режима нет: committed dataset manifest прямо ссылается на immutable package, поэтому частично подготовленный dataset не становится видимым приложению.
 
 ## Локальный запуск
 

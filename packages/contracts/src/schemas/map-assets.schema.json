@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://morrowind-map.local/schemas/map-assets.schema.json",
-  "title": "Morrowind map raster assets",
+  "title": "Morrowind map assets",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "datasetId", "snapshotId", "projection", "rasters"],
@@ -12,10 +12,26 @@
     "projection": { "const": "TES3:WORLD" },
     "rasters": {
       "type": "array",
-      "minItems": 1,
       "items": { "$ref": "#/$defs/raster" }
+    },
+    "tilePyramids": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/tilePyramid" }
     }
   },
+  "anyOf": [
+    {
+      "properties": {
+        "rasters": { "type": "array", "minItems": 1 }
+      }
+    },
+    {
+      "required": ["tilePyramids"],
+      "properties": {
+        "tilePyramids": { "type": "array", "minItems": 1 }
+      }
+    }
+  ],
   "$defs": {
     "identifier": {
       "type": "string",
@@ -28,6 +44,16 @@
       "minLength": 1,
       "maxLength": 160,
       "pattern": "^[a-z0-9][a-z0-9:._-]+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "datasetJsonUrl": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^/datasets/[^\\s?#]+\\.json$"
     },
     "point": {
       "type": "array",
@@ -58,6 +84,17 @@
       ],
       "items": false
     },
+    "jsonArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "mediaType", "sha256", "bytes"],
+      "properties": {
+        "url": { "$ref": "#/$defs/datasetJsonUrl" },
+        "mediaType": { "const": "application/json" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "bytes": { "type": "integer", "minimum": 1 }
+      }
+    },
     "raster": {
       "type": "object",
       "additionalProperties": false,
@@ -84,7 +121,109 @@
         "mediaType": { "const": "image/jpeg" },
         "pixelSize": { "$ref": "#/$defs/pixelSize" },
         "extent": { "$ref": "#/$defs/extent" },
-        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "tilePyramidIntegrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tileCount",
+        "totalBytes",
+        "inventorySha256",
+        "inventoryFileSha256",
+        "provenanceFingerprint",
+        "planFingerprint",
+        "profileFingerprint",
+        "rendererFingerprint",
+        "productionSourceFingerprint",
+        "assetTreeFingerprint",
+        "inputFingerprint"
+      ],
+      "properties": {
+        "tileCount": { "type": "integer", "minimum": 1 },
+        "totalBytes": { "type": "integer", "minimum": 1 },
+        "inventorySha256": { "$ref": "#/$defs/sha256" },
+        "inventoryFileSha256": { "$ref": "#/$defs/sha256" },
+        "provenanceFingerprint": { "$ref": "#/$defs/sha256" },
+        "planFingerprint": { "$ref": "#/$defs/sha256" },
+        "profileFingerprint": { "$ref": "#/$defs/sha256" },
+        "rendererFingerprint": { "$ref": "#/$defs/sha256" },
+        "productionSourceFingerprint": { "$ref": "#/$defs/sha256" },
+        "assetTreeFingerprint": { "$ref": "#/$defs/sha256" },
+        "inputFingerprint": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "tilePyramidDerivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version",
+        "sourceInventorySha256",
+        "implementationSha256",
+        "receipt"
+      ],
+      "properties": {
+        "kind": { "const": "cross-shard-seam-stabilization" },
+        "version": { "$ref": "#/$defs/identifier" },
+        "sourceInventorySha256": { "$ref": "#/$defs/sha256" },
+        "implementationSha256": { "$ref": "#/$defs/sha256" },
+        "receipt": { "$ref": "#/$defs/jsonArtifact" }
+      }
+    },
+    "tilePyramid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "regionIds",
+        "kind",
+        "urlTemplate",
+        "mediaType",
+        "tileSize",
+        "extent",
+        "origin",
+        "resolutions",
+        "minZoom",
+        "maxZoom",
+        "sparse",
+        "coverage",
+        "qualityReport",
+        "derivation",
+        "integrity"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "regionIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "kind": { "const": "xyz-pyramid" },
+        "urlTemplate": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^/datasets/[^\\s?#]*\\{z\\}/\\{x\\}/\\{y\\}\\.webp$"
+        },
+        "mediaType": { "const": "image/webp" },
+        "tileSize": { "const": 512 },
+        "extent": { "$ref": "#/$defs/extent" },
+        "origin": { "$ref": "#/$defs/point" },
+        "resolutions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "number", "exclusiveMinimum": 0 }
+        },
+        "minZoom": { "type": "integer", "minimum": 0 },
+        "maxZoom": { "type": "integer", "minimum": 0 },
+        "sparse": { "const": true },
+        "coverage": { "$ref": "#/$defs/jsonArtifact" },
+        "qualityReport": { "$ref": "#/$defs/jsonArtifact" },
+        "derivation": { "$ref": "#/$defs/tilePyramidDerivation" },
+        "integrity": { "$ref": "#/$defs/tilePyramidIntegrity" }
       }
     }
   }
