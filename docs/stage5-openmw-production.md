@@ -1,6 +1,6 @@
 # Stage 5 — OpenMW production basemap
 
-Дата последнего полного аудита: 2026-08-29. Статус: **5.1–5.4 завершены; basemap/catalog contracts и publication из 5.5 готовы. Generic runtime loader и UI integration остаются в работе.**
+Дата последнего полного аудита: 2026-08-29. Статус: **5.1–5.5 завершены на 100%: basemap/catalog опубликованы, generic runtime подключён, Poison Song manifest имеет статус `ready`. Этап 5 остаётся открыт до product/browser acceptance 5.6.**
 
 ## Production pipeline
 
@@ -84,7 +84,9 @@ APFS использует clone-on-write; на другой filesystem допу�
     map-assets.json
 ```
 
-SHA-256 `map-assets.json` — `b400cc972966f2c0c54cd33b48dafaa4c6873b783ecad67347c92190f2a5ecef`. Contract описывает sparse WebP pyramid, coverage, exact derivation receipt, quality report, полный integrity block и versioned URL template. Poison Song dataset manifest прямо ссылается на этот immutable файл, без отдельного изменяемого stable pointer. Location/localization artifacts теперь также подготовлены отдельным content-addressed catalog pipeline; manifest остаётся `placeholder` только до generic runtime/UI acceptance.
+SHA-256 `map-assets.json` — `b400cc972966f2c0c54cd33b48dafaa4c6873b783ecad67347c92190f2a5ecef`. Contract описывает sparse WebP pyramid, coverage, exact derivation receipt, quality report, полный integrity block и versioned URL template. Poison Song dataset manifest прямо ссылается на этот immutable файл, без отдельного изменяемого stable pointer. Location/localization artifacts также подготовлены отдельным content-addressed catalog pipeline; после подключения generic runtime manifest переведён в `ready`.
+
+Runtime использует единые `DatasetMap` и dataset loader для manifest-driven загрузки map assets, location catalog и всех объявленных локалей. Original MIM остаётся на OpenLayers `ImageStatic`, а Poison Song использует `TileLayer` с явной TES3 grid, fixed top-left XYZ и native `512×512` WebP. Coverage index проверяется до построения tile URL, поэтому sparse holes не создают заведомо ошибочных HTTP-запросов. Отдельные UI states различают отсутствующий подготовленный dataset (`missing`), текущую загрузку и runtime/tile error с retry.
 
 Catalog имеет отдельный inventory, потому что меняется независимо от тяжёлой tile pyramid, но жёстко привязан к тому же `datasetId`/`snapshotId`. Он содержит `4 085` places и `4 902` entrances; exact merge, stable ID, grouping, type/region/alias policies и audit описаны в [stage5-catalog.md](stage5-catalog.md).
 
@@ -113,7 +115,7 @@ python3 -m tools.openmw_renderer.audit full \
 
 ## Остаток Этапа 5
 
-- 5.5: generic browser loader и OpenLayers TileLayer поверх готовых basemap/catalog contracts;
-- 5.6: Poison Song search, statuses, notes, personal markers, loading/error states и offline browser acceptance.
+- 5.5: **выполнено на 100%** — generic loader/`DatasetMap`, OpenLayers `TileLayer`, TES3 sparse grid/coverage, dynamic catalog/locales, `missing`/`loading`/`error` states и `ready` manifest;
+- 5.6: формальная network-free browser acceptance Poison Song workflow, включая search, statuses, notes, personal markers, reload persistence и негативные сценарии загрузки.
 
-Basemap и catalog quality gates больше не блокируют эти работы; полный dataset считается `ready` только после runtime/UI acceptance.
+Basemap, catalog и runtime quality gates закрыты. Manifest уже имеет статус `ready`, но Этап 5 целиком не объявляется завершённым до acceptance 5.6.

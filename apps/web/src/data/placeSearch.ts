@@ -23,27 +23,35 @@ function namesByPlace(catalog: PlaceLocaleCatalog) {
 
 export function buildPlaceViews(
   places: readonly PlaceRecord[],
-  english: PlaceLocaleCatalog,
-  russian: PlaceLocaleCatalog,
+  catalogs: readonly PlaceLocaleCatalog[],
   locale: Locale,
 ): PlaceView[] {
-  const primary = namesByPlace(locale === 'en' ? english : russian);
-  const alternate = namesByPlace(locale === 'en' ? russian : english);
+  const selectedCatalog = catalogs.find((catalog) => catalog.locale === locale);
+  if (!selectedCatalog) {
+    throw new Error(`Missing ${locale} locale catalog`);
+  }
+  const primary = namesByPlace(selectedCatalog);
+  const alternateCatalogs = catalogs
+    .filter((catalog) => catalog.locale !== locale)
+    .map(namesByPlace);
 
   return places.map((place) => {
     const primaryName = primary.get(place.id);
-    const alternateName = alternate.get(place.id);
-    if (!primaryName || !alternateName) {
+    if (!primaryName) {
       throw new Error(`Missing localized name for ${place.id}`);
     }
+    const alternateNames = alternateCatalogs.flatMap((catalog) => {
+      const alternate = catalog.get(place.id);
+      return alternate ? [alternate] : [];
+    });
     return {
       id: place.id,
       place,
       locale,
       name: primaryName.name,
-      alternateName: alternateName.name,
+      alternateName: alternateNames[0]?.name ?? primaryName.name,
       aliases: primaryName.aliases,
-      alternateAliases: alternateName.aliases,
+      alternateAliases: alternateNames.flatMap(({ name, aliases }) => [name, ...aliases]),
       searchableType: place.type,
     };
   });

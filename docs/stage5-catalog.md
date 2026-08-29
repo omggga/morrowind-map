@@ -1,6 +1,6 @@
 # Stage 5.4 — Generic TES3 catalog pipeline
 
-Дата фиксации результата: 2026-08-29. Статус: **выполнено на 100% для Poison Song 26.08**. Это закрывает catalog quality gate, но не завершает Этап 5: generic browser runtime относится к 5.5, product/UI acceptance — к 5.6.
+Дата фиксации результата: 2026-08-29. Статус: **выполнено на 100% для Poison Song 26.08**. Catalog quality gate закрыт, а generic browser runtime 5.5 уже подключён; Этап 5 остаётся открыт до product/browser acceptance 5.6.
 
 ## Входной snapshot
 
@@ -110,4 +110,4 @@ pnpm data:poison:catalog:prepare
 
 ## Что остаётся
 
-5.4 завершён. В 5.5 нужно загрузить prepared catalog и WebP pyramid через generic dataset loader/OpenLayers, а в 5.6 — включить Poison Song search, statuses, notes, personal markers и пройти offline browser acceptance. До этого весь Poison Song dataset остаётся `placeholder`, даже несмотря на готовые и независимо проверяемые basemap и catalog artifacts.
+5.4 и 5.5 завершены. Prepared catalog и WebP pyramid загружаются единым manifest-driven dataset loader: локали объявляются самим manifest-ом, Poison Song использует EN catalog, а sparse coverage предотвращает запросы отсутствующих tiles. Poison Song manifest имеет статус `ready`. В 5.6 остаётся формально принять network-free browser workflow, включая search, statuses, notes, personal markers и persistence после reload; до этого Этап 5 целиком остаётся в работе.

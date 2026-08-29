@@ -11,16 +11,22 @@ import Map from 'ol/Map.js';
 import View from 'ol/View.js';
 import Point from 'ol/geom/Point.js';
 import ImageLayer from 'ol/layer/Image.js';
+import TileLayer from 'ol/layer/Tile.js';
 import VectorLayer from 'ol/layer/Vector.js';
 import { unByKey } from 'ol/Observable.js';
 import ImageStatic from 'ol/source/ImageStatic.js';
 import VectorSource from 'ol/source/Vector.js';
+import XYZ from 'ol/source/XYZ.js';
 import Fill from 'ol/style/Fill.js';
 import RegularShape from 'ol/style/RegularShape.js';
 import Stroke from 'ol/style/Stroke.js';
 import Style from 'ol/style/Style.js';
 import { useTranslation } from 'react-i18next';
-import { loadOriginalDataset, type OriginalDatasetBundle } from '../data/loadOriginalDataset';
+import {
+  DatasetAssetsMissingError,
+  loadDataset,
+  type DatasetBundle,
+} from '../data/loadDataset';
 import { buildPlaceViews, PlaceSearch, type PlaceView } from '../data/placeSearch';
 import { i18n } from '../i18n';
 import { userDatabase } from '../storage/database';
@@ -37,6 +43,12 @@ import {
   useDatasetProgress,
 } from '../user-data';
 import {
+  SparseTileCoverageIndex,
+  createSparseTileUrlFunction,
+  createTes3Resolutions,
+  createTes3TileGrid,
+} from './sparseTiles';
+import {
   configureTes3Projection,
   worldToCell,
   type CellCoordinate,
@@ -48,21 +60,28 @@ interface MapTitlebarProps {
   readonly onBack: () => void;
 }
 
-interface OriginalMapProps extends MapTitlebarProps {
+interface DatasetMapProps extends MapTitlebarProps {
   readonly datasetSnapshots: Readonly<Record<string, string>>;
 }
 
-type RegionFilter = 'all' | 'vvardenfell' | 'solstheim';
+type RegionFilter = string;
 
 type LoadState =
   | { readonly status: 'loading' }
-  | { readonly status: 'ready'; readonly bundle: OriginalDatasetBundle }
+  | { readonly status: 'ready'; readonly bundle: DatasetBundle }
   | {
       readonly status: 'needs-legacy-adoption';
-      readonly bundle: OriginalDatasetBundle;
+      readonly bundle: DatasetBundle;
       readonly storedRecords: number;
     }
+  | { readonly status: 'missing'; readonly message: string }
   | { readonly status: 'error'; readonly message: string };
+
+interface BasemapRuntimeState {
+  readonly pending: number;
+  readonly failures: number;
+  readonly missing: boolean;
+}
 
 interface CursorReadout {
   readonly world: WorldCoordinate;
@@ -102,7 +121,7 @@ function createMarkerStyle(color: string, radius: number, selected = false): Sty
 
 function markerRegion(
   position: readonly [number, number],
-  bundle: OriginalDatasetBundle,
+  bundle: DatasetBundle,
 ): string | null {
   const [x, y] = position;
   return bundle.mapAssets.rasters.find(({ extent: [minX, minY, maxX, maxY] }) =>
@@ -115,25 +134,71 @@ function prefersReducedMotion(): boolean {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unknown Original dataset error';
+  return error instanceof Error ? error.message : 'Unknown dataset error';
 }
 
 function localeFromManifest(dataset: DatasetManifest): Locale {
   return dataset.localization.defaultLocale === 'en' ? 'en' : 'ru';
 }
 
+function localizedText(
+  text: Readonly<{ en: string; ru?: string }>,
+  locale: Locale,
+): string {
+  return locale === 'ru' ? (text.ru ?? text.en) : text.en;
+}
+
+function regionTitle(dataset: DatasetManifest, regionId: string, locale: Locale): string {
+  const region = dataset.regions.find(({ id }) => id === regionId);
+  return region ? localizedText(region.title, locale) : regionId;
+}
+
+function regionExtent(
+  bundle: DatasetBundle,
+  regionId: string,
+  worldExtent: readonly [number, number, number, number],
+  cellSize: number,
+): readonly [number, number, number, number] | null {
+  const rasterExtents = bundle.mapAssets.rasters
+    .filter((raster) => raster.regionId === regionId)
+    .map(({ extent }) => extent);
+  if (rasterExtents.length > 0) {
+    return [
+      Math.min(...rasterExtents.map(([minX]) => minX)),
+      Math.min(...rasterExtents.map(([, minY]) => minY)),
+      Math.max(...rasterExtents.map(([, , maxX]) => maxX)),
+      Math.max(...rasterExtents.map(([, , , maxY]) => maxY)),
+    ];
+  }
+
+  const positions = bundle.locations.places
+    .filter((place) => place.regionId === regionId)
+    .map(({ mapPosition }) => mapPosition);
+  if (positions.length === 0) {
+    return null;
+  }
+  const padding = cellSize * 2;
+  const [worldMinX, worldMinY, worldMaxX, worldMaxY] = worldExtent;
+  return [
+    Math.max(worldMinX, Math.min(...positions.map(([x]) => x)) - padding),
+    Math.max(worldMinY, Math.min(...positions.map(([, y]) => y)) - padding),
+    Math.min(worldMaxX, Math.max(...positions.map(([x]) => x)) + padding),
+    Math.min(worldMaxY, Math.max(...positions.map(([, y]) => y)) + padding),
+  ];
+}
+
 function formatCoordinate(value: number, locale: Locale): string {
   return Math.round(value).toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US');
 }
 
-export function OriginalMap({ dataset, datasetSnapshots, onBack }: OriginalMapProps) {
+export function DatasetMap({ dataset, datasetSnapshots, onBack }: DatasetMapProps) {
   const { t } = useTranslation();
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
   const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadOriginalDataset(dataset, controller.signal)
+    void loadDataset(dataset, controller.signal)
       .then(async (bundle) => {
         const readiness = await ensureDatasetSnapshot(
           userDatabase,
@@ -155,7 +220,11 @@ export function OriginalMap({ dataset, datasetSnapshots, onBack }: OriginalMapPr
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
-          setLoadState({ status: 'error', message: errorMessage(error) });
+          setLoadState(
+            error instanceof DatasetAssetsMissingError
+              ? { status: 'missing', message: error.message }
+              : { status: 'error', message: errorMessage(error) },
+          );
         }
       });
     return () => controller.abort();
@@ -163,9 +232,9 @@ export function OriginalMap({ dataset, datasetSnapshots, onBack }: OriginalMapPr
 
   if (loadState.status !== 'ready') {
     return (
-      <main className="map-screen original-map-screen" aria-labelledby="map-title">
+      <main className="map-screen dataset-map-screen" aria-labelledby="map-title">
         <MapTitlebar dataset={dataset} onBack={onBack} />
-        <section className="original-load-state" role={loadState.status === 'error' ? 'alert' : 'status'}>
+        <section className="dataset-load-state" role={loadState.status === 'error' ? 'alert' : 'status'}>
           {loadState.status === 'loading' ? (
             <>
               <span className="load-indicator" aria-hidden="true" />
@@ -196,6 +265,13 @@ export function OriginalMap({ dataset, datasetSnapshots, onBack }: OriginalMapPr
               </button>
               <button type="button" onClick={onBack}>{t('map.versions')}</button>
             </>
+          ) : loadState.status === 'missing' ? (
+            <>
+              <span className="load-state-code">DATA MISSING</span>
+              <h2>{t('map.missingData')}</h2>
+              <p>{loadState.message}</p>
+              <button type="button" onClick={onBack}>{t('map.versions')}</button>
+            </>
           ) : (
             <>
               <span className="load-state-code">DATA ERROR</span>
@@ -218,7 +294,7 @@ export function OriginalMap({ dataset, datasetSnapshots, onBack }: OriginalMapPr
   }
 
   return (
-    <OriginalMapReady
+    <DatasetMapReady
       dataset={dataset}
       datasetSnapshots={datasetSnapshots}
       bundle={loadState.bundle}
@@ -239,7 +315,7 @@ function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
         {t('map.versions')}
       </button>
       <div className="map-title-copy">
-        <span className="titlebar-kicker">ORIGINAL / TES3:WORLD</span>
+        <span className="titlebar-kicker">{dataset.mapKey.toUpperCase()} / TES3:WORLD</span>
         <h1 id="map-title">{title}</h1>
       </div>
       <span className="titlebar-state">{t('map.local')}</span>
@@ -247,15 +323,16 @@ function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
   );
 }
 
-interface OriginalMapReadyProps extends OriginalMapProps {
-  readonly bundle: OriginalDatasetBundle;
+interface DatasetMapReadyProps extends DatasetMapProps {
+  readonly bundle: DatasetBundle;
 }
 
-function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: OriginalMapReadyProps) {
+function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetMapReadyProps) {
   const { t } = useTranslation();
   const targetRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<Map | null>(null);
+  const tileSourcesRef = useRef<XYZ[]>([]);
   const markerLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const customMarkerLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const selectedIdRef = useRef<string | null>(null);
@@ -279,6 +356,11 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
   const [markerError, setMarkerError] = useState<string | null>(null);
   const [cursor, setCursor] = useState<CursorReadout | null>(null);
   const [zoom, setZoom] = useState(0);
+  const [basemapState, setBasemapState] = useState<BasemapRuntimeState>({
+    pending: 0,
+    failures: 0,
+    missing: false,
+  });
   const progress = useDatasetProgress(dataset.datasetId);
   const customMarkers = useDatasetCustomMarkers(dataset.datasetId);
   const projectionDescriptor = dataset.map.projection;
@@ -290,10 +372,26 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
     const [x, y] = projectionDescriptor.center;
     return [x, y];
   }, [projectionDescriptor.center]);
+  const availableLocales = useMemo(
+    () =>
+      dataset.localization.locales
+        .map(({ locale: localeId }) => localeId)
+        .filter((localeId) => bundle.locales.has(localeId)),
+    [bundle.locales, dataset.localization.locales],
+  );
+  const availableRegionIds = useMemo(() => {
+    const placeRegions = new Set(bundle.locations.places.map(({ regionId }) => regionId));
+    return dataset.regions
+      .filter(
+        ({ id, kind, status }) =>
+          kind === 'exterior' && status === 'available' && placeRegions.has(id),
+      )
+      .map(({ id }) => id);
+  }, [bundle.locations.places, dataset.regions]);
 
   const places = useMemo(
     () =>
-      buildPlaceViews(bundle.locations.places, bundle.locales.en, bundle.locales.ru, locale).sort(
+      buildPlaceViews(bundle.locations.places, [...bundle.locales.values()], locale).sort(
         (left, right) => left.name.localeCompare(right.name, locale),
       ),
     [bundle, locale],
@@ -318,8 +416,10 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
   const regionCustomMarkers = useMemo(
     () =>
       customMarkers.records.filter(
-        (marker) =>
-          region === 'all' || markerRegion(marker.position, bundle) === region,
+        (marker) => {
+          const markerRegionId = markerRegion(marker.position, bundle);
+          return region === 'all' || markerRegionId === null || markerRegionId === region;
+        },
       ),
     [bundle, customMarkers.records, region],
   );
@@ -435,6 +535,48 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
           }),
         }),
     );
+    const pyramidContexts = (bundle.mapAssets.tilePyramids ?? []).map((pyramid) => {
+      const coverage = bundle.tileCoverages.get(pyramid.id);
+      if (!coverage) {
+        throw new Error(`Missing validated coverage for ${pyramid.id}`);
+      }
+      const tileGrid = createTes3TileGrid(pyramid);
+      const coverageIndex = new SparseTileCoverageIndex(coverage);
+      const source = new XYZ({
+        projection,
+        tileGrid,
+        tileUrlFunction: createSparseTileUrlFunction(pyramid, coverage),
+        wrapX: false,
+        interpolate: true,
+        transition: 0,
+      });
+      const layer = new TileLayer({
+        source,
+        extent: [...pyramid.extent],
+      });
+      return { coverageIndex, layer, pyramid, source, tileGrid };
+    });
+    const tileSources = pyramidContexts.map(({ source }) => source);
+    tileSourcesRef.current = tileSources;
+    setBasemapState({ pending: 0, failures: 0, missing: false });
+    const tileEventKeys = tileSources.flatMap((source) => [
+      source.on('tileloadstart', () => {
+        setBasemapState((current) => ({ ...current, pending: current.pending + 1 }));
+      }),
+      source.on('tileloadend', () => {
+        setBasemapState((current) => ({
+          ...current,
+          pending: Math.max(0, current.pending - 1),
+        }));
+      }),
+      source.on('tileloaderror', () => {
+        setBasemapState((current) => ({
+          ...current,
+          pending: Math.max(0, current.pending - 1),
+          failures: current.failures + 1,
+        }));
+      }),
+    ]);
     const features = bundle.locations.places.map(
       (place) =>
         new Feature({
@@ -470,7 +612,11 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
       source: new VectorSource(),
       style: (feature) => {
         const featureRegion = feature.get('regionId') as string | null;
-        if (regionRef.current !== 'all' && featureRegion !== regionRef.current) {
+        if (
+          regionRef.current !== 'all' &&
+          featureRegion !== null &&
+          featureRegion !== regionRef.current
+        ) {
           return undefined;
         }
         const markerId = feature.get('markerId') as string;
@@ -483,19 +629,26 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
     });
     customMarkerLayer.setZIndex(20);
     customMarkerLayerRef.current = customMarkerLayer;
+    const primaryPyramid = pyramidContexts[0]?.pyramid;
     const view = new View({
       projection,
       center,
       zoom: 1,
-      minZoom: 0,
-      maxZoom: 12,
+      minZoom: primaryPyramid?.minZoom ?? 0,
+      maxZoom: primaryPyramid?.maxZoom ?? 12,
+      ...(primaryPyramid ? { resolutions: createTes3Resolutions(primaryPyramid) } : {}),
       extent,
       showFullExtent: true,
       constrainOnlyCenter: true,
     });
     const map = new Map({
       target: targetRef.current,
-      layers: [...rasterLayers, markerLayer, customMarkerLayer],
+      layers: [
+        ...rasterLayers,
+        ...pyramidContexts.map(({ layer }) => layer),
+        markerLayer,
+        customMarkerLayer,
+      ],
       view,
       controls: [],
     });
@@ -504,6 +657,24 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
     zoomRef.current = view.getZoom() ?? 0;
     setZoom(zoomRef.current);
     markerLayer.changed();
+
+    const updateCoverageAtCenter = () => {
+      const viewCenter = view.getCenter();
+      const resolution = view.getResolution();
+      if (!viewCenter || resolution === undefined || pyramidContexts.length === 0) {
+        setBasemapState((current) => ({ ...current, missing: false }));
+        return;
+      }
+      const covered = pyramidContexts.some(({ coverageIndex, pyramid, tileGrid }) => {
+        const z = tileGrid.getZForResolution(resolution);
+        if (z < pyramid.minZoom || z > pyramid.maxZoom) {
+          return false;
+        }
+        return coverageIndex.has(tileGrid.getTileCoordForCoordAndZ(viewCenter, z));
+      });
+      setBasemapState((current) => ({ ...current, missing: !covered }));
+    };
+    updateCoverageAtCenter();
 
     const pointerMoveKey = map.on('pointermove', (event) => {
       if (event.dragging) {
@@ -544,6 +715,7 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
       setZoom(zoomRef.current);
       markerLayer.changed();
     });
+    const moveEndKey = map.on('moveend', updateCoverageAtCenter);
     const viewport = map.getViewport();
     const clearCursor = () => {
       setCursor(null);
@@ -555,9 +727,12 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
       unByKey(pointerMoveKey);
       unByKey(clickKey);
       unByKey(resolutionKey);
+      unByKey(moveEndKey);
+      unByKey(tileEventKeys);
       viewport.removeEventListener('pointerleave', clearCursor);
       map.setTarget(undefined);
       mapRef.current = null;
+      tileSourcesRef.current = [];
       markerLayerRef.current = null;
       customMarkerLayerRef.current = null;
     };
@@ -597,9 +772,13 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
   };
 
   const fitExtent = (nextExtent: readonly [number, number, number, number]) => {
-    mapRef.current?.getView().fit([...nextExtent], {
+    const view = mapRef.current?.getView();
+    if (!view) {
+      return;
+    }
+    view.fit([...nextExtent], {
       duration: prefersReducedMotion() ? 0 : 180,
-      maxZoom: 4,
+      maxZoom: Math.min(4, view.getMaxZoom()),
       padding: [48, 48, 48, 48],
     });
   };
@@ -610,9 +789,14 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
       fitExtent(extent);
       return;
     }
-    const raster = bundle.mapAssets.rasters.find(({ regionId }) => regionId === nextRegion);
-    if (raster) {
-      fitExtent(raster.extent);
+    const nextExtent = regionExtent(
+      bundle,
+      nextRegion,
+      extent,
+      projectionDescriptor.cellSize,
+    );
+    if (nextExtent) {
+      fitExtent(nextExtent);
     }
   };
 
@@ -624,7 +808,10 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
     if (!view) {
       return;
     }
-    const nextZoom = Math.max(view.getZoom() ?? 0, place.place.minZoom + 1, 5);
+    const nextZoom = Math.min(
+      view.getMaxZoom(),
+      Math.max(view.getZoom() ?? 0, place.place.minZoom + 1, 5),
+    );
     if (prefersReducedMotion()) {
       view.setCenter([...place.place.mapPosition]);
       view.setZoom(nextZoom);
@@ -644,7 +831,7 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
     if (!view) {
       return;
     }
-    const nextZoom = Math.max(view.getZoom() ?? 0, 5);
+    const nextZoom = Math.min(view.getMaxZoom(), Math.max(view.getZoom() ?? 0, 5));
     if (prefersReducedMotion()) {
       view.setCenter([...marker.position]);
       view.setZoom(nextZoom);
@@ -678,16 +865,21 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
     });
   };
 
+  const retryBasemap = () => {
+    setBasemapState((current) => ({ ...current, failures: 0, pending: 0 }));
+    tileSourcesRef.current.forEach((source) => source.refresh());
+  };
+
   return (
-    <main className="map-screen original-map-screen" aria-labelledby="map-title">
+    <main className="map-screen dataset-map-screen" aria-labelledby="map-title">
       <MapTitlebar dataset={dataset} onBack={onBack} />
 
-      <section className="original-workspace">
+      <section className="dataset-workspace">
         <aside className="map-ledger" aria-label={t('map.searchLabel')}>
           <div className="ledger-heading">
             <span>INDEX / 001–{places.length.toLocaleString('en-US')}</span>
             <div className="locale-switch" aria-label="Language">
-              {(['en', 'ru'] as const).map((language) => (
+              {availableLocales.map((language) => (
                 <button
                   key={language}
                   type="button"
@@ -716,20 +908,16 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
 
           <fieldset className="region-filter">
             <legend>{t('map.regions')}</legend>
-            {(['all', 'vvardenfell', 'solstheim'] as const).map((regionId) => (
+            {(['all', ...availableRegionIds] as const).map((regionId) => (
               <button
                 key={regionId}
                 type="button"
                 aria-pressed={region === regionId}
                 onClick={() => selectRegion(regionId)}
               >
-                {t(
-                  regionId === 'all'
-                    ? 'map.allRegions'
-                    : regionId === 'vvardenfell'
-                      ? 'map.vvardenfell'
-                      : 'map.solstheim',
-                )}
+                {regionId === 'all'
+                  ? t('map.allRegions')
+                  : regionTitle(dataset, regionId, locale)}
               </button>
             ))}
           </fieldset>
@@ -816,7 +1004,7 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
                       <strong>{place.name}</strong>
                       <small>
                         {t(`placeType.${place.place.type}`)} ·{' '}
-                        {t(place.place.regionId === 'solstheim' ? 'map.solstheim' : 'map.vvardenfell')}
+                        {regionTitle(dataset, place.place.regionId, locale)}
                       </small>
                     </span>
                   </button>
@@ -828,7 +1016,7 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
           </div>
         </aside>
 
-        <div className="original-map-stage">
+        <div className="dataset-map-stage">
           <div
             ref={targetRef}
             className="map-canvas"
@@ -873,6 +1061,21 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
             <span><i className="legend-square legend-square--custom" />{t('map.personalMarker')}</span>
           </div>
 
+          {basemapState.failures > 0 ? (
+            <div className="basemap-state basemap-state--error" role="alert">
+              <span>{t('map.basemapError', { count: basemapState.failures })}</span>
+              <button type="button" onClick={retryBasemap}>{t('map.retry')}</button>
+            </div>
+          ) : basemapState.pending > 0 ? (
+            <p className="basemap-state" role="status">
+              {t('map.basemapLoading', { count: basemapState.pending })}
+            </p>
+          ) : basemapState.missing ? (
+            <p className="basemap-state basemap-state--missing" role="status">
+              {t('map.basemapMissing')}
+            </p>
+          ) : null}
+
           {placingMarker ? (
             <p id="marker-placement-hint" className="marker-placement-hint" role="status">
               {t('map.placeMarkerHint')}
@@ -889,6 +1092,7 @@ function OriginalMapReady({ dataset, datasetSnapshots, bundle, onBack }: Origina
               datasetId={dataset.datasetId}
               place={selectedPlace}
               locale={locale}
+              regionName={regionTitle(dataset, selectedPlace.place.regionId, locale)}
               progress={progress.byPlaceId.get(selectedPlace.id)}
               onClose={() => setSelectedId(null)}
             />
@@ -928,14 +1132,14 @@ interface PlaceCardProps {
   readonly datasetId: string;
   readonly place: PlaceView;
   readonly locale: Locale;
+  readonly regionName: string;
   readonly progress: ProgressRecord | undefined;
   readonly onClose: () => void;
 }
 
-function PlaceCard({ datasetId, place, locale, progress, onClose }: PlaceCardProps) {
+function PlaceCard({ datasetId, place, locale, regionName, progress, onClose }: PlaceCardProps) {
   const { t } = useTranslation();
   const plugins = [...new Set(place.place.sources.map(({ plugin }) => plugin))].join(', ');
-  const regionName = t(place.place.regionId === 'solstheim' ? 'map.solstheim' : 'map.vvardenfell');
   return (
     <article className="place-card" aria-labelledby="selected-place-title">
       <button className="place-card-close" type="button" onClick={onClose} aria-label={t('map.closeCard')}>

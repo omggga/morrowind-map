@@ -15,12 +15,10 @@
     "build": "26.08.23"
   },
   "readiness": {
-    "status": "placeholder",
+    "status": "ready",
     "exactProfile": true,
     "blockers": [],
-    "warnings": [
-      "The owned, audited basemap and English location catalog are available, but the generic runtime loaders and Poison Song map UI are not connected yet."
-    ]
+    "warnings": []
   },
   "localization": {
     "defaultLocale": "en",
@@ -238,7 +236,6 @@
       "A future Russian catalog is added to this dataset rather than creating a fourth map version."
     ],
     "knownIssues": [
-      "The generic runtime integration for the Poison Song basemap and catalog is still pending.",
       "Mournhold still needs an interior graph or inset contract."
     ]
   }

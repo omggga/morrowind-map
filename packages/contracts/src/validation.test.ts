@@ -52,6 +52,13 @@ describe("public dataset fixtures", () => {
       coverage: 1,
     });
     expect(manifest.datasetId).toBe("poison-song-26.08");
+    expect(manifest.readiness).toMatchObject({
+      status: "ready",
+      exactProfile: true,
+      blockers: [],
+      warnings: [],
+    });
+    expect(manifest.provenance.kind).toBe("generated");
     expect(manifest.artifacts.locations).toEqual({
       url: `/datasets/generated/poison-song-26.08/catalogs/${catalogInventory}/locations.json`,
       mediaType: "application/json",

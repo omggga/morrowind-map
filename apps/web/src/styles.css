@@ -616,11 +616,11 @@ button:focus-visible,
   border-left: 1px solid #151712;
 }
 
-.original-map-screen {
+.dataset-map-screen {
   background: #11130f;
 }
 
-.original-workspace {
+.dataset-workspace {
   display: grid;
   min-height: 0;
   grid-template-columns: 318px minmax(0, 1fr);
@@ -1044,7 +1044,7 @@ button:focus-visible,
   line-height: 1.5;
 }
 
-.original-map-stage {
+.dataset-map-stage {
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -1052,7 +1052,7 @@ button:focus-visible,
   background: #11130f;
 }
 
-.original-map-stage .map-canvas {
+.dataset-map-stage .map-canvas {
   inset: 0;
   background: #10120e;
 }
@@ -1063,6 +1063,41 @@ button:focus-visible,
 
 .map-canvas--placing-marker {
   cursor: cell;
+}
+
+.basemap-state {
+  position: absolute;
+  z-index: 6;
+  right: 16px;
+  bottom: 16px;
+  max-width: min(360px, calc(100% - 82px));
+  margin: 0;
+  border: 1px solid #666b57;
+  padding: 7px 9px;
+  color: #d5ccb0;
+  background: rgba(31, 34, 27, 0.94);
+  box-shadow:
+    1px 1px 0 #747965 inset,
+    2px 3px 0 rgba(5, 6, 4, 0.58);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.basemap-state--missing {
+  color: #c2b889;
+}
+
+.basemap-state--error {
+  display: flex;
+  align-items: center;
+  border-color: #8b5d48;
+  gap: 8px;
+  color: #f0c1ad;
+}
+
+.basemap-state--error button {
+  flex: 0 0 auto;
+  padding: 4px 7px;
 }
 
 .marker-legend {
@@ -1427,7 +1462,7 @@ button:focus-visible,
   margin-left: 5px;
 }
 
-.original-load-state {
+.dataset-load-state {
   display: flex;
   min-height: 0;
   align-items: center;
@@ -1439,23 +1474,23 @@ button:focus-visible,
   text-align: center;
 }
 
-.original-load-state h2,
-.original-load-state p {
+.dataset-load-state h2,
+.dataset-load-state p {
   margin: 0;
 }
 
-.original-load-state h2 {
+.dataset-load-state h2 {
   color: #e7dec1;
   font-size: 18px;
 }
 
-.original-load-state p {
+.dataset-load-state p {
   max-width: 680px;
   font-size: 11px;
   line-height: 1.5;
 }
 
-.original-load-state button {
+.dataset-load-state button {
   border: 1px solid #737864;
   border-radius: 0;
   padding: 7px 12px;
@@ -1490,7 +1525,7 @@ button:focus-visible,
     min-height: 64px;
   }
 
-  .original-workspace {
+  .dataset-workspace {
     grid-template-columns: 270px minmax(0, 1fr);
   }
 
@@ -1557,13 +1592,13 @@ button:focus-visible,
     border-width: 1px 1px 0 0;
   }
 
-  .original-map-screen {
+  .dataset-map-screen {
     width: 100%;
     min-height: 620px;
     min-width: 0;
   }
 
-  .original-workspace {
+  .dataset-workspace {
     width: 100%;
     max-width: 100%;
     grid-template-rows: minmax(210px, 34dvh) minmax(0, 1fr);
@@ -1578,7 +1613,7 @@ button:focus-visible,
     border-bottom: 1px solid #676b57;
   }
 
-  .original-map-screen .map-titlebar {
+  .dataset-map-screen .map-titlebar {
     min-width: 0;
     overflow: hidden;
   }
@@ -1587,7 +1622,7 @@ button:focus-visible,
     min-width: 0;
   }
 
-  .original-map-stage {
+  .dataset-map-stage {
     min-height: 280px;
   }
 
@@ -1603,7 +1638,7 @@ button:focus-visible,
     display: none;
   }
 
-  .original-map-screen .map-statusbar > span:nth-child(4) {
+  .dataset-map-screen .map-statusbar > span:nth-child(4) {
     display: none;
   }
 }

@@ -2,7 +2,7 @@
 
 - Дата фиксации: 2026-08-26
 - Последний полный аудит: 2026-08-29
-- Статус: этапы 0–4.5 завершены; этап 5 в работе — 5.1–5.4 и basemap/catalog contracts/publication завершены, runtime/UI ещё впереди; generic catalog pipeline готов для адаптации к этапу 6, где остаются Fullrest-specific gaps; этап 7 выполнен частично
+- Статус: этапы 0–4.5 завершены; этап 5 в работе — 5.1–5.5 завершены на 100%, Poison Song runtime и `ready` manifest подключены, формальная product/browser acceptance 5.6 ещё впереди; generic catalog pipeline готов для адаптации к этапу 6, где остаются Fullrest-specific gaps; этап 7 выполнен частично
 - Целевой репозиторий: `omggga/morrowind-map`
 
 ## 1. Цель
@@ -126,7 +126,7 @@ Provenance также фиксирует OpenMW `0.50.0`, commit `47d78e004bc182
 - 10 572 teleport references извлекаются;
 - все используемые teleport base records разрешаются.
 
-Между размером TD26, записанным в master metadata core TR, и фактическим TD26 есть расхождение 776 байт. Оно зафиксировано в provenance; Этап 4.5 уже принял этот профиль во всех 20 OpenMW captures с `0` missing-resource messages в 40 проверенных логах. Расхождение не блокирует production pipeline, а оставшееся предупреждение в placeholder manifest должно быть удалено при выпуске immutable Poison snapshot.
+Между размером TD26, записанным в master metadata core TR, и фактическим TD26 есть расхождение 776 байт. Оно зафиксировано в provenance; Этап 4.5 уже принял этот профиль во всех 20 OpenMW captures с `0` missing-resource messages в 40 проверенных логах. Расхождение не блокирует production pipeline; immutable Poison snapshot выпущен с `ready` manifest без устаревшего предупреждения.
 
 ## 4. Обязательные дополнительные входы
 
@@ -396,7 +396,8 @@ Portable backup:
 
 - Original Vvardenfell — MIM raster;
 - Original Solstheim — отдельный MIM Bloodmoon raster;
-- Poison Song и Fullrest — coordinate placeholders до выпуска собственных tile pyramids;
+- Poison Song — собственная sparse lossless WebP pyramid `z0…z7`, подключённая через OpenLayers `TileLayer`;
+- Fullrest — coordinate placeholder до выпуска собственной tile pyramid;
 - MIM, UESP и Fullrest `world.dds` используются только как visual/georeference references и не являются production runtime dependency.
 
 Basemap является сменным adapter. Координаты, IDs, markers, search и progress от него не зависят.
@@ -577,7 +578,7 @@ Node builder → static dist → Nginx runtime
 | 3 — progress/MIM | **100% complete в заявленном scope** | Dataset-scoped persistence, MIM import и portable backup реализованы |
 | 4 — LAND spike | **100% complete в spike scope** | Coordinate/resource oracle принят; LAND-only обоснованно отклонён как финальный basemap |
 | 4.5 — OpenMW spike | **100% complete в spike scope** | Bounded exporter и Linux/Docker quality gate приняты |
-| 5 — Poison Song | **В работе** | Полная audited WebP pyramid и deterministic EN catalog (`4 085` places / `4 902` entrances) подготовлены; runtime/UI отсутствуют |
+| 5 — Poison Song | **В работе** | 5.1–5.5 завершены: audited WebP pyramid, deterministic EN catalog (`4 085` places / `4 902` entrances), generic runtime и `ready` manifest подключены; остаётся 5.6 product/browser acceptance |
 | 6 — Fullrest exact | **Inputs mostly recovered; не завершён** | Exact content order найден и generic catalog pipeline готов; нужны Fullrest adapter, EN policy и решение по отсутствующему groundcover |
 | 7 — visual/UX polish | **Partially complete** | Базовый MIM-like/responsive/a11y слой есть в Original; cross-dataset acceptance отсутствует |
 
@@ -611,7 +612,7 @@ Deliverables:
 - dataset index и три manifests-заглушки;
 - CI install/typecheck/lint/unit/build.
 
-Exit был достигнут в commit `06693d9`: landing показывал три cards, каждая открывала пустую карту с корректными TES3 coordinates. Затем Original placeholder был заменён реализацией Этапа 2; Fullrest и Poison остаются coordinate placeholders до Этапов 5–6. Текущие CI typecheck/lint/unit/build зелёные. Remaining: none within Stage 1.
+Exit был достигнут в commit `06693d9`: landing показывал три cards, каждая открывала пустую карту с корректными TES3 coordinates. Затем Original placeholder был заменён реализацией Этапа 2, а Poison — generic runtime Этапа 5.5; только Fullrest остаётся coordinate placeholder до Этапа 6. Текущие CI typecheck/lint/unit/build зелёные. Remaining: none within Stage 1.
 
 ### Этап 2 — Original vertical slice
 
@@ -740,14 +741,14 @@ Exit: выполнен — все пять участков воспроизво
 
 ### Этап 5 — Poison Song
 
-Status: **in progress; 5.1–5.4 завершены, basemap/catalog contracts и versioned publication из 5.5 готовы; остаток 5.5 runtime и 5.6 UI ещё не выполнены**.
+Status: **in progress; 5.1–5.5 завершены на 100%, включая generic runtime и `ready` manifest; остаётся product/browser acceptance 5.6**.
 
 Уже готово для переиспользования:
 
 - exact Poison core profile, canonical TES3 grid и `0` unresolved LAND textures/direct exterior models;
 - LAND coordinate/resource oracle и прошедший quality gate OpenMW exporter;
 - contracts, Place/Entrance model, search primitives, dataset-scoped Dexie progress/notes/personal markers и portable backup;
-- basemap-bound placeholder manifest с подтверждённым core load order, extent, BSA hashes и прямой content-addressed ссылкой на immutable tile metadata.
+- basemap-bound `ready` manifest с подтверждённым core load order, extent, BSA hashes и прямой content-addressed ссылкой на immutable tile metadata;
 - generic TES3 effective-record catalog pipeline с deterministic audit и content-addressed публикацией `locations.json` / `locales/en.json`.
 
 Подэтапы:
@@ -756,8 +757,8 @@ Status: **in progress; 5.1–5.4 завершены, basemap/catalog contracts �
 2. **5.2 — five-control production benchmark: выполнено на 100%.** На тех же Balmora, Old Ebonheart, Othrenis, Gorne и Nan Iban реально отрендерены пять полных `3×3` batch (`45` native tiles) с двумя workers. Render wall `178.977 s`, container mean `52.4 s`, peak одного shard `1.137 GB`, сумма двух наибольших peaks `2.209 GB`, повторный запуск по checkpoint `0.080 s` без OpenMW. Проверены `60` overlaps, `0 px` coordinate error, сравнение со старыми `1×1`, lower zoom и inventory (`101` tiles, hash `6528bcc…`). Экстраполяция на эту машину: `4.89 h` native render + `0.29 h` pyramid + `36 s` provenance = `5.19 h`; рабочий запас для полного запуска — `5–6 h`. Полный отчёт: `docs/stage5-openmw-production.md`.
 3. **5.3 — full Poison basemap: выполнено на 100%.** Все `492` shards дали `3 984` native tiles; после deterministic cross-shard stabilization и полного rebuild lower zoom опубликована sparse lossless WebP pyramid `z0…z7`: `5 464` tiles (`1 480` lower), `1 879 019 148` bytes, inventory `d409e627a75beac2caea56cea35bea132091bc851e1b22edbb4dbe3791f5cd17`. Full audit декодировал каждый tile, точно воспроизвёл `1 480 / 1 480` parents, проверил все `10 467` соседств и `2 571` native cross-shard boundaries, `492` runtime reports, `16` независимых raw seam probes / `32` cells и coordinate error `0 px`. Cross-shard flagged/structural failures — `0/0`, actionable missing resources — `0`; повтор с reused evidence дал тот же audit SHA `4439782ab6e2cdf0d8330168428c4c5550629beaf607f4b9f5507700daf270d5`.
 4. **5.4 — generic catalog pipeline: выполнено на 100%.** Exact order `Morrowind.esm → Tribunal.esm → Bloodmoon.esm → Tamriel_Data.esm → TR_Mainland.esm` объединяется с TES3 master-ordinal identity, last-wins overrides, deletion tombstones/resurrection и отдельной обработкой CELL metadata/references, DOOR base records, LAND/REGN и teleport/MVRF. Внутренние destination CELL и 8-neighbor components одноимённых exterior CELL сгруппированы в stable dataset-scoped Place/Entrance IDs; координатой multi-entrance place служит фактический entrance medoid. Выпущены `4 085` places (`3 755` interior + `330` named exterior) и `4 902` entrances, EN names/aliases, `14` типов и `3` региона. `locations.json`, `locales/en.json` и audit имеют canonical JSON, input/implementation/policy/output hashes, pinned counts и deterministic повторяемость; artifacts публикуются по catalog inventory hash. Текущий snapshot имеет `0` дополнительных aliases, что явно зафиксировано audit, а не означает отсутствие alias contract. Подробности: `docs/stage5-catalog.md`.
-5. **5.5 — contracts/runtime: выполнено частично.** Готовы WebP tile-pyramid/coverage/derivation contracts, catalog audit reference, полная fingerprint binding, строгие dataset/catalog validators, immutable content-addressed tile и catalog trees и атомарная exclusive публикация versioned metadata. Poison manifest прямо ссылается на audited immutable basemap и catalog, но правильно остаётся `placeholder` до browser integration. Осталось сделать generic dataset loader/map, подключить OpenLayers TileLayer и после UI acceptance выпустить целиком `ready` manifest.
-6. **5.6 — product integration: не начат.** Переиспользовать search, statuses, notes и personal markers для EN-only snapshot с независимым progress; добавить missing-tile/loading/error states и network-free browser acceptance.
+5. **5.5 — contracts/runtime: выполнено на 100%.** WebP tile-pyramid/coverage/derivation contracts, catalog audit reference, fingerprint binding, строгие dataset/catalog validators и immutable content-addressed publication подключены к generic browser runtime. Единые `DatasetMap` и dataset loader динамически загружают каталог и объявленные manifest-ом локали: Original использует MIM `ImageStatic`, Poison Song — OpenLayers `TileLayer` с явной TES3 grid, fixed top-left XYZ и native `512×512` WebP. Sparse coverage отсекает отсутствующие tiles до URL/HTTP-запроса. Runtime различает `missing`, `loading` и `error`, включая retry для tile errors; Poison manifest переведён в `ready`.
+6. **5.6 — product integration/acceptance: впереди.** Generic UI уже переиспользует search, statuses, notes и personal markers для EN-only Poison snapshot с независимым progress. Осталось закрыть формальную network-free browser acceptance всего workflow, включая reload persistence и негативные сценарии prepared-dataset/tile loading.
 
 Deliverables:
 
@@ -815,10 +816,10 @@ Status: **partially complete foundation; cross-dataset acceptance pending**.
 
 Остаток работ:
 
-1. Сделать regions, types, statuses, strings и controls generic для трёх реальных datasets; убрать Original/Vvardenfell/Solstheim hardcode.
+1. Довести уже generic regions, types, statuses, strings и controls до третьего реального dataset после подключения Fullrest; убрать оставшийся snapshot-specific UX.
 2. Добавить OpenLayers text-label layer с deterministic declutter и zoom/type/status/region filters; сейчас labels на карте отсутствуют.
 3. Ввести стабильный URL contract как минимум для `dataset`, `region`, `x`, `y`, `z`, `lang`, `place`, включая back/forward, invalid-state fallback и shareable deep links. Сейчас `App` хранит выбор только в React state.
-4. Закрыть tile loading/progress/error/empty/retry states на больших catalogs и pyramids.
+4. Закрепить уже реализованные tile `missing`/`loading`/`error`/retry states воспроизводимыми browser fixtures на больших catalogs и pyramids.
 5. Провести финальный MIM-like font/icon/pixel tuning уже на готовых Poison/Fullrest подложках.
 6. Добавить pinned Playwright browser/visual fixtures для трёх datasets, desktop/mobile/landscape и ключевых states; OpenMW visual receipt проверяет basemap, но не UI.
 7. Выполнить keyboard-only/manual focus matrix и automated accessibility checks, включая dialog focus, contrast, touch, 200% reflow и screen-reader names.
