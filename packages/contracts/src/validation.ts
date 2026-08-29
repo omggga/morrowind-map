@@ -10,7 +10,7 @@ import placeLocaleCatalogSchema from "./schemas/place-locale-catalog.schema.json
 import portableBackupSchema from "./schemas/portable-backup.schema.json";
 import tileCoverageSchema from "./schemas/tile-coverage.schema.json";
 import { createMimImportReceiptId } from "./import-receipt";
-import { PORTABLE_BACKUP_SCHEMA_VERSION } from "./types";
+import { PORTABLE_BACKUP_SCHEMA_VERSION, TES3_CELL_SIZE } from "./types";
 import type {
   DatasetIndex,
   DatasetManifest,
@@ -434,14 +434,57 @@ export function getLocationCatalogValidationIssues(value: unknown): ContractVali
     "/places",
     "place ids",
   );
+  issues.push(
+    ...duplicateIssues(
+      catalog.places.flatMap((place) => place.entrances.map((entrance) => entrance.id)),
+      "/places",
+      "global entrance ids",
+    ),
+  );
   catalog.places.forEach((place, placeIndex) => {
-    issues.push(
-      ...duplicateIssues(
-        place.entrances.map((entrance) => entrance.id),
-        `/places/${placeIndex}/entrances`,
-        "entrance ids",
-      ),
+    if (!place.id.startsWith(`${catalog.datasetId}.`)) {
+      issues.push(
+        semanticIssue(`/places/${placeIndex}/id`, "must be scoped to datasetId"),
+      );
+    }
+    const expectedPlaceCell = place.mapPosition.map((coordinate) =>
+      Math.floor(coordinate / TES3_CELL_SIZE),
     );
+    if (
+      expectedPlaceCell[0] !== place.exteriorCell[0] ||
+      expectedPlaceCell[1] !== place.exteriorCell[1]
+    ) {
+      issues.push(
+        semanticIssue(
+          `/places/${placeIndex}/exteriorCell`,
+          "must contain mapPosition in the TES3 cell grid",
+        ),
+      );
+    }
+    place.entrances.forEach((entrance, entranceIndex) => {
+      if (!entrance.id.startsWith(`${catalog.datasetId}.`)) {
+        issues.push(
+          semanticIssue(
+            `/places/${placeIndex}/entrances/${entranceIndex}/id`,
+            "must be scoped to datasetId",
+          ),
+        );
+      }
+      const expectedCell = entrance.coordinate.map((coordinate) =>
+        Math.floor(coordinate / TES3_CELL_SIZE),
+      );
+      if (
+        expectedCell[0] !== entrance.exteriorCell[0] ||
+        expectedCell[1] !== entrance.exteriorCell[1]
+      ) {
+        issues.push(
+          semanticIssue(
+            `/places/${placeIndex}/entrances/${entranceIndex}/exteriorCell`,
+            "must contain coordinate in the TES3 cell grid",
+          ),
+        );
+      }
+    });
   });
   return issues;
 }
@@ -452,11 +495,29 @@ export function getPlaceLocaleCatalogValidationIssues(
   if (!validatePlaceLocaleCatalogSchema(value)) {
     return schemaIssues(validatePlaceLocaleCatalogSchema);
   }
-  return duplicateIssues(
+  const issues = duplicateIssues(
     value.places.map((place) => place.placeId),
     "/places",
     "localized place ids",
   );
+  value.places.forEach((place, index) => {
+    if (!place.placeId.startsWith(`${value.datasetId}.`)) {
+      issues.push(semanticIssue(`/places/${index}/placeId`, "must be scoped to datasetId"));
+    }
+    const normalizedName = place.name.toLocaleLowerCase("en-US");
+    const normalizedAliases = place.aliases.map((alias) =>
+      alias.toLocaleLowerCase("en-US"),
+    );
+    issues.push(
+      ...duplicateIssues(normalizedAliases, `/places/${index}/aliases`, "aliases"),
+    );
+    if (normalizedAliases.includes(normalizedName)) {
+      issues.push(
+        semanticIssue(`/places/${index}/aliases`, "must not repeat the primary name"),
+      );
+    }
+  });
+  return issues;
 }
 
 export function getMapAssetsManifestValidationIssues(

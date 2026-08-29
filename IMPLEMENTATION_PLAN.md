@@ -2,7 +2,7 @@
 
 - Дата фиксации: 2026-08-26
 - Последний полный аудит: 2026-08-29
-- Статус: этапы 0–4.5 завершены; этап 5 в работе — 5.1–5.3 и basemap contracts/publication завершены, catalog/runtime/UI ещё впереди; этап 6 ожидает generic pipeline и решения по Fullrest gaps; этап 7 выполнен частично
+- Статус: этапы 0–4.5 завершены; этап 5 в работе — 5.1–5.4 и basemap/catalog contracts/publication завершены, runtime/UI ещё впереди; generic catalog pipeline готов для адаптации к этапу 6, где остаются Fullrest-specific gaps; этап 7 выполнен частично
 - Целевой репозиторий: `omggga/morrowind-map`
 
 ## 1. Цель
@@ -577,8 +577,8 @@ Node builder → static dist → Nginx runtime
 | 3 — progress/MIM | **100% complete в заявленном scope** | Dataset-scoped persistence, MIM import и portable backup реализованы |
 | 4 — LAND spike | **100% complete в spike scope** | Coordinate/resource oracle принят; LAND-only обоснованно отклонён как финальный basemap |
 | 4.5 — OpenMW spike | **100% complete в spike scope** | Bounded exporter и Linux/Docker quality gate приняты |
-| 5 — Poison Song | **В работе** | Полная audited WebP pyramid подготовлена и опубликована локально; catalog/runtime/UI отсутствуют |
-| 6 — Fullrest exact | **Inputs mostly recovered; не завершён** | Exact content order найден; нужны shared pipeline, EN policy и решение по отсутствующему groundcover |
+| 5 — Poison Song | **В работе** | Полная audited WebP pyramid и deterministic EN catalog (`4 085` places / `4 902` entrances) подготовлены; runtime/UI отсутствуют |
+| 6 — Fullrest exact | **Inputs mostly recovered; не завершён** | Exact content order найден и generic catalog pipeline готов; нужны Fullrest adapter, EN policy и решение по отсутствующему groundcover |
 | 7 — visual/UX polish | **Partially complete** | Базовый MIM-like/responsive/a11y слой есть в Original; cross-dataset acceptance отсутствует |
 
 Этапы 0–4.5 считаются закрытыми именно в их зафиксированных границах. Полный Poison/Fullrest basemap не является «хвостом» спайков: это отдельная production-работа Этапов 5–6.
@@ -740,7 +740,7 @@ Exit: выполнен — все пять участков воспроизво
 
 ### Этап 5 — Poison Song
 
-Status: **in progress; 5.1–5.3 завершены, basemap contracts/versioned publication из 5.5 готовы; 5.4 catalog, остаток 5.5 runtime и 5.6 UI ещё не выполнены**.
+Status: **in progress; 5.1–5.4 завершены, basemap/catalog contracts и versioned publication из 5.5 готовы; остаток 5.5 runtime и 5.6 UI ещё не выполнены**.
 
 Уже готово для переиспользования:
 
@@ -748,14 +748,15 @@ Status: **in progress; 5.1–5.3 завершены, basemap contracts/versioned
 - LAND coordinate/resource oracle и прошедший quality gate OpenMW exporter;
 - contracts, Place/Entrance model, search primitives, dataset-scoped Dexie progress/notes/personal markers и portable backup;
 - basemap-bound placeholder manifest с подтверждённым core load order, extent, BSA hashes и прямой content-addressed ссылкой на immutable tile metadata.
+- generic TES3 effective-record catalog pipeline с deterministic audit и content-addressed публикацией `locations.json` / `locales/en.json`.
 
 Подэтапы:
 
 1. **5.1 — production renderer: выполнено на 100%.** Реализованы effective LAND/CELL coverage, immutable plan `3 984 CELL → 492 shard`, exporter-only `5×5` scene context с `3×3` RTT, arbitrary cell sets, стабильные modulo partitions, `--workers`, atomic checkpoint/resume, fail-closed profile/source/image/encoder provenance, resource audit, cgroup memory evidence, gutter crop/grade, pixel-exact lossless WebP, sparse `z0…z7` pyramid и deterministic inventory. Production profile явно заменяет отсутствующие generic OpenMW snow/blizzard filenames на существующие Bloodmoon DDS; контролируемая миграция producer/profile повторно проверяет все готовые WebP и игровые audits, сохраняет immutable backups и receipt. CLI запускается пользователем из Terminal; отдельные процессы с одним checkpoint нельзя запускать одновременно, для параллелизма используется встроенный `--workers`.
 2. **5.2 — five-control production benchmark: выполнено на 100%.** На тех же Balmora, Old Ebonheart, Othrenis, Gorne и Nan Iban реально отрендерены пять полных `3×3` batch (`45` native tiles) с двумя workers. Render wall `178.977 s`, container mean `52.4 s`, peak одного shard `1.137 GB`, сумма двух наибольших peaks `2.209 GB`, повторный запуск по checkpoint `0.080 s` без OpenMW. Проверены `60` overlaps, `0 px` coordinate error, сравнение со старыми `1×1`, lower zoom и inventory (`101` tiles, hash `6528bcc…`). Экстраполяция на эту машину: `4.89 h` native render + `0.29 h` pyramid + `36 s` provenance = `5.19 h`; рабочий запас для полного запуска — `5–6 h`. Полный отчёт: `docs/stage5-openmw-production.md`.
 3. **5.3 — full Poison basemap: выполнено на 100%.** Все `492` shards дали `3 984` native tiles; после deterministic cross-shard stabilization и полного rebuild lower zoom опубликована sparse lossless WebP pyramid `z0…z7`: `5 464` tiles (`1 480` lower), `1 879 019 148` bytes, inventory `d409e627a75beac2caea56cea35bea132091bc851e1b22edbb4dbe3791f5cd17`. Full audit декодировал каждый tile, точно воспроизвёл `1 480 / 1 480` parents, проверил все `10 467` соседств и `2 571` native cross-shard boundaries, `492` runtime reports, `16` независимых raw seam probes / `32` cells и coordinate error `0 px`. Cross-shard flagged/structural failures — `0/0`, actionable missing resources — `0`; повтор с reused evidence дал тот же audit SHA `4439782ab6e2cdf0d8330168428c4c5550629beaf607f4b9f5507700daf270d5`.
-4. **5.4 — generic catalog pipeline: не начат.** Применить effective record merge по pinned load order, включая deleted/overridden records, CELL/DOOR/teleport/base resolution; сгруппировать entrances в stable Place IDs; построить полный EN catalog, aliases, types и regions с deterministic audit. Текущий extractor одного plugin недостаточен для полного TR snapshot.
-5. **5.5 — contracts/runtime: выполнено частично.** Готовы WebP tile-pyramid/coverage/derivation contracts, полная fingerprint binding, строгий dataset validator, immutable content-addressed tile tree и атомарная exclusive публикация полного versioned metadata package вместе с `map-assets.json`. Poison manifest переведён с `placeholder-v1` на реальный snapshot и прямо ссылается на audited immutable basemap, но правильно остаётся `placeholder` до catalog. Осталось сделать generic dataset loader/map, подключить OpenLayers TileLayer и после catalog/UI acceptance выпустить целиком `ready` manifest.
+4. **5.4 — generic catalog pipeline: выполнено на 100%.** Exact order `Morrowind.esm → Tribunal.esm → Bloodmoon.esm → Tamriel_Data.esm → TR_Mainland.esm` объединяется с TES3 master-ordinal identity, last-wins overrides, deletion tombstones/resurrection и отдельной обработкой CELL metadata/references, DOOR base records, LAND/REGN и teleport/MVRF. Внутренние destination CELL и 8-neighbor components одноимённых exterior CELL сгруппированы в stable dataset-scoped Place/Entrance IDs; координатой multi-entrance place служит фактический entrance medoid. Выпущены `4 085` places (`3 755` interior + `330` named exterior) и `4 902` entrances, EN names/aliases, `14` типов и `3` региона. `locations.json`, `locales/en.json` и audit имеют canonical JSON, input/implementation/policy/output hashes, pinned counts и deterministic повторяемость; artifacts публикуются по catalog inventory hash. Текущий snapshot имеет `0` дополнительных aliases, что явно зафиксировано audit, а не означает отсутствие alias contract. Подробности: `docs/stage5-catalog.md`.
+5. **5.5 — contracts/runtime: выполнено частично.** Готовы WebP tile-pyramid/coverage/derivation contracts, catalog audit reference, полная fingerprint binding, строгие dataset/catalog validators, immutable content-addressed tile и catalog trees и атомарная exclusive публикация versioned metadata. Poison manifest прямо ссылается на audited immutable basemap и catalog, но правильно остаётся `placeholder` до browser integration. Осталось сделать generic dataset loader/map, подключить OpenLayers TileLayer и после UI acceptance выпустить целиком `ready` manifest.
 6. **5.6 — product integration: не начат.** Переиспользовать search, statuses, notes и personal markers для EN-only snapshot с независимым progress; добавить missing-tile/loading/error states и network-free browser acceptance.
 
 Deliverables:
@@ -770,7 +771,7 @@ Exit: полный Poison catalog и owned tile pyramid hash-bound immutable man
 
 ### Этап 6 — Fullrest exact
 
-Status: **inputs mostly recovered; implementation not started; depends on Stage 5 generic pipeline, EN fallback decision and groundcover policy**.
+Status: **inputs mostly recovered; implementation not started; generic catalog pipeline available; depends on Fullrest adapter, EN fallback decision and groundcover policy**.
 
 Устаревший блокер «неизвестны profile/assets» снят. Сохранены Fullrest `5.0.15`, OpenMW `0.50.0` commit `47d78e004bc182def2904986f8bb54aea1f4b3ae`, exact `openmw.cfg`, все ESM/ESP из content order, `MFR.omwscripts`, translation sidecars и loose mesh/texture tree; vanilla BSA находятся в `morr-dev/bsa`. Подтверждённый content order приведён в §3.2. Старый blocked manifest и тест, ожидающий blocked/inexact state, теперь описывают устаревшее состояние и должны быть заменены на generated manifest после profile audit.
 
@@ -784,7 +785,7 @@ Status: **inputs mostly recovered; implementation not started; depends on Stage 
 
 1. Пересчитать и закрепить hashes всех plugins, BSA и полного loose tree; формализовать asset override order `vanilla BSA → game/Data Files`; проверить сохранённую OpenMW 0.50 profile semantics с pinned 0.51 exporter.
 2. Параметризовать Poison-specific exporter/profile builder для Fullrest; добавить controls в MFR/Cyr/Sky/TR/base regions; выполнить полный LAND/model resource audit и сгенерировать собственную pyramid. `distantland/world.dds` остаётся reference, не финальной подложкой.
-3. Построить effective EN/RU catalog по exact content order и CP1251 `.cel` pairs; зафиксировать fallback policy/count в immutable manifest и UI.
+3. Адаптировать готовый generic effective-record catalog pipeline к exact Fullrest content order, добавить RU из CP1251 `.cel` pairs и зафиксировать fallback policy/count в immutable manifest и UI.
 4. Явно описать MFR, Cyr, Sky, TR_Factions, MFR_TR patch, grass и dynamic scripts в profile contract; убрать stale `unconfirmed` modules/blockers.
 5. Реализовать не прямой MIM import, а reviewed migration `Original placeId → Fullrest placeId` по record/entrance identity с duplicate/unmapped/archive tests и независимым Fullrest progress.
 

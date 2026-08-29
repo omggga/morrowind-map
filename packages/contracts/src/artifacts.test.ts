@@ -205,6 +205,68 @@ describe("generated dataset artifact contracts", () => {
     ).toThrow(ContractValidationError);
   });
 
+  it("rejects global entrance collisions, coordinate-cell mismatches and duplicate aliases", () => {
+    const entrance = {
+      id: "original-goty.entrance-shared",
+      coordinate: [100, 200],
+      exteriorCell: [0, 0],
+      sourcePlugin: "Morrowind.esm",
+      sourceRef: "0x00000001",
+    };
+    const source = {
+      kind: "esm",
+      plugin: "Morrowind.esm",
+      recordId: "Cell",
+      mimIndex: null,
+    };
+    expect(() =>
+      parseLocationCatalog({
+        schemaVersion: 1,
+        datasetId: "original-goty",
+        snapshotId,
+        places: [
+          {
+            id: "original-goty.place-a",
+            regionId: "vvardenfell",
+            type: "other",
+            mapPosition: [100, 200],
+            exteriorCell: [0, 0],
+            mimCategory: null,
+            minZoom: 0,
+            entrances: [entrance],
+            sources: [source],
+          },
+          {
+            id: "original-goty.place-b",
+            regionId: "vvardenfell",
+            type: "other",
+            mapPosition: [100, 200],
+            exteriorCell: [1, 0],
+            mimCategory: null,
+            minZoom: 0,
+            entrances: [entrance],
+            sources: [source],
+          },
+        ],
+      }),
+    ).toThrow(ContractValidationError);
+    expect(() =>
+      parsePlaceLocaleCatalog({
+        schemaVersion: 1,
+        datasetId: "original-goty",
+        snapshotId,
+        locale: "en",
+        places: [
+          {
+            placeId: "original-goty.place-a",
+            name: "Balmora",
+            aliases: ["BALMORA", "Market", "market"],
+          },
+        ],
+      }),
+    ).toThrow(ContractValidationError);
+  });
+
   it("accepts a sparse WebP pyramid and binds its exact coverage", () => {
     const assets = parseMapAssetsManifest(sparseMapAssetsFixture());
     const coverage = parseTileCoverage(tileCoverageFixture(), assets);

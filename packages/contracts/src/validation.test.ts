@@ -43,9 +43,36 @@ describe("public dataset fixtures", () => {
 
   it("publishes only English for Poison Song without creating another dataset", () => {
     const manifest = parseDatasetManifest(poisonSongFixture);
+    const catalogInventory =
+      "3acf616265926d55c254c961e256cc4ab71aaba23f4dc18d9d368813f0490d3a";
 
     expect(manifest.localization.locales.map(({ locale }) => locale)).toEqual(["en"]);
+    expect(manifest.localization.locales[0]).toMatchObject({
+      status: "available",
+      coverage: 1,
+    });
     expect(manifest.datasetId).toBe("poison-song-26.08");
+    expect(manifest.artifacts.locations).toEqual({
+      url: `/datasets/generated/poison-song-26.08/catalogs/${catalogInventory}/locations.json`,
+      mediaType: "application/json",
+      sha256: "6990d34252d988cdaec08ee040bd40c2a1169570cfefdf44564eb3f0c185c479",
+      bytes: 2_118_003,
+    });
+    expect(manifest.artifacts.locales[0]).toEqual({
+      locale: "en",
+      artifact: {
+        url: `/datasets/generated/poison-song-26.08/catalogs/${catalogInventory}/locales/en.json`,
+        mediaType: "application/json",
+        sha256: "2c2bd0f33d9b5cef3cfe0f30ca946e07fec6bcf14acf8afb737235aab506ee0b",
+        bytes: 430_196,
+      },
+    });
+    expect(manifest.artifacts.catalogAudit).toEqual({
+      url: `/datasets/metadata/poison-song-26.08/catalogs/${catalogInventory}/catalog-audit.json`,
+      mediaType: "application/json",
+      sha256: "082e83f0e8f32e4041736767524bed30010af2ddb3fa1e9e7dd7f0cd47cf078c",
+      bytes: 12_890,
+    });
   });
 });
 

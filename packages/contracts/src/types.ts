@@ -168,6 +168,7 @@ export interface DatasetArtifacts {
   locales: LocaleArtifactReference[];
   tiles: TileSetReference | null;
   mimImport: ArtifactReference | null;
+  catalogAudit?: ArtifactReference | null;
 }
 
 export interface ProvenanceDescriptor {

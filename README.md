@@ -8,12 +8,13 @@
 
 Original уже поддерживает локальные MIM-растры Vvardenfell и Solstheim, 1 010 мест из MIM/ESM, EN/RU, поиск, zoom/pan, MIM-цвета статусов `unvisited` / `active` / `visited`, заметки и личные квадратные маркеры. Прогресс хранится локально в IndexedDB через Dexie и жёстко привязан к snapshot; доступны однократный импорт текущего MIM snapshot и общий переносимый JSON backup v2/import со строгой проверкой совместимости и чтением ранних v1-копий.
 
-Текущий статус: **Этап 5 в работе; production renderer, benchmark и полный Poison Song basemap завершены, catalog/UI ещё впереди**. Pinned headless OpenMW pipeline построил `3 984` native tiles, после cross-shard stabilization — полную sparse lossless WebP pyramid `z0…z7`: `5 464` tiles, `1 879 019 148` bytes. Full audit проверил декодирование каждого tile, все `10 467` соседств, точное происхождение всех `1 480` lower-zoom tiles, `492` runtime resource reports, `0 px` coordinate error и независимый raw rerender `32` cells; все release gates прошли. Basemap подготовлен как immutable локальный dataset, но общий Poison Song manifest честно остаётся `placeholder` до EN location catalog и generic runtime/UI integration.
+Текущий статус: **Этап 5 в работе; production renderer, полный Poison Song basemap и generic EN catalog завершены, runtime/UI ещё впереди**. Pinned headless OpenMW pipeline построил `3 984` native tiles, после cross-shard stabilization — полную sparse lossless WebP pyramid `z0…z7`: `5 464` tiles, `1 879 019 148` bytes. Full audit проверил декодирование каждого tile, все `10 467` соседств, точное происхождение всех `1 480` lower-zoom tiles, `492` runtime resource reports, `0 px` coordinate error и независимый raw rerender `32` cells; все release gates прошли. Generic TES3 catalog pipeline поверх exact load order выпустил `4 085` places и `4 902` entrances с stable IDs, EN names, types, regions и deterministic audit. Poison Song manifest остаётся `placeholder` до generic runtime integration и browser acceptance из 5.5–5.6.
 
 Подробный план: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 Результаты LAND gate: [docs/adr/0001-land-renderer-spike.md](docs/adr/0001-land-renderer-spike.md).
 Архитектура OpenMW exporter: [docs/adr/0002-openmw-offline-exporter.md](docs/adr/0002-openmw-offline-exporter.md).
 Production pipeline и реальные измерения: [docs/stage5-openmw-production.md](docs/stage5-openmw-production.md).
+Generic catalog pipeline и audit: [docs/stage5-catalog.md](docs/stage5-catalog.md).
 
 ## Данные
 
@@ -84,6 +85,16 @@ OpenMW warning `addAnimSource: can't find bone` означает несовпа�
 Production profile явно направляет snow/blizzard weather на существующие Bloodmoon-ресурсы `Tx_BM_Sky_Snow.dds` и `Tx_BM_Sky_Blizzard.dds`: универсальные OpenMW defaults с именами `Tx_Sky_*` отсутствуют в GOTY BSA. Контролируемая смена producer source сохраняет готовые тайлы только через отдельный `migrate-resume`; смена profile fingerprint дополнительно требует явного `--allow-profile-change`, полного совпадения `inputAudit`/`assetAudit`, byte-identical backups старого состояния и migration receipt.
 
 `stabilize` создаёт immutable release в `local-data/openmw-release/poison-song-26.08`, исправляет только границы разных render shards и заново выводит lower zoom. `audit` fail-closed проверяет всю release tree; для доказательства воспроизводимого resume готовые raw probes можно повторно использовать через `python3 -m tools.openmw_renderer.audit full --workers 4 --render-workers 2 --reuse-evidence`. `dataset:prepare` сначала повторяет строгую валидацию, затем APFS clone/copy публикует tiles по immutable inventory hash в `apps/web/public/datasets/generated/poison-song-26.08/<inventory-sha256>` и одним atomic exclusive rename публикует полный metadata package, включая `map-assets.json`, по тому же content-addressed version path. Отдельного изменяемого stable pointer и metadata-only режима нет: committed dataset manifest прямо ссылается на immutable package, поэтому частично подготовленный dataset не становится видимым приложению.
+
+EN catalog строится и публикуется отдельно, но привязан к тому же dataset/snapshot и собственному deterministic inventory:
+
+```bash
+pnpm data:poison:catalog:build
+pnpm data:poison:catalog:validate
+pnpm data:poison:catalog:prepare
+```
+
+`build` объединяет `Morrowind.esm → Tribunal.esm → Bloodmoon.esm → Tamriel_Data.esm → TR_Mainland.esm` по TES3 load-order semantics, разрешает effective `CELL`/`DOOR`/teleport/base records и создаёт `locations.json`, `locales/en.json` и `catalog-audit.json`. `prepare` публикует два runtime artifacts и audit в immutable content-addressed каталог; игровые ESM и локальная рабочая копия остаются вне Git.
 
 ## Локальный запуск
 

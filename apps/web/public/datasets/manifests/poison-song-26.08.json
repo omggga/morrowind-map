@@ -19,8 +19,7 @@
     "exactProfile": true,
     "blockers": [],
     "warnings": [
-      "The owned, audited basemap is available, but locations and locale catalogs have not been generated yet.",
-      "The generic runtime tile loader and Poison Song map UI are not connected yet."
+      "The owned, audited basemap and English location catalog are available, but the generic runtime loaders and Poison Song map UI are not connected yet."
     ]
   },
   "localization": {
@@ -28,8 +27,8 @@
     "locales": [
       {
         "locale": "en",
-        "status": "planned",
-        "coverage": 0,
+        "status": "available",
+        "coverage": 1,
         "fallbackLocale": null
       }
     ]
@@ -198,16 +197,32 @@
     }
   },
   "artifacts": {
-    "locations": null,
+    "locations": {
+      "url": "/datasets/generated/poison-song-26.08/catalogs/3acf616265926d55c254c961e256cc4ab71aaba23f4dc18d9d368813f0490d3a/locations.json",
+      "mediaType": "application/json",
+      "sha256": "6990d34252d988cdaec08ee040bd40c2a1169570cfefdf44564eb3f0c185c479",
+      "bytes": 2118003
+    },
     "locales": [
       {
         "locale": "en",
-        "artifact": null
+        "artifact": {
+          "url": "/datasets/generated/poison-song-26.08/catalogs/3acf616265926d55c254c961e256cc4ab71aaba23f4dc18d9d368813f0490d3a/locales/en.json",
+          "mediaType": "application/json",
+          "sha256": "2c2bd0f33d9b5cef3cfe0f30ca946e07fec6bcf14acf8afb737235aab506ee0b",
+          "bytes": 430196
+        }
       }
     ],
     "tiles": {
       "manifestUrl": "/datasets/metadata/poison-song-26.08/d409e627a75beac2caea56cea35bea132091bc851e1b22edbb4dbe3791f5cd17/map-assets.json",
       "sha256": "b400cc972966f2c0c54cd33b48dafaa4c6873b783ecad67347c92190f2a5ecef"
+    },
+    "catalogAudit": {
+      "url": "/datasets/metadata/poison-song-26.08/catalogs/3acf616265926d55c254c961e256cc4ab71aaba23f4dc18d9d368813f0490d3a/catalog-audit.json",
+      "mediaType": "application/json",
+      "sha256": "082e83f0e8f32e4041736767524bed30010af2ddb3fa1e9e7dd7f0cd47cf078c",
+      "bytes": 12890
     },
     "mimImport": null
   },
@@ -217,11 +232,13 @@
       "Extent and center were derived from the effective LAND cell union of the pinned GOTY, Tamriel Data 26.08 and TR 26.08 metadata.",
       "The owned lossless WebP pyramid contains 5,464 sparse z0-z7 tiles and is bound to inventory d409e627a75beac2caea56cea35bea132091bc851e1b22edbb4dbe3791f5cd17.",
       "The full quality audit passed all tile, pyramid, cross-shard seam, raw-renderer, resource, coordinate and reproducibility gates.",
+      "The generic TES3 catalog contains 4,085 places and 4,902 entrances, with complete English coverage, and is bound to inventory 3acf616265926d55c254c961e256cc4ab71aaba23f4dc18d9d368813f0490d3a.",
+      "The catalog audit proves exact five-plugin load order, override and deletion semantics, stable identifiers, deterministic grouping and byte-identical regeneration.",
       "Generated game-derived tiles remain local ignored artifacts; Git contains compact integrity metadata and audit evidence.",
       "A future Russian catalog is added to this dataset rather than creating a fourth map version."
     ],
     "knownIssues": [
-      "The English location catalog and generic runtime integration are still pending.",
+      "The generic runtime integration for the Poison Song basemap and catalog is still pending.",
       "Mournhold still needs an interior graph or inset contract."
     ]
   }

@@ -1,6 +1,6 @@
 # Stage 5 — OpenMW production basemap
 
-Дата последнего полного аудита: 2026-08-29. Статус: **5.1, 5.2 и basemap-часть 5.3 завершены; tile contracts/publication из 5.5 готовы. EN catalog, generic runtime loader и UI integration остаются в работе.**
+Дата последнего полного аудита: 2026-08-29. Статус: **5.1–5.4 завершены; basemap/catalog contracts и publication из 5.5 готовы. Generic runtime loader и UI integration остаются в работе.**
 
 ## Production pipeline
 
@@ -84,7 +84,9 @@ APFS использует clone-on-write; на другой filesystem допу�
     map-assets.json
 ```
 
-SHA-256 `map-assets.json` — `b400cc972966f2c0c54cd33b48dafaa4c6873b783ecad67347c92190f2a5ecef`. Contract описывает sparse WebP pyramid, coverage, exact derivation receipt, quality report, полный integrity block и versioned URL template. Poison Song dataset manifest прямо ссылается на этот immutable файл, без отдельного изменяемого stable pointer, но остаётся `placeholder`: tiles готовы, location/localization artifacts ещё `null`.
+SHA-256 `map-assets.json` — `b400cc972966f2c0c54cd33b48dafaa4c6873b783ecad67347c92190f2a5ecef`. Contract описывает sparse WebP pyramid, coverage, exact derivation receipt, quality report, полный integrity block и versioned URL template. Poison Song dataset manifest прямо ссылается на этот immutable файл, без отдельного изменяемого stable pointer. Location/localization artifacts теперь также подготовлены отдельным content-addressed catalog pipeline; manifest остаётся `placeholder` только до generic runtime/UI acceptance.
+
+Catalog имеет отдельный inventory, потому что меняется независимо от тяжёлой tile pyramid, но жёстко привязан к тому же `datasetId`/`snapshotId`. Он содержит `4 085` places и `4 902` entrances; exact merge, stable ID, grouping, type/region/alias policies и audit описаны в [stage5-catalog.md](stage5-catalog.md).
 
 ## Воспроизведение
 
@@ -95,6 +97,9 @@ pnpm data:poison:renderer:stabilize
 pnpm data:poison:renderer:audit
 pnpm data:poison:dataset:validate
 pnpm data:poison:dataset:prepare
+pnpm data:poison:catalog:build
+pnpm data:poison:catalog:validate
+pnpm data:poison:catalog:prepare
 ```
 
 Повторный deterministic audit без повторного raw render:
@@ -108,8 +113,7 @@ python3 -m tools.openmw_renderer.audit full \
 
 ## Остаток Этапа 5
 
-- 5.4: effective-record EN location catalog с stable Place/Entrance IDs, aliases, types и regions;
-- 5.5: generic browser loader и OpenLayers TileLayer поверх готового contract;
+- 5.5: generic browser loader и OpenLayers TileLayer поверх готовых basemap/catalog contracts;
 - 5.6: Poison Song search, statuses, notes, personal markers, loading/error states и offline browser acceptance.
 
-Basemap quality gate больше не блокирует эти работы; полный dataset считается `ready` только после catalog и runtime/UI acceptance.
+Basemap и catalog quality gates больше не блокируют эти работы; полный dataset считается `ready` только после runtime/UI acceptance.

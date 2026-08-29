@@ -570,6 +570,16 @@
               "type": "null"
             }
           ]
+        },
+        "catalogAudit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/artifact"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
