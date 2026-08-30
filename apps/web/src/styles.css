@@ -1057,6 +1057,12 @@ button:focus-visible,
   background: #10120e;
 }
 
+.dataset-basemap-layer {
+  filter:
+    contrast(var(--basemap-contrast, 0.9444444444))
+    brightness(var(--basemap-brightness, 1.05));
+}
+
 .map-canvas--marker-hover {
   cursor: pointer;
 }

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type Ref,
+} from 'react';
 import type {
   CustomMarkerRecord,
   DatasetManifest,
@@ -43,9 +51,14 @@ import {
   useDatasetProgress,
 } from '../user-data';
 import {
+  BASEMAP_BRIGHTNESS_FACTOR,
+  BASEMAP_CONTRAST_FACTOR,
+  createOverscaledViewResolutions,
+  loadOpaqueImageTile,
+} from './basemapPresentation';
+import {
   SparseTileCoverageIndex,
   createSparseTileUrlFunction,
-  createTes3Resolutions,
   createTes3TileGrid,
 } from './sparseTiles';
 import {
@@ -105,6 +118,10 @@ const SELECTED_PLACE_STYLES: Readonly<Record<ProgressStatus, Style>> = {
 };
 const CUSTOM_MARKER_STYLE = createMarkerStyle('#40ff40', 6);
 const SELECTED_CUSTOM_MARKER_STYLE = createMarkerStyle('#40ff40', 8, true);
+const BASEMAP_PRESENTATION_STYLE = {
+  '--basemap-brightness': String(BASEMAP_BRIGHTNESS_FACTOR),
+  '--basemap-contrast': String(BASEMAP_CONTRAST_FACTOR),
+} as CSSProperties;
 
 function createMarkerStyle(color: string, radius: number, selected = false): Style {
   return new Style({
@@ -546,11 +563,13 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
         projection,
         tileGrid,
         tileUrlFunction: createSparseTileUrlFunction(pyramid, coverage),
+        tileLoadFunction: loadOpaqueImageTile,
         wrapX: false,
         interpolate: true,
         transition: 0,
       });
       const layer = new TileLayer({
+        className: 'ol-layer dataset-basemap-layer',
         source,
         extent: [...pyramid.extent],
       });
@@ -630,13 +649,16 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
     customMarkerLayer.setZIndex(20);
     customMarkerLayerRef.current = customMarkerLayer;
     const primaryPyramid = pyramidContexts[0]?.pyramid;
+    const viewResolutions = primaryPyramid
+      ? createOverscaledViewResolutions(primaryPyramid)
+      : undefined;
     const view = new View({
       projection,
       center,
       zoom: 1,
       minZoom: primaryPyramid?.minZoom ?? 0,
-      maxZoom: primaryPyramid?.maxZoom ?? 12,
-      ...(primaryPyramid ? { resolutions: createTes3Resolutions(primaryPyramid) } : {}),
+      maxZoom: viewResolutions ? viewResolutions.length - 1 : 12,
+      ...(viewResolutions ? { resolutions: viewResolutions } : {}),
       extent,
       showFullExtent: true,
       constrainOnlyCenter: true,
@@ -1020,6 +1042,7 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
           <div
             ref={targetRef}
             className="map-canvas"
+            style={BASEMAP_PRESENTATION_STYLE}
             tabIndex={0}
             aria-label={t('map.mapAria')}
             aria-describedby={placingMarker ? 'marker-placement-hint' : undefined}
