@@ -80,7 +80,7 @@ describe('basemap presentation preview', () => {
 
   it('uses the conservative visual grade selected for the preview', () => {
     expect(BASEMAP_CONTRAST_FACTOR).toBeCloseTo(102 / 108);
-    expect(BASEMAP_BRIGHTNESS_FACTOR).toBe(1.05);
+    expect(BASEMAP_BRIGHTNESS_FACTOR).toBe(1.1);
   });
 
   it('makes rendered pixels opaque while retaining transparent sparse holes', () => {

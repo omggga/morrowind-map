@@ -6,7 +6,7 @@ import { createTes3Resolutions } from './sparseTiles';
 
 export const BASEMAP_MAX_OVERSCALE = 1.1;
 export const BASEMAP_CONTRAST_FACTOR = 102 / 108;
-export const BASEMAP_BRIGHTNESS_FACTOR = 1.05;
+export const BASEMAP_BRIGHTNESS_FACTOR = 1.1;
 
 export function createOverscaledViewResolutions(
   pyramid: TilePyramid,
