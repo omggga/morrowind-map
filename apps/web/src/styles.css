@@ -1057,7 +1057,7 @@ button:focus-visible,
   background: #10120e;
 }
 
-.dataset-basemap-layer {
+.dataset-basemap-layer--runtime-adjusted {
   filter:
     contrast(var(--basemap-contrast, 0.9444444444))
     brightness(var(--basemap-brightness, 1.1));

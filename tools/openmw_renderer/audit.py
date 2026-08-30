@@ -62,8 +62,8 @@ from tools.openmw_renderer.stabilize import (
 )
 
 
-AUDIT_SCHEMA_VERSION = 1
-AUDIT_VERSION = "poison-basemap-quality-v2"
+AUDIT_SCHEMA_VERSION = 2
+AUDIT_VERSION = "poison-basemap-quality-binary-alpha-v3"
 EXPECTED_TILE_COUNTS = {0: 1, 1: 4, 2: 9, 3: 25, 4: 87, 5: 296, 6: 1058, 7: 3984}
 EXPECTED_ADJACENCIES = {
     (1, "east"): 2,
@@ -363,6 +363,18 @@ def _premultiplied_image(image: RgbaImage) -> RgbaImage:
     return RgbaImage(image.width, image.height, _premultiply(image.pixels))
 
 
+def _alpha_statistics(image: RgbaImage) -> dict[str, int]:
+    alpha = image.pixels[3::4]
+    transparent = alpha.count(0)
+    opaque = alpha.count(255)
+    return {
+        "alphaTransparentPixels": transparent,
+        "alphaNonzeroPixels": len(alpha) - transparent,
+        "alphaOpaquePixels": opaque,
+        "alphaIntermediatePixels": len(alpha) - transparent - opaque,
+    }
+
+
 def _column(image: RgbaImage, x: int) -> bytes:
     result = bytearray(image.height * 4)
     for y in range(image.height):
@@ -385,7 +397,6 @@ def _tile_decode_task(
     root = Path(source_root)
     path = root / str(entry["path"])
     image = _decode_rgba(path, pixels=TILE_PIXELS, magick=magick)
-    alpha = image.pixels[3::4]
     tile = TileKey(int(entry["z"]), int(entry["x"]), int(entry["y"]))
     record: dict[str, object] = {
         "z": tile.z,
@@ -397,8 +408,7 @@ def _tile_decode_task(
         "rgbaSha256": _sha256_bytes(image.pixels),
         "width": image.width,
         "height": image.height,
-        "alphaNonzeroPixels": len(alpha) - alpha.count(0),
-        "alphaOpaquePixels": alpha.count(255),
+        **_alpha_statistics(image),
     }
     edges = TileEdges(
         west_boundary=_column(image, 0),
@@ -440,6 +450,31 @@ def audit_tiles(
         raise ValueError(f"Decoded tile count mismatch: {len(edges)}")
     records.sort(key=lambda value: (int(value["z"]), int(value["x"]), int(value["y"])))
     return records, edges
+
+
+def _binary_alpha_gate(
+    tile_records: Sequence[Mapping[str, object]],
+) -> dict[str, object]:
+    binary_alpha_tiles = sum(
+        int(record["alphaIntermediatePixels"]) == 0 for record in tile_records
+    )
+    transparent_pixels = sum(
+        int(record["alphaTransparentPixels"]) for record in tile_records
+    )
+    opaque_pixels = sum(int(record["alphaOpaquePixels"]) for record in tile_records)
+    intermediate_pixels = sum(
+        int(record["alphaIntermediatePixels"]) for record in tile_records
+    )
+    return {
+        "passes": (
+            binary_alpha_tiles == len(tile_records) and intermediate_pixels == 0
+        ),
+        "alphaMode": "binary-nonzero",
+        "binaryAlphaTiles": binary_alpha_tiles,
+        "alphaTransparentPixels": transparent_pixels,
+        "alphaOpaquePixels": opaque_pixels,
+        "alphaIntermediatePixels": intermediate_pixels,
+    }
 
 
 def _stabilization_rgba_gate(
@@ -2203,12 +2238,21 @@ def _run_full_audit_from_snapshot(
     tiles_path = audit_root / "tiles.ndjson"
     _write_ndjson(tiles_path, tile_records)
     nonempty = sum(int(record["alphaNonzeroPixels"]) > 0 for record in tile_records)
+    alpha_gate = _binary_alpha_gate(tile_records)
+    transparent_pixels = int(alpha_gate["alphaTransparentPixels"])
+    opaque_pixels = int(alpha_gate["alphaOpaquePixels"])
+    intermediate_pixels = int(alpha_gate["alphaIntermediatePixels"])
     inventory_gate = {
-        "passes": len(tile_records) == EXPECTED_TOTAL_TILES and nonempty == len(tile_records),
+        "passes": (
+            len(tile_records) == EXPECTED_TOTAL_TILES
+            and nonempty == len(tile_records)
+            and alpha_gate["passes"] is True
+        ),
         "tileCount": len(tile_records),
         "totalBytes": inventory.total_bytes,
         "decoded512Rgba": len(tile_records),
         "nonemptyTiles": nonempty,
+        **{key: value for key, value in alpha_gate.items() if key != "passes"},
         "inventorySha256": inventory.inventory_sha256,
         "inventoryFileSha256": inventory.inventory_file_sha256,
     }
@@ -2219,6 +2263,24 @@ def _run_full_audit_from_snapshot(
         expected_touched_tiles=int(receipt_identity["scope"]["touchedTiles"]),
     )
     stabilization_gate.update(stabilization_rgba)
+    receipt_output = receipt.get("output")
+    receipt_alpha = (
+        receipt_output.get("alphaEvidence")
+        if isinstance(receipt_output, dict)
+        else None
+    )
+    audited_alpha = {
+        "mode": "binary-nonzero",
+        "tilesChecked": len(tile_records),
+        "transparentPixels": transparent_pixels,
+        "opaquePixels": opaque_pixels,
+        "intermediatePixels": intermediate_pixels,
+    }
+    stabilization_gate["alphaEvidence"] = receipt_alpha
+    stabilization_gate["alphaEvidenceMatchesTiles"] = receipt_alpha == audited_alpha
+    stabilization_gate["passes"] = bool(stabilization_gate["passes"]) and (
+        receipt_alpha == audited_alpha
+    )
 
     if previous is None:
         pyramid_gate = audit_pyramid(

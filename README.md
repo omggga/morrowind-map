@@ -62,31 +62,41 @@ Smoke пишет `local-data/openmw-spike/poison-song-26.08/smoke-report.json`, 
 
 Нужны соседний `../morr-dev`, Docker Desktop и ImageMagick 7. Команды полностью локальные; профиль, image и encoder проверяются автоматически, вручную придумывать provenance hash не требуется:
 
-```bash
-pnpm data:poison:plan
-pnpm data:poison:renderer:build
-pnpm data:poison:renderer:smoke
-pnpm data:poison:renderer:benchmark
-```
+Опубликованный V1 release остаётся immutable и продолжает работать. Для утверждённого quality-first варианта 04 используется отдельный V4 pipeline: он никогда не пишет в старые production/release roots, применяет к исходному OpenMW capture один grade `brightness=114`, `contrast=102`, `saturation=92`, делает любой отрендеренный pixel непрозрачным и оставляет прозрачными только sparse holes. Binary alpha повторно нормализуется после seam stabilization и каждого downsample. Browser применяет старую runtime-коррекцию только к V1 metadata без `presentation`; V4 metadata с `mim-opaque-v4` загружается без canvas/CSS double processing. Дополнительный zoom `1.1×` остаётся view-only.
 
-Полный pipeline от resumable render до локально подключаемого dataset:
+Контрольный Вивек (`CELL x=2…4, y=-13…-11`) рендерится отдельно от полного checkpoint:
 
 ```bash
-pnpm data:poison:renderer:render
-pnpm data:poison:renderer:finalize
-pnpm data:poison:renderer:stabilize
-pnpm data:poison:renderer:audit
-pnpm data:poison:dataset:validate
-pnpm data:poison:dataset:prepare
+pnpm data:poison:v4:renderer:build
+pnpm data:poison:v4:renderer:smoke
 ```
 
-`render` по умолчанию использует два встроенных workers и безопасно продолжается тем же command после остановки: готовые WebP повторно проверяются по checkpoint и не рендерятся. Terminal сразу показывает setup, затем после каждой атомарной записи checkpoint печатает прогресс вида `[227/3984]`. Для последовательного деления плана доступны `--shard-count N --shard-index I`; несколько отдельных процессов не должны одновременно писать один checkpoint. Raw `544×544` PNG удаляются после публикации WebP, если явно не указан `--retain-raw`.
+Smoke автоматически собирает `1536×1536` PNG preview из девяти native tiles. Tiles и preview находятся в `local-data/openmw-production/poison-song-26.08-v4-vivec-smoke-final`; эта директория ignored и не участвует в полном render. Повторно собрать PNG без рендера можно командой `pnpm data:poison:v4:renderer:preview`.
+
+Полная V4 последовательность:
+
+```bash
+pnpm data:poison:v4:renderer:build
+pnpm data:poison:v4:plan
+pnpm data:poison:v4:renderer:render
+pnpm data:poison:v4:renderer:finalize
+pnpm data:poison:v4:renderer:stabilize
+pnpm data:poison:v4:renderer:audit
+pnpm data:poison:v4:dataset:validate
+pnpm data:poison:v4:dataset:prepare
+```
+
+`render` использует два workers и продолжает `local-data/openmw-production/poison-song-26.08-v4/checkpoint.json`. V4 release публикуется в `local-data/openmw-release/poison-song-26.08-v4`. После `prepare` новый content-addressed package уже полностью готов, но committed manifest намеренно не переключается автоматически: сначала результат проверяется, затем map-assets pointer фиксируется отдельным commit.
+
+Короткие команды без `:v4` являются алиасами текущего V4 pipeline и не могут случайно продолжить старый V1 checkpoint. Опубликованный immutable V1 можно отдельно перепроверить командой `pnpm data:poison:v1:dataset:validate`; его producer-команды намеренно больше не экспонируются.
+
+`render` использует два встроенных workers и безопасно продолжается тем же command после остановки: готовые WebP повторно проверяются по checkpoint и не рендерятся. Terminal сразу показывает setup, затем после каждой атомарной записи checkpoint печатает прогресс вида `[227/3984]`. Для последовательного деления плана доступны `--shard-count N --shard-index I`; несколько отдельных процессов не должны одновременно писать один checkpoint. Raw `544×544` PNG удаляются после публикации WebP, если явно не указан `--retain-raw`.
 
 OpenMW warning `addAnimSource: can't find bone` означает несовпадение animation controller с уже загруженным NIF, сохраняется в `ignoredCompatibilityWarnings` и не останавливает production render. Настоящие missing mesh/texture/file, отсутствующие логи и non-zero container exit по-прежнему fail closed.
 
 Production profile явно направляет snow/blizzard weather на существующие Bloodmoon-ресурсы `Tx_BM_Sky_Snow.dds` и `Tx_BM_Sky_Blizzard.dds`: универсальные OpenMW defaults с именами `Tx_Sky_*` отсутствуют в GOTY BSA. Контролируемая смена producer source сохраняет готовые тайлы только через отдельный `migrate-resume`; смена profile fingerprint дополнительно требует явного `--allow-profile-change`, полного совпадения `inputAudit`/`assetAudit`, byte-identical backups старого состояния и migration receipt.
 
-`stabilize` создаёт immutable release в `local-data/openmw-release/poison-song-26.08`, исправляет только границы разных render shards и заново выводит lower zoom. `audit` fail-closed проверяет всю release tree; для доказательства воспроизводимого resume готовые raw probes можно повторно использовать через `python3 -m tools.openmw_renderer.audit full --workers 4 --render-workers 2 --reuse-evidence`. `dataset:prepare` сначала повторяет строгую валидацию, затем APFS clone/copy публикует tiles по immutable inventory hash в `apps/web/public/datasets/generated/poison-song-26.08/<inventory-sha256>` и одним atomic exclusive rename публикует полный metadata package, включая `map-assets.json`, по тому же content-addressed version path. Отдельного изменяемого stable pointer и metadata-only режима нет: committed dataset manifest прямо ссылается на immutable package, поэтому частично подготовленный dataset не становится видимым приложению.
+`stabilize` создаёт immutable release в `local-data/openmw-release/poison-song-26.08-v4`, исправляет только границы разных render shards и заново выводит lower zoom. `audit` fail-closed проверяет всю release tree; для доказательства воспроизводимого resume готовые raw probes можно повторно использовать через `python3 -m tools.openmw_renderer.audit full --output local-data/openmw-release/poison-song-26.08-v4 --image morrowind-map-openmw:0.51.0-stage5-v4 --workers 4 --render-workers 2 --reuse-evidence`. `dataset:prepare` сначала повторяет строгую валидацию, затем APFS clone/copy публикует tiles по immutable inventory hash в `apps/web/public/datasets/generated/poison-song-26.08/<inventory-sha256>` и одним atomic exclusive rename публикует полный metadata package, включая `map-assets.json`, по тому же content-addressed version path. Отдельного изменяемого stable pointer и metadata-only режима нет: committed dataset manifest прямо ссылается на immutable package, поэтому частично подготовленный dataset не становится видимым приложению.
 
 EN catalog строится и публикуется отдельно, но привязан к тому же dataset/snapshot и собственному deterministic inventory:
 

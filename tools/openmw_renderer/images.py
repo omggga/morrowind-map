@@ -6,6 +6,8 @@ from tools.land_renderer.terrain import RgbaImage
 
 
 GRADE_VERSION = "mim-muted-v1"
+PRODUCTION_GRADE_VERSION = "mim-opaque-v4"
+PRODUCTION_ALPHA_MODE = "binary-nonzero"
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +27,11 @@ class GradeStyle:
 
 
 DEFAULT_GRADE = GradeStyle()
+PRODUCTION_GRADE = GradeStyle(
+    brightness_percent=114,
+    contrast_percent=102,
+    saturation_percent=92,
+)
 
 
 def _clamp_byte(value: int) -> int:
@@ -49,6 +56,20 @@ def apply_grade(image: RgbaImage, style: GradeStyle = DEFAULT_GRADE) -> RgbaImag
             brightened = (contrasted * style.brightness_percent + 50) // 100
             output[offset + index] = _clamp_byte(brightened)
         output[offset + 3] = alpha
+    return RgbaImage(image.width, image.height, bytes(output))
+
+
+def normalize_binary_alpha(image: RgbaImage) -> RgbaImage:
+    """Return a binary-alpha image while preserving every RGB channel.
+
+    Fully transparent sparse coverage stays transparent. Any rendered pixel,
+    including OpenMW's translucent water, becomes fully opaque.
+    """
+
+    output = bytearray(image.pixels)
+    for alpha_offset in range(3, len(output), 4):
+        if output[alpha_offset] != 0:
+            output[alpha_offset] = 255
     return RgbaImage(image.width, image.height, bytes(output))
 
 

@@ -8,6 +8,10 @@ export const BASEMAP_MAX_OVERSCALE = 1.1;
 export const BASEMAP_CONTRAST_FACTOR = 102 / 108;
 export const BASEMAP_BRIGHTNESS_FACTOR = 1.1;
 
+export function requiresRuntimeBasemapAdjustment(pyramid: TilePyramid): boolean {
+  return pyramid.presentation?.colorGrade !== 'baked';
+}
+
 export function createOverscaledViewResolutions(
   pyramid: TilePyramid,
   scale = BASEMAP_MAX_OVERSCALE,

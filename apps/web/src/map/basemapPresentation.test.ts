@@ -6,6 +6,7 @@ import {
   BASEMAP_MAX_OVERSCALE,
   createOverscaledViewResolutions,
   makeRenderedPixelsOpaque,
+  requiresRuntimeBasemapAdjustment,
 } from './basemapPresentation';
 import { createTes3TileGrid } from './sparseTiles';
 
@@ -81,6 +82,21 @@ describe('basemap presentation preview', () => {
   it('uses the conservative visual grade selected for the preview', () => {
     expect(BASEMAP_CONTRAST_FACTOR).toBeCloseTo(102 / 108);
     expect(BASEMAP_BRIGHTNESS_FACTOR).toBe(1.1);
+  });
+
+  it('keeps legacy runtime correction but skips it for baked V4 tiles', () => {
+    const legacy = pyramid();
+    const baked: TilePyramid = {
+      ...legacy,
+      presentation: {
+        gradeVersion: 'mim-opaque-v4',
+        alphaMode: 'binary-nonzero',
+        colorGrade: 'baked',
+      },
+    };
+
+    expect(requiresRuntimeBasemapAdjustment(legacy)).toBe(true);
+    expect(requiresRuntimeBasemapAdjustment(baked)).toBe(false);
   });
 
   it('makes rendered pixels opaque while retaining transparent sparse holes', () => {

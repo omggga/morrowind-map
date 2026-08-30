@@ -11,6 +11,8 @@ from unittest import mock
 from tools.openmw_renderer import audit as audit_module
 from tools.openmw_renderer.audit import (
     AUDIT_VERSION,
+    _alpha_statistics,
+    _binary_alpha_gate,
     _decode_rgba,
     _canonical_raw_completion,
     _expected_target,
@@ -43,6 +45,43 @@ def _line(color: tuple[int, int, int, int], pixels: int = 8) -> bytes:
 
 
 class FinalSeamMetricTests(unittest.TestCase):
+    def test_alpha_statistics_distinguishes_sparse_binary_and_intermediate_pixels(self) -> None:
+        image = RgbaImage(
+            3,
+            1,
+            bytes((1, 2, 3, 0, 4, 5, 6, 255, 7, 8, 9, 128)),
+        )
+
+        self.assertEqual(
+            _alpha_statistics(image),
+            {
+                "alphaTransparentPixels": 1,
+                "alphaNonzeroPixels": 2,
+                "alphaOpaquePixels": 1,
+                "alphaIntermediatePixels": 1,
+            },
+        )
+
+    def test_binary_alpha_gate_rejects_one_intermediate_pixel(self) -> None:
+        records = [
+            {
+                "alphaTransparentPixels": 10,
+                "alphaOpaquePixels": 20,
+                "alphaIntermediatePixels": 0,
+            },
+            {
+                "alphaTransparentPixels": 4,
+                "alphaOpaquePixels": 25,
+                "alphaIntermediatePixels": 1,
+            },
+        ]
+
+        result = _binary_alpha_gate(records)
+
+        self.assertFalse(result["passes"])
+        self.assertEqual(result["binaryAlphaTiles"], 1)
+        self.assertEqual(result["alphaIntermediatePixels"], 1)
+
     def test_continuous_boundary_has_no_excess(self) -> None:
         line = _line((40, 80, 120, 255))
 

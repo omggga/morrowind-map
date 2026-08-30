@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from tools.land_renderer.terrain import RgbaImage
+from tools.openmw_renderer.images import normalize_binary_alpha
 from tools.openmw_renderer.production import (
     DATASET_ID,
     DEFAULT_OUTPUT,
@@ -40,14 +41,21 @@ from tools.openmw_renderer.production import (
 from tools.openmw_renderer.publish import ValidatedInventory, validate_source
 
 
-STABILIZER_SCHEMA_VERSION = 2
-STABILIZER_VERSION = "cross-shard-linear-feather-v1"
+STABILIZER_SCHEMA_VERSION = 3
+STABILIZER_VERSION = "cross-shard-linear-feather-binary-alpha-v2"
+LEGACY_STABILIZER_SCHEMA_VERSION = 2
+LEGACY_STABILIZER_VERSION = "cross-shard-linear-feather-v1"
+LEGACY_STABILIZER_IMPLEMENTATION_SHA256 = (
+    "cd3631e8b10ccc90950627f2d72024cc8ae5f924a9a9d2edb82fc50c3c54e6a3"
+)
 STABILIZATION_RECEIPT = "seam-stabilization.json"
 STABILIZATION_ROOT = Path("seam-stabilization")
 SOURCE_INVENTORY_PATH = STABILIZATION_ROOT / "source-inventory.json"
 TILE_TRANSFORMS_PATH = STABILIZATION_ROOT / "tile-transforms.ndjson"
 DEFAULT_STABILIZED_OUTPUT = Path("local-data/openmw-release") / DATASET_ID
 EXPECTED_CROSS_SHARD_EDGES = 2571
+V4_GRADE_VERSION = "mim-opaque-v4"
+V4_ALPHA_MODE = "binary-nonzero"
 
 ProgressCallback = Callable[[str], None]
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -97,6 +105,39 @@ def _canonical_json_bytes(value: object) -> bytes:
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _is_v4_presentation(provenance: Mapping[str, object]) -> bool:
+    presentation = provenance.get("presentation")
+    return (
+        provenance.get("schemaVersion") == 2
+        and isinstance(presentation, dict)
+        and presentation.get("gradeVersion") == V4_GRADE_VERSION
+        and presentation.get("alphaMode") == V4_ALPHA_MODE
+    )
+
+
+def _require_v4_presentation(provenance: Mapping[str, object]) -> None:
+    if not _is_v4_presentation(provenance):
+        raise ValueError(
+            "Binary-alpha seam stabilization requires Poison Song V4 provenance"
+        )
+
+
+def _binary_alpha_counts(image: RgbaImage) -> tuple[int, int, int]:
+    alpha = image.pixels[3::4]
+    transparent = alpha.count(0)
+    opaque = alpha.count(255)
+    return transparent, opaque, len(alpha) - transparent - opaque
+
+
+def _require_binary_alpha(image: RgbaImage, *, label: str) -> tuple[int, int]:
+    transparent, opaque, intermediate = _binary_alpha_counts(image)
+    if intermediate:
+        raise ValueError(
+            f"{label} contains {intermediate} intermediate-alpha pixels"
+        )
+    return transparent, opaque
 
 
 def stabilizer_implementation_sha256() -> str:
@@ -364,7 +405,7 @@ def stabilize_native_image(
         raise ValueError("Seam stabilization requires native 512px tiles")
     tile_neighbors = neighbors.get(tile)
     if not tile_neighbors:
-        return image
+        return normalize_binary_alpha(image)
     own = edges[tile]
     pixels = bytearray(image.pixels)
     stride = TILE_PIXELS * 4
@@ -405,7 +446,9 @@ def stabilize_native_image(
             first_weight=1,
         )
         pixels[-stride:] = boundary
-    return RgbaImage(TILE_PIXELS, TILE_PIXELS, bytes(pixels))
+    return normalize_binary_alpha(
+        RgbaImage(TILE_PIXELS, TILE_PIXELS, bytes(pixels))
+    )
 
 
 def _native_aggregate(entries: Sequence[Mapping[str, Any]]) -> str:
@@ -513,13 +556,51 @@ def _build_stabilized_pyramid(
     return all_tiles
 
 
+def _binary_alpha_evidence(
+    output_root: Path,
+    tiles: Sequence[TileKey],
+    *,
+    magick: str,
+    workers: int,
+) -> dict[str, object]:
+    ordered = tuple(sorted(tiles))
+
+    def inspect(tile: TileKey) -> tuple[int, int]:
+        image = _default_webp_reader(
+            output_root / "tiles" / tile.relative_path,
+            magick=magick,
+        )
+        return _require_binary_alpha(
+            image,
+            label=f"Stabilized tile {tile.relative_path.as_posix()}",
+        )
+
+    transparent_pixels = 0
+    opaque_pixels = 0
+    with ThreadPoolExecutor(
+        max_workers=workers,
+        thread_name_prefix="seam-alpha",
+    ) as pool:
+        for transparent, opaque in pool.map(inspect, ordered):
+            transparent_pixels += transparent
+            opaque_pixels += opaque
+    return {
+        "mode": V4_ALPHA_MODE,
+        "tilesChecked": len(ordered),
+        "transparentPixels": transparent_pixels,
+        "opaquePixels": opaque_pixels,
+        "intermediatePixels": 0,
+    }
+
+
 def _inventory_from_current_native(
     output_root: Path,
     source: ValidatedInventory,
     *,
     stabilization_fingerprint: str,
     magick: str,
-) -> ValidatedInventory:
+    workers: int,
+) -> tuple[ValidatedInventory, dict[str, object]]:
     native_tiles = [
         TileKey(int(entry["z"]), int(entry["x"]), int(entry["y"]))
         for entry in source.tile_entries
@@ -529,6 +610,12 @@ def _inventory_from_current_native(
         output_root,
         native_tiles,
         magick=magick,
+    )
+    alpha_evidence = _binary_alpha_evidence(
+        output_root,
+        all_tiles,
+        magick=magick,
+        workers=workers,
     )
     built = build_inventory(
         output_root=output_root,
@@ -547,7 +634,7 @@ def _inventory_from_current_native(
     inventory = dict(core)
     inventory["inventorySha256"] = _sha256_bytes(_canonical_json_bytes(core))
     _atomic_write_json(output_root / "inventory.json", inventory)
-    return validate_source(output_root)
+    return validate_source(output_root), alpha_evidence
 
 
 def _receipt_with_hash(core: Mapping[str, object]) -> dict[str, object]:
@@ -606,11 +693,24 @@ def validate_stabilization_receipt(
     core = {key: item for key, item in receipt.items() if key != "receiptSha256"}
     if receipt.get("receiptSha256") != _sha256_bytes(_canonical_json_bytes(core)):
         raise ValueError("Seam stabilization receipt logical hash does not recompute")
+    legacy = (
+        receipt.get("schemaVersion") == LEGACY_STABILIZER_SCHEMA_VERSION
+        and receipt.get("stabilizerVersion") == LEGACY_STABILIZER_VERSION
+    )
+    if legacy:
+        if inventory.provenance.get("presentation") is not None:
+            raise ValueError("Legacy seam stabilization cannot bind V4 provenance")
+    else:
+        _require_v4_presentation(inventory.provenance)
     expected_header = {
-        "schemaVersion": STABILIZER_SCHEMA_VERSION,
+        "schemaVersion": (
+            LEGACY_STABILIZER_SCHEMA_VERSION if legacy else STABILIZER_SCHEMA_VERSION
+        ),
         "datasetId": DATASET_ID,
         "snapshotId": SNAPSHOT_ID,
-        "stabilizerVersion": STABILIZER_VERSION,
+        "stabilizerVersion": (
+            LEGACY_STABILIZER_VERSION if legacy else STABILIZER_VERSION
+        ),
     }
     for key, expected in expected_header.items():
         if receipt.get(key) != expected:
@@ -634,10 +734,12 @@ def validate_stabilization_receipt(
     if receipt.get("stabilizationFingerprint") != fingerprint:
         raise ValueError("Seam stabilization fingerprint does not recompute")
     implementation = identity.get("implementationSha256")
-    if (
-        require_current_implementation
-        and implementation != stabilizer_implementation_sha256()
-    ):
+    expected_implementation = (
+        LEGACY_STABILIZER_IMPLEMENTATION_SHA256
+        if legacy
+        else stabilizer_implementation_sha256()
+    )
+    if require_current_implementation and implementation != expected_implementation:
         raise ValueError("Seam stabilization implementation hash is stale")
     expected_algorithm = {
         "boundaryWidthPixels": 1,
@@ -647,6 +749,8 @@ def validate_stabilization_receipt(
         "nativeZoom": NATIVE_ZOOM,
         "tilePixels": TILE_PIXELS,
     }
+    if not legacy:
+        expected_algorithm["outputAlphaMode"] = V4_ALPHA_MODE
     if identity.get("algorithm") != expected_algorithm:
         raise ValueError("Seam stabilization algorithm contract mismatch")
     toolchain = identity.get("postprocessToolchain")
@@ -683,19 +787,52 @@ def validate_stabilization_receipt(
     if expected_toolchain is not None and toolchain != dict(expected_toolchain):
         raise ValueError("Seam stabilization current postprocess toolchain mismatch")
 
-    output = receipt.get("output")
-    if not isinstance(output, dict) or output != {
+    expected_output: dict[str, object] = {
         "inventorySha256": inventory.inventory_sha256,
         "inventoryFileSha256": inventory.inventory_file_sha256,
         "nativeAggregateSha256": _native_aggregate(inventory.tile_entries),
         "tileCount": inventory.tile_count,
         "totalBytes": inventory.total_bytes,
-    }:
+    }
+    if not legacy:
+        expected_output["alphaEvidence"] = receipt.get("output", {}).get(
+            "alphaEvidence"
+        ) if isinstance(receipt.get("output"), dict) else None
+    output = receipt.get("output")
+    if not isinstance(output, dict) or output != expected_output:
         raise ValueError("Seam stabilization target identity mismatch")
+    if not legacy:
+        alpha_evidence = output.get("alphaEvidence")
+        if (
+            not isinstance(alpha_evidence, dict)
+            or set(alpha_evidence)
+            != {
+                "mode",
+                "tilesChecked",
+                "transparentPixels",
+                "opaquePixels",
+                "intermediatePixels",
+            }
+            or alpha_evidence.get("mode") != V4_ALPHA_MODE
+            or alpha_evidence.get("tilesChecked") != inventory.tile_count
+            or alpha_evidence.get("intermediatePixels") != 0
+            or not isinstance(alpha_evidence.get("transparentPixels"), int)
+            or isinstance(alpha_evidence.get("transparentPixels"), bool)
+            or int(alpha_evidence["transparentPixels"]) < 0
+            or not isinstance(alpha_evidence.get("opaquePixels"), int)
+            or isinstance(alpha_evidence.get("opaquePixels"), bool)
+            or int(alpha_evidence["opaquePixels"]) < 0
+            or int(alpha_evidence["transparentPixels"])
+            + int(alpha_evidence["opaquePixels"])
+            != inventory.tile_count * TILE_PIXELS * TILE_PIXELS
+        ):
+            raise ValueError("Seam stabilization binary-alpha evidence is malformed")
     postprocess = inventory.payload.get("postprocess")
     if postprocess != {
         "type": "crossShardSeamStabilization",
-        "version": STABILIZER_VERSION,
+        "version": (
+            LEGACY_STABILIZER_VERSION if legacy else STABILIZER_VERSION
+        ),
         "fingerprint": fingerprint,
     }:
         raise ValueError("Inventory does not bind the seam stabilization fingerprint")
@@ -918,19 +1055,23 @@ def stabilize_dataset(
     recorded_magick = source.provenance.get("magickVersion")
     if not isinstance(recorded_magick, str) or not recorded_magick:
         raise ValueError("Render provenance ImageMagick identity is invalid")
-    resolved_magick, postprocess_toolchain = _resolve_stabilization_toolchain(
-        repo_root=repo_root,
-        magick=magick,
-        expected_production_source_fingerprint=source.production_source_fingerprint,
-        expected_magick_version=recorded_magick,
-    )
     if output_root.exists():
         existing = validate_source(output_root, progress=progress)
+        expected_toolchain: Mapping[str, object] | None = None
+        if _is_v4_presentation(source.provenance):
+            _, expected_toolchain = _resolve_stabilization_toolchain(
+                repo_root=repo_root,
+                magick=magick,
+                expected_production_source_fingerprint=(
+                    source.production_source_fingerprint
+                ),
+                expected_magick_version=recorded_magick,
+            )
         receipt = validate_stabilization_receipt(
             output_root,
             existing,
             source_inventory=source,
-            expected_toolchain=postprocess_toolchain,
+            expected_toolchain=expected_toolchain,
         )
         return StabilizationResult(
             output_root=output_root,
@@ -941,6 +1082,14 @@ def stabilize_dataset(
             changed_native_tiles=int(receipt["identity"]["scope"]["changedTiles"]),
             created=False,
         )
+
+    _require_v4_presentation(source.provenance)
+    resolved_magick, postprocess_toolchain = _resolve_stabilization_toolchain(
+        repo_root=repo_root,
+        magick=magick,
+        expected_production_source_fingerprint=source.production_source_fingerprint,
+        expected_magick_version=recorded_magick,
+    )
 
     native_entries = [
         entry for entry in source.tile_entries if int(entry["z"]) == NATIVE_ZOOM
@@ -982,6 +1131,10 @@ def stabilize_dataset(
             image = _default_webp_reader(
                 staging / "tiles" / tile.relative_path,
                 magick=resolved_magick,
+            )
+            _require_binary_alpha(
+                image,
+                label=f"Production tile {tile.relative_path.as_posix()}",
             )
             return tile, _extract_edges(image)
 
@@ -1051,6 +1204,7 @@ def stabilize_dataset(
                 "boundaryWidthPixels": 1,
                 "kernel": "linear-2:1",
                 "alphaMode": "premultiplied",
+                "outputAlphaMode": V4_ALPHA_MODE,
                 "passes": ["east-west", "north-south"],
                 "nativeZoom": NATIVE_ZOOM,
                 "tilePixels": TILE_PIXELS,
@@ -1072,11 +1226,12 @@ def stabilize_dataset(
             },
         }
         stabilization_fingerprint = _sha256_bytes(_canonical_json_bytes(identity))
-        target = _inventory_from_current_native(
+        target, alpha_evidence = _inventory_from_current_native(
             staging,
             snapshot,
             stabilization_fingerprint=stabilization_fingerprint,
             magick=resolved_magick,
+            workers=workers,
         )
         receipt_core = {
             "schemaVersion": STABILIZER_SCHEMA_VERSION,
@@ -1091,6 +1246,7 @@ def stabilize_dataset(
                 "nativeAggregateSha256": _native_aggregate(target.tile_entries),
                 "tileCount": target.tile_count,
                 "totalBytes": target.total_bytes,
+                "alphaEvidence": alpha_evidence,
             },
         }
         receipt = _receipt_with_hash(receipt_core)

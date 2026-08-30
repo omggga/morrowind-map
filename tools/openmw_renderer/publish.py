@@ -24,6 +24,7 @@ from tools.openmw_renderer.production import (
     NATIVE_ZOOM,
     OPENMW_COMMIT,
     POISON_WORLD_EXTENT,
+    PRODUCTION_RENDERER_VERSION,
     SNAPSHOT_ID,
     TILE_PIXELS,
     TileKey,
@@ -88,7 +89,20 @@ DEFAULT_METADATA_ROOT = (
 )
 QUALITY_REPORT_RELATIVE_PATH = Path("quality-audit/report.json")
 PUBLISHED_QUALITY_REPORT_NAME = "basemap-audit.json"
-EXPECTED_AUDIT_VERSION = "poison-basemap-quality-v2"
+EXPECTED_AUDIT_VERSION = "poison-basemap-quality-binary-alpha-v3"
+EXPECTED_AUDIT_SCHEMA_VERSION = 2
+LEGACY_AUDIT_VERSION = "poison-basemap-quality-v2"
+LEGACY_AUDIT_SCHEMA_VERSION = 1
+LEGACY_AUDIT_IMPLEMENTATION_SHA256 = (
+    "7f7e5704dc52110a0dcf76289bc3ebf2eeb59c64876442f621dcce501b3184ce"
+)
+LEGACY_GRADE_VERSION = "mim-muted-v1"
+LEGACY_PRODUCTION_RENDERER_VERSION = "openmw-export-production-v1"
+V4_PRESENTATION = {
+    "gradeVersion": "mim-opaque-v4",
+    "alphaMode": "binary-nonzero",
+    "colorGrade": "baked",
+}
 STABILIZATION_RECEIPT_PATH = Path("seam-stabilization.json")
 SOURCE_INVENTORY_PATH = Path("seam-stabilization/source-inventory.json")
 TILE_TRANSFORMS_PATH = Path("seam-stabilization/tile-transforms.ndjson")
@@ -229,6 +243,51 @@ def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
         while chunk := stream.read(chunk_size):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _verified_publication_provenance(value: Mapping[str, Any]) -> str:
+    if value.get("schemaVersion") != 1 or "presentation" in value:
+        return _verified_provenance_fingerprint(value)
+    image = value.get("image")
+    if not isinstance(image, dict):
+        raise ValueError("Legacy provenance image must be an object")
+    profile = value.get("profileFingerprint")
+    source = value.get("productionSourceFingerprint")
+    image_id = image.get("id")
+    digests = image.get("repoDigests")
+    magick = value.get("magickVersion")
+    if (
+        not isinstance(profile, str)
+        or _SHA256.fullmatch(profile) is None
+        or not isinstance(source, str)
+        or _SHA256.fullmatch(source) is None
+        or not isinstance(image_id, str)
+        or not isinstance(digests, list)
+        or not all(isinstance(item, str) for item in digests)
+        or not isinstance(magick, str)
+        or not magick
+        or value.get("rendererVersion") != LEGACY_PRODUCTION_RENDERER_VERSION
+    ):
+        raise ValueError("Legacy provenance fingerprint inputs are malformed")
+    fingerprint = _sha256_bytes(
+        _canonical_json_bytes(
+            {
+                "datasetId": DATASET_ID,
+                "snapshotId": SNAPSHOT_ID,
+                "rendererVersion": LEGACY_PRODUCTION_RENDERER_VERSION,
+                "profileFingerprint": profile,
+                "productionSourceFingerprint": source,
+                "openmwCommit": OPENMW_COMMIT,
+                "imageId": image_id,
+                "imageRepoDigests": sorted(set(digests)),
+                "gradeVersion": LEGACY_GRADE_VERSION,
+                "magickVersion": magick,
+            }
+        )
+    )
+    if value.get("provenanceFingerprint") != fingerprint:
+        raise ValueError("Legacy provenance fingerprint does not recompute")
+    return fingerprint
 
 
 def _read_json_object(path: Path, label: str) -> tuple[dict[str, Any], bytes]:
@@ -468,7 +527,7 @@ def validate_source(
         source_root / "provenance.json", "Provenance"
     )
     _validate_identity(provenance, label="Provenance", inventory=inventory)
-    if _verified_provenance_fingerprint(provenance) != provenance_fingerprint:
+    if _verified_publication_provenance(provenance) != provenance_fingerprint:
         raise ValueError("Provenance fingerprint does not match inventory")
     if provenance.get("openmwCommit") != OPENMW_COMMIT:
         raise ValueError("Provenance OpenMW commit does not match the pinned renderer")
@@ -579,33 +638,48 @@ def _validate_quality_gate_evidence(
     stabilization: Mapping[str, Any],
     *,
     stabilization_receipt_file_sha256: str,
+    require_binary_alpha: bool,
 ) -> None:
     scope = inventory.source_scope
     identity = _gate_mapping(stabilization.get("identity"), "stabilization identity")
     stabilization_scope = _gate_mapping(identity.get("scope"), "stabilization scope")
 
     inventory_gate = _gate_mapping(gates.get("inventory"), "inventory")
-    _require_gate_values(
-        inventory_gate,
-        {
-            "passes": True,
-            "tileCount": scope["tiles"],
-            "totalBytes": inventory.total_bytes,
-            "decoded512Rgba": scope["tiles"],
-            "nonemptyTiles": scope["tiles"],
-            "inventorySha256": inventory.inventory_sha256,
-            "inventoryFileSha256": inventory.inventory_file_sha256,
-        },
-        "inventory",
-    )
+    expected_inventory: dict[str, object] = {
+        "passes": True,
+        "tileCount": scope["tiles"],
+        "totalBytes": inventory.total_bytes,
+        "decoded512Rgba": scope["tiles"],
+        "nonemptyTiles": scope["tiles"],
+        "inventorySha256": inventory.inventory_sha256,
+        "inventoryFileSha256": inventory.inventory_file_sha256,
+    }
+    _require_gate_values(inventory_gate, expected_inventory, "inventory")
+    if require_binary_alpha:
+        _require_gate_values(
+            inventory_gate,
+            {
+                "alphaMode": "binary-nonzero",
+                "binaryAlphaTiles": scope["tiles"],
+                "alphaIntermediatePixels": 0,
+            },
+            "inventory",
+        )
+        transparent = inventory_gate.get("alphaTransparentPixels")
+        opaque = inventory_gate.get("alphaOpaquePixels")
+        if (
+            not _nonnegative_integer(transparent)
+            or not _nonnegative_integer(opaque)
+            or int(transparent) + int(opaque)
+            != scope["tiles"] * TILE_PIXELS * TILE_PIXELS
+        ):
+            raise ValueError("Quality audit inventory binary-alpha totals are invalid")
 
     stabilization_gate = _gate_mapping(
         gates.get("seamStabilization"), "seamStabilization"
     )
     touched = int(stabilization_scope["touchedTiles"])
-    _require_gate_values(
-        stabilization_gate,
-        {
+    expected_stabilization: dict[str, object] = {
             "passes": True,
             "stabilizerVersion": stabilization["stabilizerVersion"],
             "stabilizationFingerprint": stabilization["stabilizationFingerprint"],
@@ -622,7 +696,18 @@ def _validate_quality_gate_evidence(
             "afterRgbaMismatches": 0,
             "mismatchExamples": [],
             "beforeRgbaValidation": "format-and-receipt-bound",
-        },
+        }
+    if require_binary_alpha:
+        output = _gate_mapping(stabilization.get("output"), "stabilization output")
+        expected_stabilization.update(
+            {
+                "alphaEvidence": output.get("alphaEvidence"),
+                "alphaEvidenceMatchesTiles": True,
+            }
+        )
+    _require_gate_values(
+        stabilization_gate,
+        expected_stabilization,
         "seamStabilization",
     )
     state = _gate_mapping(gates.get("stateAndMigrations"), "stateAndMigrations")
@@ -880,7 +965,7 @@ def _validate_raw_renderer_provenance_artifact(
     released_image = inventory.provenance.get("image")
     if not isinstance(candidate_image, dict) or not isinstance(released_image, dict):
         raise ValueError("Raw renderer provenance image identity is malformed")
-    candidate_fingerprint = _verified_provenance_fingerprint(candidate)
+    candidate_fingerprint = _verified_publication_provenance(candidate)
     if (
         candidate_fingerprint != renderer.get("candidateProvenanceFingerprint")
         or candidate_image.get("id") != renderer.get("candidateImageId")
@@ -937,10 +1022,26 @@ def validate_quality_report(
     report, report_bytes = _read_json_object(path, "Quality audit report")
     if set(report) != QUALITY_REPORT_KEYS:
         raise ValueError("Quality audit report fields do not match the pinned contract")
-    if report.get("schemaVersion") != 1:
-        raise ValueError("Quality audit report schemaVersion is unsupported")
-    if report.get("auditVersion") != EXPECTED_AUDIT_VERSION:
+    current = (
+        report.get("schemaVersion") == EXPECTED_AUDIT_SCHEMA_VERSION
+        and report.get("auditVersion") == EXPECTED_AUDIT_VERSION
+    )
+    legacy = (
+        report.get("schemaVersion") == LEGACY_AUDIT_SCHEMA_VERSION
+        and report.get("auditVersion") == LEGACY_AUDIT_VERSION
+    )
+    if not current and not legacy:
         raise ValueError("Quality audit report auditVersion is unsupported")
+    provenance_presentation = inventory.provenance.get("presentation")
+    if current:
+        if not isinstance(provenance_presentation, dict) or any(
+            provenance_presentation.get(key) != value
+            for key, value in V4_PRESENTATION.items()
+            if key != "colorGrade"
+        ):
+            raise ValueError("V4 quality audit presentation provenance is invalid")
+    elif provenance_presentation is not None:
+        raise ValueError("Legacy quality audit cannot validate V4 presentation")
     if report.get("datasetId") != DATASET_ID or report.get("snapshotId") != SNAPSHOT_ID:
         raise ValueError("Quality audit report dataset identity does not match")
     if report.get("passes") is not True:
@@ -960,6 +1061,7 @@ def validate_quality_report(
         stabilization_receipt_file_sha256=_sha256_file(
             source_root / STABILIZATION_RECEIPT_PATH
         ),
+        require_binary_alpha=current,
     )
     raw_gate = gates["rawProbes"]
     if (
@@ -1007,8 +1109,10 @@ def validate_quality_report(
         "sourceInventorySha256": stabilization_identity["sourceInventory"][
             "logicalSha256"
         ],
-        "auditImplementationSha256": _sha256_file(
-            Path(__file__).with_name("audit.py")
+        "auditImplementationSha256": (
+            _sha256_file(Path(__file__).with_name("audit.py"))
+            if current
+            else LEGACY_AUDIT_IMPLEMENTATION_SHA256
         ),
     }
     for key, expected in expected_identity.items():
@@ -1059,15 +1163,15 @@ def _validated_stabilization(
     source_root: Path,
     inventory: ValidatedInventory,
 ) -> tuple[dict[str, Any], str]:
-    from tools.openmw_renderer.stabilize import (
-        stabilizer_implementation_sha256,
-        validate_stabilization_receipt,
-    )
+    from tools.openmw_renderer.stabilize import validate_stabilization_receipt
 
-    return (
-        validate_stabilization_receipt(source_root, inventory),
-        stabilizer_implementation_sha256(),
-    )
+    receipt = validate_stabilization_receipt(source_root, inventory)
+    identity = receipt.get("identity")
+    if not isinstance(identity, dict) or not isinstance(
+        identity.get("implementationSha256"), str
+    ):
+        raise ValueError("Seam stabilization implementation identity is malformed")
+    return receipt, str(identity["implementationSha256"])
 
 
 def build_tile_coverage(inventory: ValidatedInventory) -> dict[str, Any]:
@@ -1101,6 +1205,20 @@ def build_tile_coverage(inventory: ValidatedInventory) -> dict[str, Any]:
     }
 
 
+def _published_presentation(
+    provenance: Mapping[str, Any],
+) -> dict[str, str] | None:
+    presentation = provenance.get("presentation")
+    if not isinstance(presentation, dict):
+        return None
+    if (
+        presentation.get("gradeVersion") != V4_PRESENTATION["gradeVersion"]
+        or presentation.get("alphaMode") != V4_PRESENTATION["alphaMode"]
+    ):
+        raise ValueError("Unsupported production presentation contract")
+    return dict(V4_PRESENTATION)
+
+
 def build_publish_metadata(
     source_root: Path,
     inventory: ValidatedInventory,
@@ -1121,69 +1239,71 @@ def build_publish_metadata(
     tile_base_url = (
         f"/datasets/generated/{DATASET_ID}/{inventory.inventory_sha256}/tiles"
     )
+    tile_pyramid: dict[str, Any] = {
+        "id": TILE_PYRAMID_ID,
+        "regionIds": list(TILE_REGIONS),
+        "kind": "xyz-pyramid",
+        "urlTemplate": f"{tile_base_url}/{{z}}/{{x}}/{{y}}.webp",
+        "mediaType": "image/webp",
+        "tileSize": TILE_PIXELS,
+        "extent": list(POISON_WORLD_EXTENT),
+        "origin": [-229376, 278528],
+        "resolutions": list(TILE_RESOLUTIONS),
+        "minZoom": MIN_ZOOM,
+        "maxZoom": MAX_ZOOM,
+        "sparse": True,
+        "coverage": {
+            "url": f"{metadata_base_url}/tile-coverage.json",
+            "mediaType": "application/json",
+            "sha256": _sha256_bytes(coverage_bytes),
+            "bytes": len(coverage_bytes),
+        },
+        "qualityReport": {
+            "url": f"{metadata_base_url}/{PUBLISHED_QUALITY_REPORT_NAME}",
+            "mediaType": "application/json",
+            "sha256": quality.sha256,
+            "bytes": quality.byte_length,
+        },
+        "derivation": {
+            "kind": "cross-shard-seam-stabilization",
+            "version": str(receipt["stabilizerVersion"]),
+            "sourceInventorySha256": str(
+                receipt_identity["sourceInventory"]["logicalSha256"]
+            ),
+            "implementationSha256": str(
+                receipt_identity["implementationSha256"]
+            ),
+            "receipt": {
+                "url": f"{metadata_base_url}/{STABILIZATION_RECEIPT_PATH.as_posix()}",
+                "mediaType": "application/json",
+                "sha256": _sha256_bytes(receipt_bytes),
+                "bytes": len(receipt_bytes),
+            },
+        },
+        "integrity": {
+            "tileCount": inventory.tile_count,
+            "totalBytes": inventory.total_bytes,
+            "inventorySha256": inventory.inventory_sha256,
+            "inventoryFileSha256": inventory.inventory_file_sha256,
+            "provenanceFingerprint": inventory.provenance_fingerprint,
+            "planFingerprint": inventory.plan_fingerprint,
+            "profileFingerprint": inventory.profile_fingerprint,
+            "rendererFingerprint": inventory.renderer_fingerprint,
+            "productionSourceFingerprint": inventory.production_source_fingerprint,
+            "assetTreeFingerprint": inventory.asset_tree_fingerprint,
+            "inputFingerprint": inventory.input_fingerprint,
+        },
+    }
+    presentation = _published_presentation(inventory.provenance)
+    if presentation is not None:
+        tile_pyramid["presentation"] = presentation
     map_assets = {
         "schemaVersion": MAP_ASSETS_SCHEMA_VERSION,
         "datasetId": DATASET_ID,
         "snapshotId": SNAPSHOT_ID,
         "projection": "TES3:WORLD",
         "rasters": [],
-        "tilePyramids": [
-            {
-                "id": TILE_PYRAMID_ID,
-                "regionIds": list(TILE_REGIONS),
-                "kind": "xyz-pyramid",
-                "urlTemplate": f"{tile_base_url}/{{z}}/{{x}}/{{y}}.webp",
-                "mediaType": "image/webp",
-                "tileSize": TILE_PIXELS,
-                "extent": list(POISON_WORLD_EXTENT),
-                "origin": [-229376, 278528],
-                "resolutions": list(TILE_RESOLUTIONS),
-                "minZoom": MIN_ZOOM,
-                "maxZoom": MAX_ZOOM,
-                "sparse": True,
-                "coverage": {
-                    "url": f"{metadata_base_url}/tile-coverage.json",
-                    "mediaType": "application/json",
-                    "sha256": _sha256_bytes(coverage_bytes),
-                    "bytes": len(coverage_bytes),
-                },
-                "qualityReport": {
-                    "url": f"{metadata_base_url}/{PUBLISHED_QUALITY_REPORT_NAME}",
-                    "mediaType": "application/json",
-                    "sha256": quality.sha256,
-                    "bytes": quality.byte_length,
-                },
-                "derivation": {
-                    "kind": "cross-shard-seam-stabilization",
-                    "version": str(receipt["stabilizerVersion"]),
-                    "sourceInventorySha256": str(
-                        receipt_identity["sourceInventory"]["logicalSha256"]
-                    ),
-                    "implementationSha256": str(
-                        receipt_identity["implementationSha256"]
-                    ),
-                    "receipt": {
-                        "url": f"{metadata_base_url}/{STABILIZATION_RECEIPT_PATH.as_posix()}",
-                        "mediaType": "application/json",
-                        "sha256": _sha256_bytes(receipt_bytes),
-                        "bytes": len(receipt_bytes),
-                    },
-                },
-                "integrity": {
-                    "tileCount": inventory.tile_count,
-                    "totalBytes": inventory.total_bytes,
-                    "inventorySha256": inventory.inventory_sha256,
-                    "inventoryFileSha256": inventory.inventory_file_sha256,
-                    "provenanceFingerprint": inventory.provenance_fingerprint,
-                    "planFingerprint": inventory.plan_fingerprint,
-                    "profileFingerprint": inventory.profile_fingerprint,
-                    "rendererFingerprint": inventory.renderer_fingerprint,
-                    "productionSourceFingerprint": inventory.production_source_fingerprint,
-                    "assetTreeFingerprint": inventory.asset_tree_fingerprint,
-                    "inputFingerprint": inventory.input_fingerprint,
-                },
-            }
-        ],
+        "tilePyramids": [tile_pyramid],
     }
     return PublishMetadata(
         coverage,

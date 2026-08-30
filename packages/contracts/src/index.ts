@@ -66,6 +66,7 @@ export type {
   TileGridDescriptor,
   TilePyramid,
   TilePyramidIntegrity,
+  TilePyramidPresentation,
   TileSetReference,
   TileYRange,
   ImportReceipt,

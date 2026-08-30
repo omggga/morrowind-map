@@ -12,6 +12,7 @@ from tools.openmw_renderer.publish import ValidatedInventory
 from tools.openmw_renderer import stabilize as stabilization
 from tools.openmw_renderer.stabilize import (
     CrossShardEdge,
+    _binary_alpha_counts,
     _blend_pixel,
     _build_stabilized_pyramid,
     _extract_edges,
@@ -32,6 +33,15 @@ def _pixel(image: RgbaImage, x: int, y: int) -> tuple[int, int, int, int]:
 
 
 class SeamKernelTests(unittest.TestCase):
+    def test_binary_alpha_counts_rejects_neither_sparse_zero_nor_opaque_pixels(self) -> None:
+        image = RgbaImage(
+            3,
+            1,
+            bytes((1, 2, 3, 0, 4, 5, 6, 255, 7, 8, 9, 128)),
+        )
+
+        self.assertEqual(_binary_alpha_counts(image), (1, 1, 1))
+
     def test_immutable_release_publication_never_replaces_existing_empty_root(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -273,6 +283,7 @@ class StabilizationReceiptTests(unittest.TestCase):
                     "boundaryWidthPixels": 1,
                     "kernel": "linear-2:1",
                     "alphaMode": "premultiplied",
+                    "outputAlphaMode": "binary-nonzero",
                     "passes": ["east-west", "north-south"],
                     "nativeZoom": stabilization.NATIVE_ZOOM,
                     "tilePixels": TILE_PIXELS,
@@ -315,7 +326,14 @@ class StabilizationReceiptTests(unittest.TestCase):
                 tile_count=1,
                 total_bytes=len(tile_bytes),
                 tile_entries=(tile_entry,),
-                provenance={"magickVersion": "fixture-magick-v1"},
+                provenance={
+                    "schemaVersion": 2,
+                    "magickVersion": "fixture-magick-v1",
+                    "presentation": {
+                        "gradeVersion": "mim-opaque-v4",
+                        "alphaMode": "binary-nonzero",
+                    },
+                },
                 provenance_fingerprint=provenance_fingerprint,
                 plan_fingerprint=plan_fingerprint,
                 profile_fingerprint="c" * 64,
@@ -340,6 +358,13 @@ class StabilizationReceiptTests(unittest.TestCase):
                     ),
                     "tileCount": inventory.tile_count,
                     "totalBytes": inventory.total_bytes,
+                    "alphaEvidence": {
+                        "mode": "binary-nonzero",
+                        "tilesChecked": 1,
+                        "transparentPixels": 0,
+                        "opaquePixels": TILE_PIXELS * TILE_PIXELS,
+                        "intermediatePixels": 0,
+                    },
                 },
             }
             expected_receipt = stabilization._receipt_with_hash(receipt_core)
@@ -369,6 +394,35 @@ class StabilizationReceiptTests(unittest.TestCase):
 
 
 class NativeTileStabilizationTests(unittest.TestCase):
+    def test_seam_output_normalizes_nonzero_alpha_after_premultiplied_blend(self) -> None:
+        left_tile = native_tile_for_cell((1, 0))
+        right_tile = native_tile_for_cell((2, 0))
+        left = RgbaImage.solid(TILE_PIXELS, TILE_PIXELS, (255, 0, 0, 0))
+        right = RgbaImage.solid(TILE_PIXELS, TILE_PIXELS, (0, 0, 255, 255))
+        edge = CrossShardEdge(left_tile, right_tile, "east")
+        neighbors = border_neighbors((edge,))
+        edges = {
+            left_tile: _extract_edges(left),
+            right_tile: _extract_edges(right),
+        }
+
+        corrected_left = stabilize_native_image(
+            left_tile, left, edges=edges, neighbors=neighbors
+        )
+        corrected_right = stabilize_native_image(
+            right_tile, right, edges=edges, neighbors=neighbors
+        )
+
+        self.assertEqual(_pixel(corrected_left, TILE_PIXELS - 1, 200)[3], 255)
+        self.assertEqual(_pixel(corrected_left, 10, 10)[3], 0)
+        self.assertEqual(_pixel(corrected_right, 0, 200)[3], 255)
+        self.assertTrue(
+            set(corrected_left.pixels[3::4]).issubset({0, 255})
+        )
+        self.assertTrue(
+            set(corrected_right.pixels[3::4]).issubset({0, 255})
+        )
+
     def test_only_documented_boundary_columns_change(self) -> None:
         left_tile = native_tile_for_cell((1, 0))
         right_tile = native_tile_for_cell((2, 0))

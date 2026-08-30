@@ -16,6 +16,8 @@ from tools.openmw_renderer.production import (
     DEFAULT_PRODUCTION_IMAGE,
     DEFAULT_STAGE45_IMAGE,
     NATIVE_ZOOM,
+    PRODUCTION_RENDERER_VERSION,
+    RAW_PIXELS,
     ProductionProvenance,
     SNAPSHOT_ID,
     TileKey,
@@ -35,6 +37,8 @@ from tools.openmw_renderer.production import (
     migrate_resume_state,
     plan_fingerprint,
     plan_native_targets,
+    process_raw_master,
+    production_presentation_contract,
     production_source_fingerprint,
     production_resource_resolution_report,
     read_shard_runtime,
@@ -43,6 +47,7 @@ from tools.openmw_renderer.production import (
     run_native_batch,
     run_openmw_production,
     select_shards,
+    _verified_provenance_fingerprint,
 )
 
 
@@ -121,10 +126,10 @@ def _fixture_provenance(
     return ProductionProvenance(
         fingerprint=fingerprint,
         payload={
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "datasetId": DATASET_ID,
             "snapshotId": SNAPSHOT_ID,
-            "rendererVersion": "openmw-export-production-v1",
+            "rendererVersion": PRODUCTION_RENDERER_VERSION,
             "provenanceFingerprint": fingerprint,
             "profileFingerprint": profile_hash,
             "productionSourceFingerprint": source_hash,
@@ -137,6 +142,7 @@ def _fixture_provenance(
                 "architecture": "amd64",
                 "labels": labels,
             },
+            "presentation": production_presentation_contract(),
             "magickVersion": magick_version,
             "inputAudit": [],
             "assetAudit": {},
@@ -342,6 +348,7 @@ class BatchProcessContractTests(unittest.TestCase):
         self.assertIn('io.morrowind-map.scene-grid="5x5"', dockerfile)
         self.assertIn('io.morrowind-map.rtt-grid="3x3"', dockerfile)
         self.assertIn('io.morrowind-map.stage45-image-id="${STAGE45_IMAGE_ID}"', dockerfile)
+        self.assertIn("production_renderer=openmw-export-production-v2", dockerfile)
         self.assertIn("MWMAP_EXPORT_BATCH_FILE is required", entrypoint)
         self.assertIn("/sys/fs/cgroup/memory.peak", entrypoint)
         self.assertIn('runtime_root="/out/runtime/${MWMAP_EXPORT_BATCH_ID}"', entrypoint)
@@ -357,6 +364,70 @@ class BatchProcessContractTests(unittest.TestCase):
         self.assertIn(f"STAGE45_IMAGE={DEFAULT_STAGE45_IMAGE}", command)
         self.assertIn("STAGE45_IMAGE_ID=unverified", command)
         self.assertIn(f"PRODUCTION_FINGERPRINT={source_hash}", command)
+
+    def test_v4_presentation_contract_is_explicit_and_fingerprint_bound(self) -> None:
+        expected = {
+            "gradeVersion": "mim-opaque-v4",
+            "grade": {
+                "brightnessPercent": 114,
+                "contrastPercent": 102,
+                "saturationPercent": 92,
+            },
+            "alphaMode": "binary-nonzero",
+        }
+        arguments = {
+            "profile_fingerprint": FINGERPRINT_A,
+            "production_source_fingerprint_value": FINGERPRINT_B,
+            "image_id": "sha256:" + "1" * 64,
+            "magick_version": "ImageMagick fixture",
+        }
+
+        first = execution_provenance_fingerprint(**arguments)
+        with patch(
+            "tools.openmw_renderer.production.PRODUCTION_GRADE_VERSION",
+            "mim-opaque-v4-tampered",
+        ):
+            changed = execution_provenance_fingerprint(**arguments)
+
+        self.assertEqual(PRODUCTION_RENDERER_VERSION, "openmw-export-production-v2")
+        self.assertEqual(production_presentation_contract(), expected)
+        self.assertNotEqual(first, changed)
+
+    def test_v4_provenance_rejects_wrong_identity_fields(self) -> None:
+        provenance = _fixture_provenance(FINGERPRINT_B, "1")
+        self.assertEqual(
+            _verified_provenance_fingerprint(provenance.payload),
+            provenance.fingerprint,
+        )
+
+        invalid_values = {
+            "schemaVersion": 999,
+            "datasetId": "wrong-dataset",
+            "snapshotId": "wrong-snapshot",
+            "rendererVersion": "wrong-renderer",
+            "openmwCommit": "wrong-commit",
+        }
+        for key, invalid in invalid_values.items():
+            with self.subTest(key=key):
+                payload = dict(provenance.payload)
+                payload[key] = invalid
+                with self.assertRaisesRegex(ValueError, key):
+                    _verified_provenance_fingerprint(payload)
+
+    def test_raw_master_applies_v4_grade_once_and_binary_alpha(self) -> None:
+        raw = RgbaImage.solid(RAW_PIXELS, RAW_PIXELS, (100, 150, 200, 109))
+        with tempfile.TemporaryDirectory() as directory:
+            raw_path = Path(directory) / "raw.png"
+            raw_path.write_bytes(b"fixture")
+            with patch(
+                "tools.openmw_renderer.production.decode_texture",
+                return_value=raw,
+            ):
+                native = process_raw_master(raw_path)
+
+        self.assertEqual((native.width, native.height), (512, 512))
+        self.assertEqual(native.pixel(0, 0), (117, 170, 223, 255))
+        self.assertEqual(native.pixel(511, 511), (117, 170, 223, 255))
 
     def test_runtime_evidence_requires_numeric_cgroup_peak_and_success(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -816,6 +887,12 @@ class PyramidAndInventoryTests(unittest.TestCase):
         sparse = compose_parent({(0, 0): RgbaImage.solid(512, 512, (12, 34, 56, 255))})
         self.assertEqual(sparse.pixel(100, 100), (12, 34, 56, 255))
         self.assertEqual(sparse.pixel(400, 400), (0, 0, 0, 0))
+
+        translucent = compose_parent(
+            {(0, 0): RgbaImage.solid(512, 512, (12, 34, 56, 1))}
+        )
+        self.assertEqual(translucent.pixel(100, 100), (12, 34, 56, 255))
+        self.assertEqual(translucent.pixel(400, 400), (0, 0, 0, 0))
 
     def test_lower_zoom_floor_groups_negative_xyz_children(self) -> None:
         child_colors = {

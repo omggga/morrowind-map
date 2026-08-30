@@ -275,6 +275,12 @@ export interface TilePyramidDerivation {
   receipt: ArtifactReference;
 }
 
+export interface TilePyramidPresentation {
+  gradeVersion: "mim-opaque-v4";
+  alphaMode: "binary-nonzero";
+  colorGrade: "baked";
+}
+
 export interface TilePyramid {
   id: string;
   regionIds: string[];
@@ -292,6 +298,7 @@ export interface TilePyramid {
   qualityReport: ArtifactReference;
   derivation: TilePyramidDerivation;
   integrity: TilePyramidIntegrity;
+  presentation?: TilePyramidPresentation;
 }
 
 export interface MapAssetsManifest {

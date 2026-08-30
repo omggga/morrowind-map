@@ -4,8 +4,14 @@ import unittest
 
 from tools.land_renderer.terrain import RgbaImage
 from tools.openmw_renderer.images import (
+    DEFAULT_GRADE,
+    GRADE_VERSION,
+    PRODUCTION_ALPHA_MODE,
+    PRODUCTION_GRADE,
+    PRODUCTION_GRADE_VERSION,
     GradeStyle,
     apply_grade,
+    normalize_binary_alpha,
     pixel_difference,
     seam_overlap,
 )
@@ -21,7 +27,7 @@ def grid_image(rows: list[list[int]]) -> RgbaImage:
 
 
 class GradeTests(unittest.TestCase):
-    def test_default_grade_has_exact_deterministic_pixels_and_preserves_alpha(self) -> None:
+    def test_legacy_default_grade_has_exact_deterministic_pixels_and_preserves_alpha(self) -> None:
         source = RgbaImage(
             3,
             1,
@@ -35,6 +41,56 @@ class GradeTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(first.pixels, expected)
         self.assertEqual((first.width, first.height), (3, 1))
+        self.assertEqual(GRADE_VERSION, "mim-muted-v1")
+        self.assertEqual(DEFAULT_GRADE, GradeStyle(104, 108, 92))
+
+    def test_production_v4_grade_has_exact_single_pass_pixels(self) -> None:
+        source = RgbaImage(
+            3,
+            1,
+            bytes((100, 150, 200, 17, 0, 0, 0, 99, 255, 255, 255, 201)),
+        )
+
+        graded = apply_grade(source, PRODUCTION_GRADE)
+
+        self.assertEqual(
+            graded.pixels,
+            bytes((117, 170, 223, 17, 0, 0, 0, 99, 255, 255, 255, 201)),
+        )
+        self.assertEqual(PRODUCTION_GRADE_VERSION, "mim-opaque-v4")
+        self.assertEqual(PRODUCTION_GRADE, GradeStyle(114, 102, 92))
+
+    def test_binary_alpha_preserves_rgb_and_transparent_sparse_holes(self) -> None:
+        source = RgbaImage(
+            4,
+            1,
+            bytes(
+                (
+                    10, 20, 30, 0,
+                    40, 50, 60, 1,
+                    70, 80, 90, 109,
+                    100, 110, 120, 255,
+                )
+            ),
+        )
+
+        opaque = normalize_binary_alpha(source)
+
+        self.assertEqual(
+            opaque.pixels,
+            bytes(
+                (
+                    10, 20, 30, 0,
+                    40, 50, 60, 255,
+                    70, 80, 90, 255,
+                    100, 110, 120, 255,
+                )
+            ),
+        )
+        self.assertEqual(
+            PRODUCTION_ALPHA_MODE,
+            "binary-nonzero",
+        )
 
     def test_grade_style_rejects_percentages_outside_supported_range(self) -> None:
         invalid_styles = (

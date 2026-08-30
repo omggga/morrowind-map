@@ -276,6 +276,39 @@ describe("generated dataset artifact contracts", () => {
     expect(coverage.tileCount).toBe(assets.tilePyramids?.[0]?.integrity.tileCount);
   });
 
+  it("accepts an explicit baked V4 presentation while keeping legacy pyramids valid", () => {
+    const legacy = parseMapAssetsManifest(sparseMapAssetsFixture());
+    const bakedSource = sparseMapAssetsFixture();
+    Object.assign(bakedSource.tilePyramids[0]!, {
+      presentation: {
+        gradeVersion: "mim-opaque-v4",
+        alphaMode: "binary-nonzero",
+        colorGrade: "baked",
+      },
+    });
+    const baked = parseMapAssetsManifest(bakedSource);
+
+    expect(legacy.tilePyramids?.[0]?.presentation).toBeUndefined();
+    expect(baked.tilePyramids?.[0]?.presentation).toEqual({
+      gradeVersion: "mim-opaque-v4",
+      alphaMode: "binary-nonzero",
+      colorGrade: "baked",
+    });
+  });
+
+  it("rejects an unrecognized baked presentation contract", () => {
+    const source = sparseMapAssetsFixture();
+    Object.assign(source.tilePyramids[0]!, {
+      presentation: {
+        gradeVersion: "mim-opaque-v4",
+        alphaMode: "preserve",
+        colorGrade: "baked",
+      },
+    });
+
+    expect(() => parseMapAssetsManifest(source)).toThrow(ContractValidationError);
+  });
+
   it("requires at least one raster or tile pyramid", () => {
     const invalid = sparseMapAssetsFixture();
     invalid.tilePyramids = [];

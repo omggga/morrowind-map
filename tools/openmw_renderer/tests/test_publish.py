@@ -20,9 +20,12 @@ from tools.openmw_renderer.production import (
     cell_for_native_tile,
     execution_provenance_fingerprint,
     plan_report,
+    production_presentation_contract,
 )
 from tools.openmw_renderer.publish import (
     EXPECTED_AUDIT_VERSION,
+    LEGACY_AUDIT_IMPLEMENTATION_SHA256,
+    LEGACY_AUDIT_VERSION,
     MANDATORY_QUALITY_GATES,
     PUBLISHED_QUALITY_REPORT_NAME,
     TILE_PYRAMID_ID,
@@ -117,7 +120,35 @@ def _sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _fixture(root: Path, *, with_quality: bool = True) -> dict[str, object]:
+def _legacy_provenance_fingerprint(provenance: dict[str, object]) -> str:
+    image = provenance["image"]
+    assert isinstance(image, dict)
+    return _sha256(
+        _canonical(
+            {
+                "datasetId": DATASET_ID,
+                "snapshotId": SNAPSHOT_ID,
+                "rendererVersion": "openmw-export-production-v1",
+                "profileFingerprint": provenance["profileFingerprint"],
+                "productionSourceFingerprint": provenance[
+                    "productionSourceFingerprint"
+                ],
+                "openmwCommit": OPENMW_COMMIT,
+                "imageId": image["id"],
+                "imageRepoDigests": sorted(set(image["repoDigests"])),
+                "gradeVersion": "mim-muted-v1",
+                "magickVersion": provenance["magickVersion"],
+            }
+        )
+    )
+
+
+def _fixture(
+    root: Path,
+    *,
+    with_quality: bool = True,
+    v4: bool = True,
+) -> dict[str, object]:
     tiles = []
     for z, x, y in FIXTURE_COORDINATES:
         payload = f"fixture-webp-{z}-{x}-{y}".encode("ascii")
@@ -138,10 +169,14 @@ def _fixture(root: Path, *, with_quality: bool = True) -> dict[str, object]:
     asset_audit = {"fixture-assets": {"bytes": 10, "files": 2, "sha256": "a" * 64}}
     input_audit = {"fixture": {"sha256": "b" * 64}}
     provenance = {
-        "schemaVersion": 1,
+        "schemaVersion": 2 if v4 else 1,
         "datasetId": DATASET_ID,
         "snapshotId": SNAPSHOT_ID,
-        "rendererVersion": "fixture-renderer-v1",
+        "rendererVersion": (
+            "openmw-export-production-v2"
+            if v4
+            else "openmw-export-production-v1"
+        ),
         "openmwCommit": OPENMW_COMMIT,
         "profileFingerprint": FINGERPRINTS["profile"],
         "productionSourceFingerprint": FINGERPRINTS["production"],
@@ -156,13 +191,19 @@ def _fixture(root: Path, *, with_quality: bool = True) -> dict[str, object]:
         "assetAudit": asset_audit,
         "inputAudit": input_audit,
     }
-    provenance["provenanceFingerprint"] = execution_provenance_fingerprint(
-        profile_fingerprint=FINGERPRINTS["profile"],
-        production_source_fingerprint_value=FINGERPRINTS["production"],
-        image_id=str(provenance["image"]["id"]),  # type: ignore[index]
-        image_repo_digests=list(provenance["image"]["repoDigests"]),  # type: ignore[index]
-        magick_version=str(provenance["magickVersion"]),
-    )
+    if v4:
+        provenance["presentation"] = production_presentation_contract()
+        provenance["provenanceFingerprint"] = execution_provenance_fingerprint(
+            profile_fingerprint=FINGERPRINTS["profile"],
+            production_source_fingerprint_value=FINGERPRINTS["production"],
+            image_id=str(provenance["image"]["id"]),  # type: ignore[index]
+            image_repo_digests=list(provenance["image"]["repoDigests"]),  # type: ignore[index]
+            magick_version=str(provenance["magickVersion"]),
+        )
+    else:
+        provenance["provenanceFingerprint"] = _legacy_provenance_fingerprint(
+            provenance
+        )
     provenance_bytes = _write_json(root / "provenance.json", provenance)
     plan_bytes = _write_json(root / "plan.json", FIXTURE_PLAN)
 
@@ -198,6 +239,7 @@ def _fixture(root: Path, *, with_quality: bool = True) -> dict[str, object]:
             "boundaryWidthPixels": 1,
             "kernel": "linear-2:1",
             "alphaMode": "premultiplied",
+            **({"outputAlphaMode": "binary-nonzero"} if v4 else {}),
             "passes": ["east-west", "north-south"],
             "nativeZoom": 7,
             "tilePixels": 512,
@@ -239,11 +281,22 @@ def _fixture(root: Path, *, with_quality: bool = True) -> dict[str, object]:
         },
     }
     stabilization_fingerprint = _sha256(_canonical(stabilization_identity))
+    alpha_evidence = {
+        "mode": "binary-nonzero",
+        "tilesChecked": len(tiles),
+        "transparentPixels": 0,
+        "opaquePixels": len(tiles) * 512 * 512,
+        "intermediatePixels": 0,
+    }
     receipt_core = {
-        "schemaVersion": 2,
+        "schemaVersion": 3 if v4 else 2,
         "datasetId": DATASET_ID,
         "snapshotId": SNAPSHOT_ID,
-        "stabilizerVersion": "cross-shard-linear-feather-v1",
+        "stabilizerVersion": (
+            "cross-shard-linear-feather-binary-alpha-v2"
+            if v4
+            else "cross-shard-linear-feather-v1"
+        ),
         "stabilizationFingerprint": stabilization_fingerprint,
         "identity": stabilization_identity,
         "output": {
@@ -252,6 +305,7 @@ def _fixture(root: Path, *, with_quality: bool = True) -> dict[str, object]:
             "nativeAggregateSha256": "0" * 64,
             "tileCount": len(tiles),
             "totalBytes": inventory["totalBytes"],
+            **({"alphaEvidence": alpha_evidence} if v4 else {}),
         },
     }
     receipt = dict(receipt_core)
@@ -281,10 +335,12 @@ def _fixture(root: Path, *, with_quality: bool = True) -> dict[str, object]:
                 "bytes": len(payload),
             }
         report_core = {
-            "schemaVersion": 1,
+            "schemaVersion": 2 if v4 else 1,
             "datasetId": DATASET_ID,
             "snapshotId": SNAPSHOT_ID,
-            "auditVersion": EXPECTED_AUDIT_VERSION,
+            "auditVersion": (
+                EXPECTED_AUDIT_VERSION if v4 else LEGACY_AUDIT_VERSION
+            ),
             "identity": {
                 "inventorySha256": inventory["inventorySha256"],
                 "inventoryFileSha256": _sha256(inventory_bytes),
@@ -302,8 +358,14 @@ def _fixture(root: Path, *, with_quality: bool = True) -> dict[str, object]:
                 "stabilizationReceiptFileSha256": _sha256(receipt_bytes),
                 "stabilizerImplementationSha256": FIXTURE_STABILIZER_IMPLEMENTATION,
                 "sourceInventorySha256": inventory["inventorySha256"],
-                "auditImplementationSha256": _sha256(
-                    Path(publish_module.__file__).with_name("audit.py").read_bytes()
+                "auditImplementationSha256": (
+                    _sha256(
+                        Path(publish_module.__file__)
+                        .with_name("audit.py")
+                        .read_bytes()
+                    )
+                    if v4
+                    else LEGACY_AUDIT_IMPLEMENTATION_SHA256
                 ),
             },
             "scope": dict(FIXTURE_QUALITY_SCOPE),
@@ -314,6 +376,17 @@ def _fixture(root: Path, *, with_quality: bool = True) -> dict[str, object]:
                     "totalBytes": inventory["totalBytes"],
                     "decoded512Rgba": len(tiles),
                     "nonemptyTiles": len(tiles),
+                    **(
+                        {
+                            "alphaMode": "binary-nonzero",
+                            "binaryAlphaTiles": len(tiles),
+                            "alphaTransparentPixels": 0,
+                            "alphaOpaquePixels": len(tiles) * 512 * 512,
+                            "alphaIntermediatePixels": 0,
+                        }
+                        if v4
+                        else {}
+                    ),
                     "inventorySha256": inventory["inventorySha256"],
                     "inventoryFileSha256": _sha256(inventory_bytes),
                 },
@@ -336,6 +409,14 @@ def _fixture(root: Path, *, with_quality: bool = True) -> dict[str, object]:
                     "afterRgbaMismatches": 0,
                     "mismatchExamples": [],
                     "beforeRgbaValidation": "format-and-receipt-bound",
+                    **(
+                        {
+                            "alphaEvidence": alpha_evidence,
+                            "alphaEvidenceMatchesTiles": True,
+                        }
+                        if v4
+                        else {}
+                    ),
                 },
                 "stateAndMigrations": {
                     "passes": True,
@@ -517,6 +598,55 @@ class CoverageTests(unittest.TestCase):
     new=_fixture_validated_stabilization,
 )
 class ValidationTests(unittest.TestCase):
+    def test_v4_publication_declares_baked_presentation_and_legacy_omits_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            v4_root = root / "v4"
+            legacy_root = root / "legacy"
+            _fixture(v4_root)
+            _fixture(legacy_root, v4=False)
+
+            v4 = build_publish_metadata(v4_root, validate_source(v4_root))
+            legacy = build_publish_metadata(
+                legacy_root,
+                validate_source(legacy_root),
+            )
+
+        self.assertEqual(
+            v4.map_assets["tilePyramids"][0]["presentation"],
+            {
+                "gradeVersion": "mim-opaque-v4",
+                "alphaMode": "binary-nonzero",
+                "colorGrade": "baked",
+            },
+        )
+        self.assertNotIn("presentation", legacy.map_assets["tilePyramids"][0])
+
+    def test_v4_quality_rejects_intermediate_alpha_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _fixture(root)
+            inventory = validate_source(root)
+            report_path = root / "quality-audit" / "report.json"
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            report["gates"]["inventory"]["alphaIntermediatePixels"] = 1
+            report["auditSha256"] = _sha256(
+                _canonical(
+                    {
+                        key: value
+                        for key, value in report.items()
+                        if key != "auditSha256"
+                    }
+                )
+            )
+            _write_json(report_path, report)
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "inventory.alphaIntermediatePixels",
+            ):
+                validate_quality_report(root, inventory)
+
     def test_validate_source_does_not_require_quality_report(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -665,7 +795,7 @@ class ValidationTests(unittest.TestCase):
             _fixture(root)
             provenance_path = root / "provenance.json"
             provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-            provenance["rendererVersion"] = "tampered-after-audit"
+            provenance["auditTamper"] = True
             _write_json(provenance_path, provenance)
             inventory = validate_source(root)
             with self.assertRaisesRegex(

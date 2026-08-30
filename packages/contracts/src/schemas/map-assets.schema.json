@@ -172,6 +172,16 @@
         "receipt": { "$ref": "#/$defs/jsonArtifact" }
       }
     },
+    "tilePyramidPresentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gradeVersion", "alphaMode", "colorGrade"],
+      "properties": {
+        "gradeVersion": { "const": "mim-opaque-v4" },
+        "alphaMode": { "const": "binary-nonzero" },
+        "colorGrade": { "const": "baked" }
+      }
+    },
     "tilePyramid": {
       "type": "object",
       "additionalProperties": false,
@@ -223,7 +233,8 @@
         "coverage": { "$ref": "#/$defs/jsonArtifact" },
         "qualityReport": { "$ref": "#/$defs/jsonArtifact" },
         "derivation": { "$ref": "#/$defs/tilePyramidDerivation" },
-        "integrity": { "$ref": "#/$defs/tilePyramidIntegrity" }
+        "integrity": { "$ref": "#/$defs/tilePyramidIntegrity" },
+        "presentation": { "$ref": "#/$defs/tilePyramidPresentation" }
       }
     }
   }

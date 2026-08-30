@@ -11,7 +11,7 @@ RUN git -C /src/openmw apply --check /tmp/openmw-map-export-batch.patch \
 
 ARG PRODUCTION_FINGERPRINT=unversioned
 RUN { \
-        printf 'production_renderer=openmw-export-production-v1\n'; \
+        printf 'production_renderer=openmw-export-production-v2\n'; \
         printf 'production_fingerprint=%s\n' "${PRODUCTION_FINGERPRINT}"; \
         printf 'production_scene_grid=5x5\n'; \
         printf 'production_rtt_grid=3x3\n'; \

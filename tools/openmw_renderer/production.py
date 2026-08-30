@@ -25,7 +25,13 @@ from tools.land_renderer.tiles import (
     POISON_SONG_TILE_GRID,
     TES3_CELL_SIZE,
 )
-from tools.openmw_renderer.images import GRADE_VERSION, apply_grade
+from tools.openmw_renderer.images import (
+    PRODUCTION_ALPHA_MODE,
+    PRODUCTION_GRADE,
+    PRODUCTION_GRADE_VERSION,
+    apply_grade,
+    normalize_binary_alpha,
+)
 from tools.openmw_renderer.profile import (
     CONTENT_FILES,
     DATA_DIRECTORIES,
@@ -54,7 +60,7 @@ SNAPSHOT_ID = "tr:poison-song-26.08:6964517551e0fcb0"
 PINNED_PROFILE_FINGERPRINT = (
     "57ac91859cd48cf6a511b8300782c77d2205d431fe1106244c6fc84da1e7850c"
 )
-PRODUCTION_RENDERER_VERSION = "openmw-export-production-v1"
+PRODUCTION_RENDERER_VERSION = "openmw-export-production-v2"
 CHECKPOINT_SCHEMA_VERSION = 1
 INVENTORY_SCHEMA_VERSION = 1
 NATIVE_ZOOM = CELL_REFERENCE_ZOOM
@@ -257,6 +263,20 @@ def production_source_fingerprint(repo_root: Path) -> str:
     return digest.hexdigest()
 
 
+def production_presentation_contract() -> dict[str, object]:
+    """Return the exact baked presentation applied to every production tile."""
+
+    return {
+        "gradeVersion": PRODUCTION_GRADE_VERSION,
+        "grade": {
+            "brightnessPercent": PRODUCTION_GRADE.brightness_percent,
+            "contrastPercent": PRODUCTION_GRADE.contrast_percent,
+            "saturationPercent": PRODUCTION_GRADE.saturation_percent,
+        },
+        "alphaMode": PRODUCTION_ALPHA_MODE,
+    }
+
+
 def execution_provenance_fingerprint(
     *,
     profile_fingerprint: str,
@@ -290,7 +310,7 @@ def execution_provenance_fingerprint(
         "openmwCommit": OPENMW_COMMIT,
         "imageId": image_id,
         "imageRepoDigests": sorted(set(image_repo_digests)),
-        "gradeVersion": GRADE_VERSION,
+        "presentation": production_presentation_contract(),
         "magickVersion": magick_version,
     }
     return _sha256_bytes(_canonical_json_bytes(payload))
@@ -416,7 +436,7 @@ def resolve_production_provenance(
         magick_version=magick_provenance,
     )
     payload: dict[str, object] = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "datasetId": DATASET_ID,
         "snapshotId": SNAPSHOT_ID,
         "rendererVersion": PRODUCTION_RENDERER_VERSION,
@@ -432,6 +452,7 @@ def resolve_production_provenance(
             "architecture": image_info.architecture,
             "labels": dict(sorted(image_info.labels.items())),
         },
+        "presentation": production_presentation_contract(),
         "magickVersion": magick_provenance,
         "inputAudit": input_audit,
         "assetAudit": asset_audit,
@@ -899,6 +920,19 @@ def _read_json_object(path: Path, label: str) -> tuple[bytes, dict[str, object]]
 
 
 def _verified_provenance_fingerprint(value: Mapping[str, object]) -> str:
+    expected_identity: dict[str, object] = {
+        "schemaVersion": 2,
+        "datasetId": DATASET_ID,
+        "snapshotId": SNAPSHOT_ID,
+        "rendererVersion": PRODUCTION_RENDERER_VERSION,
+        "openmwCommit": OPENMW_COMMIT,
+    }
+    for key, expected in expected_identity.items():
+        if value.get(key) != expected:
+            raise ValueError(
+                f"Production provenance {key} must be {expected!r}, "
+                f"got {value.get(key)!r}"
+            )
     image = value.get("image")
     if not isinstance(image, dict):
         raise ValueError("Production provenance image must be an object")
@@ -915,6 +949,8 @@ def _verified_provenance_fingerprint(value: Mapping[str, object]) -> str:
         isinstance(item, str) for item in repo_digests
     ):
         raise ValueError("Production provenance image repo digests are invalid")
+    if value.get("presentation") != production_presentation_contract():
+        raise ValueError("Production provenance presentation contract is invalid")
     computed = execution_provenance_fingerprint(
         profile_fingerprint=profile_hash,
         production_source_fingerprint_value=source_hash,
@@ -940,6 +976,7 @@ def _validate_resume_provenance_compatibility(
         "rendererVersion",
         "openmwCommit",
         "magickVersion",
+        "presentation",
         "inputAudit",
         "assetAudit",
     ):
@@ -1282,7 +1319,7 @@ def process_raw_master(raw_path: Path, *, magick: str = "magick") -> RgbaImage:
             f"{raw.width}x{raw.height}: {raw_path}"
         )
     native = raw.crop(GUTTER_PIXELS, GUTTER_PIXELS, TILE_PIXELS, TILE_PIXELS)
-    return apply_grade(native)
+    return normalize_binary_alpha(apply_grade(native, PRODUCTION_GRADE))
 
 
 def production_resource_resolution_report(
@@ -1668,7 +1705,9 @@ def compose_parent(children: Mapping[tuple[int, int], RgbaImage]) -> RgbaImage:
             parent[target_offset : target_offset + row_bytes] = half.pixels[
                 source_offset : source_offset + row_bytes
             ]
-    return RgbaImage(TILE_PIXELS, TILE_PIXELS, bytes(parent))
+    return normalize_binary_alpha(
+        RgbaImage(TILE_PIXELS, TILE_PIXELS, bytes(parent))
+    )
 
 
 def _default_webp_reader(path: Path, *, magick: str) -> RgbaImage:

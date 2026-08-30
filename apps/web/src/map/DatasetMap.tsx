@@ -55,6 +55,7 @@ import {
   BASEMAP_CONTRAST_FACTOR,
   createOverscaledViewResolutions,
   loadOpaqueImageTile,
+  requiresRuntimeBasemapAdjustment,
 } from './basemapPresentation';
 import {
   SparseTileCoverageIndex,
@@ -559,17 +560,20 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
       }
       const tileGrid = createTes3TileGrid(pyramid);
       const coverageIndex = new SparseTileCoverageIndex(coverage);
+      const runtimeAdjustment = requiresRuntimeBasemapAdjustment(pyramid);
       const source = new XYZ({
         projection,
         tileGrid,
         tileUrlFunction: createSparseTileUrlFunction(pyramid, coverage),
-        tileLoadFunction: loadOpaqueImageTile,
+        ...(runtimeAdjustment ? { tileLoadFunction: loadOpaqueImageTile } : {}),
         wrapX: false,
         interpolate: true,
         transition: 0,
       });
       const layer = new TileLayer({
-        className: 'ol-layer dataset-basemap-layer',
+        className: runtimeAdjustment
+          ? 'ol-layer dataset-basemap-layer dataset-basemap-layer--runtime-adjusted'
+          : 'ol-layer dataset-basemap-layer',
         source,
         extent: [...pyramid.extent],
       });
