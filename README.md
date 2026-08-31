@@ -1,16 +1,15 @@
 # Morrowind Map
 
-Локальная интерактивная карта Morrowind с тремя независимыми версиями мира:
+Локальная интерактивная карта Morrowind с ровно двумя независимыми EN-only картами:
 
-1. Original Morrowind + Tribunal + Bloodmoon — EN/RU.
-2. Fullrest / Tamriel Rebuilt 25.08 (Grasping Fortune) — EN/RU.
-3. Tamriel Rebuilt 26.08 (Poison Song) — EN.
+1. **Original GOTY HD** — только английские `Morrowind.esm`, `Tribunal.esm`, `Bloodmoon.esm` и одноимённые BSA; Tamriel Data / Tamriel Rebuilt / Fullrest в этот profile не подключаются.
+2. **Tamriel Rebuilt 26.08 (Poison Song V4)** — существующий готовый release, который остаётся immutable и не перерендеривается.
 
-Original уже поддерживает локальные MIM-растры Vvardenfell и Solstheim, 1 010 мест из MIM/ESM, EN/RU, поиск, zoom/pan, MIM-цвета статусов `unvisited` / `active` / `visited`, заметки и личные квадратные маркеры. Прогресс хранится локально в IndexedDB через Dexie и жёстко привязан к snapshot; доступны однократный импорт текущего MIM snapshot и общий переносимый JSON backup v2/import со строгой проверкой совместимости и чтением ранних v1-копий.
+Старый Original на MIM-растровой подложке с EN/RU каталогом и MIM import был завершён в исторических Stage 2–3, но теперь superseded. Новый Original получит scene-rendered HD pyramid для Vvardenfell + Solstheim и generic EN catalog `1 036` places / `1 205` entrances. Mournhold не приклеивается к world LAND: для него после основной карты планируется отдельный inset/submap с локальными координатами.
 
-Текущий статус: **Этап 5 завершён на 100% (5.1–5.6)**. Pinned headless OpenMW pipeline построил `3 984` native tiles, после cross-shard stabilization — полную quality-first V4 sparse lossless WebP pyramid `z0…z7`: `5 464` tiles, `1 703 000 992` bytes, inventory `93758a5e…`. Full audit `9dea3294…` проверил декодирование каждого tile, все `10 467` соседств, точное происхождение всех `1 480` lower-zoom tiles, `492` runtime resource reports, `0 px` coordinate error и независимый raw rerender `32` cells; все release gates прошли. Generic TES3 catalog pipeline поверх exact load order выпустил `4 085` places и `4 902` entrances с stable IDs, EN names, types, regions и deterministic audit. Poison Song `ready` manifest активирует V4; immutable V1 сохранён как rollback, Fullrest пока остаётся placeholder.
+Текущий статус: **Этап 5 завершён на 100% (5.1–5.6)**. Pinned headless OpenMW pipeline построил для Poison Song `3 984` native tiles, после cross-shard stabilization — полную quality-first V4 sparse lossless WebP pyramid `z0…z7`: `5 464` tiles, `1 703 000 992` bytes, inventory `93758a5e…`. Full audit `9dea3294…` проверил декодирование каждого tile, все `10 467` соседств, точное происхождение всех `1 480` lower-zoom tiles, `492` runtime resource reports, `0 px` coordinate error и независимый raw rerender `32` cells; все release gates прошли. Generic TES3 catalog pipeline выпустил `4 085` places и `4 902` entrances. Poison Song V4 теперь является immutable regression baseline. Прежний Fullrest Stage 6 снят; новый Stage 6 посвящён Original GOTY HD.
 
-Browser runtime теперь использует единые `DatasetMap` и dataset loader. Original по-прежнему показывает MIM-подложки через OpenLayers `ImageStatic`, а Poison Song — собственную WebP pyramid через `TileLayer` и явную TES3 tile grid с top-left XYZ. Sparse coverage проверяется до построения URL, поэтому отсутствующие в inventory tiles не вызывают HTTP-запросы. Каталог и все объявленные manifest-ом локали загружаются динамически; интерфейс различает отсутствие подготовленного локального dataset, текущую загрузку и ошибку с возможностью retry.
+Browser runtime использует единые `DatasetMap` и dataset loader. Poison Song уже работает через `TileLayer` и явную TES3 tile grid с top-left XYZ. Stage 6 переводит Original с исторического `ImageStatic` MIM adapter на тот же tile runtime: подтверждённый scope — `1 540` LAND cells, `198` render shards и `2 114` lossless WebP tiles `z0…z7`.
 
 Stage 5.6 закреплён pinned Playwright/Chromium acceptance. Default suite запрещает любой non-loopback traffic и проверяет painted WebP canvas, поиск, статусы, заметки, личные маркеры, reload persistence, zoom/pan, missing dataset и восстановление после ошибок metadata/tile. Отдельный local-only `@prepared` gate загружает настоящий ignored V4 catalog (`4 085` places) и реальные tiles.
 
@@ -24,15 +23,18 @@ Generic catalog pipeline и audit: [docs/stage5-catalog.md](docs/stage5-catalog.
 
 Игровые BSA/ESM/ESP, mod assets, исходные растры и сгенерированные datasets не хранятся в Git. Репозиторий содержит код, JSON schemas, manifests без игровых данных, документацию и синтетические тестовые fixtures.
 
-Original собирается локальным offline pipeline из соседнего `../morr-dev`:
+Новый Original собирается локальным offline pipeline из соседнего `../morr-dev/bsa` строго из шести allowlisted inputs:
 
-- `bsa/*.esm` — английские GOTY masters;
-- `game/Data Files/*.{cel,mrk,top}` — русские словари;
-- `Maps/mim_morrowind` и `Maps/mim_bloodmoon` — MIM-каталоги и растры.
+- `Morrowind.esm`, `Tribunal.esm`, `Bloodmoon.esm`;
+- `Morrowind.bsa`, `Tribunal.bsa`, `Bloodmoon.bsa`.
 
-Pipeline проверяет pinned SHA-256 masters, извлекает внешние входы из ESM и пишет ignored-артефакты в `apps/web/public/datasets/generated/original-goty`. Bloodmoon JPEG привязан к точной LAND-сетке; для редких MIM-only точек используется документированная калибровка по 55 входам. Тот же pipeline fail-closed сопоставляет `user.gdb` с `mwmain.gdb` по региону и ordinal и формирует MIM snapshot: 933 статуса (741 visited, 192 unvisited), одну заметку и 6 personal markers.
+Profile/audit должен fail closed при обнаружении Tamriel Data, Tamriel Rebuilt, Fullrest assets или иных data paths. Pipeline использует proven Poison renderer mechanics, но отдельные profile/checkpoint/release roots; Poison V4 bytes и hashes не изменяются. Original применяет те же V4 presentation rules: native `512×512`, grade `114/102/92`, binary alpha, opaque water, stabilization/seam audit и view-only `1.1×` overscale.
 
-Повторный импорт того же MIM snapshot является no-op. Более поздние ручные изменения не перезаписываются новым MIM import, а удалённые импортированные markers сохраняются как tombstones и не появляются снова.
+Cleanup удаляет из активного продукта Fullrest placeholder/profile, MIM raster/catalog/import и RU locale/UI paths. Старую IndexedDB не очищаем и не мигрируем разрушительно: приложение переходит на новый logical user-data epoch для двух активных карт, не меняя identity готового Poison dataset, а старые MIM/Fullrest/RU records остаются физически инертными и не показываются в UI. Общий JSON backup/import сохраняется и работает только с Original GOTY HD и Poison Song V4 текущего epoch.
+
+### Original GOTY HD — Stage 6
+
+Работа идёт в фиксированном порядке: сначала freeze/hash gate Poison V4, затем cleanup Fullrest/MIM/RU и новый logical IndexedDB user-data epoch, после этого isolated Original profile, smoke на Balmora/Vivec/Ald’ruhn/Seyda Neen/Solstheim, production render `1 540` native cells в `198` shards, finalize/stabilize/audit/publish `2 114` tiles и публикация EN catalog `1 036 / 1 205`. Последним шагом Original подключается к общему tile runtime и проходит two-map real-browser acceptance. Mournhold остаётся отдельным следующим этапом и не блокирует Vvardenfell + Solstheim release.
 
 LAND renderer spike воспроизводится отдельно из Poison Song 26.08, Tamriel Data 26.08 и трёх vanilla BSA. Требуется ImageMagick 7; ESM/BSA и generated renders остаются вне Git:
 
