@@ -22,6 +22,7 @@ import ImageLayer from 'ol/layer/Image.js';
 import TileLayer from 'ol/layer/Tile.js';
 import VectorLayer from 'ol/layer/Vector.js';
 import { unByKey } from 'ol/Observable.js';
+import type Tile from 'ol/Tile.js';
 import ImageStatic from 'ol/source/ImageStatic.js';
 import VectorSource from 'ol/source/Vector.js';
 import XYZ from 'ol/source/XYZ.js';
@@ -350,7 +351,7 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
   const targetRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<Map | null>(null);
-  const tileSourcesRef = useRef<XYZ[]>([]);
+  const failedTilesRef = useRef(new Set<Tile>());
   const markerLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const customMarkerLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const selectedIdRef = useRef<string | null>(null);
@@ -541,6 +542,7 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
       return undefined;
     }
 
+    const failedTiles = failedTilesRef.current;
     const projection = configureTes3Projection(extent);
     const rasterLayers = bundle.mapAssets.rasters.map(
       (raster) =>
@@ -580,19 +582,21 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
       return { coverageIndex, layer, pyramid, source, tileGrid };
     });
     const tileSources = pyramidContexts.map(({ source }) => source);
-    tileSourcesRef.current = tileSources;
+    failedTiles.clear();
     setBasemapState({ pending: 0, failures: 0, missing: false });
     const tileEventKeys = tileSources.flatMap((source) => [
       source.on('tileloadstart', () => {
         setBasemapState((current) => ({ ...current, pending: current.pending + 1 }));
       }),
-      source.on('tileloadend', () => {
+      source.on('tileloadend', (event) => {
+        failedTiles.delete(event.tile);
         setBasemapState((current) => ({
           ...current,
           pending: Math.max(0, current.pending - 1),
         }));
       }),
-      source.on('tileloaderror', () => {
+      source.on('tileloaderror', (event) => {
+        failedTiles.add(event.tile);
         setBasemapState((current) => ({
           ...current,
           pending: Math.max(0, current.pending - 1),
@@ -758,7 +762,7 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
       viewport.removeEventListener('pointerleave', clearCursor);
       map.setTarget(undefined);
       mapRef.current = null;
-      tileSourcesRef.current = [];
+      failedTiles.clear();
       markerLayerRef.current = null;
       customMarkerLayerRef.current = null;
     };
@@ -893,7 +897,9 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
 
   const retryBasemap = () => {
     setBasemapState((current) => ({ ...current, failures: 0, pending: 0 }));
-    tileSourcesRef.current.forEach((source) => source.refresh());
+    const failedTiles = [...failedTilesRef.current];
+    failedTilesRef.current.clear();
+    failedTiles.forEach((tile) => tile.load());
   };
 
   return (

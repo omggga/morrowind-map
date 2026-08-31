@@ -8,9 +8,11 @@
 
 Original уже поддерживает локальные MIM-растры Vvardenfell и Solstheim, 1 010 мест из MIM/ESM, EN/RU, поиск, zoom/pan, MIM-цвета статусов `unvisited` / `active` / `visited`, заметки и личные квадратные маркеры. Прогресс хранится локально в IndexedDB через Dexie и жёстко привязан к snapshot; доступны однократный импорт текущего MIM snapshot и общий переносимый JSON backup v2/import со строгой проверкой совместимости и чтением ранних v1-копий.
 
-Текущий статус: **Этап 5 в работе; 5.1–5.5 завершены на 100%, впереди product/browser acceptance 5.6**. Pinned headless OpenMW pipeline построил `3 984` native tiles, после cross-shard stabilization — полную quality-first V4 sparse lossless WebP pyramid `z0…z7`: `5 464` tiles, `1 703 000 992` bytes, inventory `93758a5e…`. Full audit `9dea3294…` проверил декодирование каждого tile, все `10 467` соседств, точное происхождение всех `1 480` lower-zoom tiles, `492` runtime resource reports, `0 px` coordinate error и независимый raw rerender `32` cells; все release gates прошли. Generic TES3 catalog pipeline поверх exact load order выпустил `4 085` places и `4 902` entrances с stable IDs, EN names, types, regions и deterministic audit. Poison Song `ready` manifest активирует V4; immutable V1 сохранён как rollback, Fullrest пока остаётся placeholder.
+Текущий статус: **Этап 5 завершён на 100% (5.1–5.6)**. Pinned headless OpenMW pipeline построил `3 984` native tiles, после cross-shard stabilization — полную quality-first V4 sparse lossless WebP pyramid `z0…z7`: `5 464` tiles, `1 703 000 992` bytes, inventory `93758a5e…`. Full audit `9dea3294…` проверил декодирование каждого tile, все `10 467` соседств, точное происхождение всех `1 480` lower-zoom tiles, `492` runtime resource reports, `0 px` coordinate error и независимый raw rerender `32` cells; все release gates прошли. Generic TES3 catalog pipeline поверх exact load order выпустил `4 085` places и `4 902` entrances с stable IDs, EN names, types, regions и deterministic audit. Poison Song `ready` manifest активирует V4; immutable V1 сохранён как rollback, Fullrest пока остаётся placeholder.
 
 Browser runtime теперь использует единые `DatasetMap` и dataset loader. Original по-прежнему показывает MIM-подложки через OpenLayers `ImageStatic`, а Poison Song — собственную WebP pyramid через `TileLayer` и явную TES3 tile grid с top-left XYZ. Sparse coverage проверяется до построения URL, поэтому отсутствующие в inventory tiles не вызывают HTTP-запросы. Каталог и все объявленные manifest-ом локали загружаются динамически; интерфейс различает отсутствие подготовленного локального dataset, текущую загрузку и ошибку с возможностью retry.
+
+Stage 5.6 закреплён pinned Playwright/Chromium acceptance. Default suite запрещает любой non-loopback traffic и проверяет painted WebP canvas, поиск, статусы, заметки, личные маркеры, reload persistence, zoom/pan, missing dataset и восстановление после ошибок metadata/tile. Отдельный local-only `@prepared` gate загружает настоящий ignored V4 catalog (`4 085` places) и реальные tiles.
 
 Подробный план: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 Результаты LAND gate: [docs/adr/0001-land-renderer-spike.md](docs/adr/0001-land-renderer-spike.md).
@@ -114,6 +116,7 @@ pnpm data:poison:catalog:prepare
 
 ```bash
 pnpm install
+pnpm exec playwright install chromium
 pnpm data:original
 pnpm dev
 ```
@@ -126,7 +129,16 @@ pnpm dev
 pnpm typecheck
 pnpm lint
 pnpm test
+pnpm test:acceptance
 pnpm build
 ```
 
-Или одной командой: `pnpm verify`. Python data pipeline, LAND и OpenMW spike/production fixture tests входят в `pnpm test`; полная генерация игровых данных запускается отдельно и в CI не выполняется.
+Или одной командой: `pnpm verify`. Она включает default browser acceptance; в CI pinned Chromium устанавливается автоматически. Python data pipeline, LAND и OpenMW spike/production fixture tests входят в `pnpm test`; полная генерация игровых данных запускается отдельно и в CI не выполняется.
+
+После `data:poison:v4:dataset:prepare` полный локальный V4 payload дополнительно проверяется так:
+
+```bash
+pnpm test:acceptance:prepared
+```
+
+Этот gate не входит в обычный CI, потому что proprietary/generated catalog и `5 464` WebP tiles не хранятся в Git.

@@ -1,6 +1,6 @@
 # Stage 5 — OpenMW production basemap
 
-Дата последнего полного аудита: 2026-08-31. Статус: **5.1–5.5 завершены на 100%: quality-first V4 basemap опубликован и активирован Poison Song `ready` manifest-ом, V1 сохранён как immutable rollback, catalog опубликован и generic runtime подключён. Этап 5 остаётся открыт до product/browser acceptance 5.6.**
+Дата последнего полного аудита: 2026-08-31. Статус: **Этап 5 и подэтапы 5.1–5.6 завершены на 100%: quality-first V4 basemap опубликован и активирован Poison Song `ready` manifest-ом, V1 сохранён как immutable rollback, catalog/runtime подключены и real-browser acceptance принят.**
 
 ## Production pipeline
 
@@ -111,6 +111,14 @@ Runtime использует единые `DatasetMap` и dataset loader для 
 
 Catalog имеет отдельный inventory, потому что меняется независимо от тяжёлой tile pyramid, но жёстко привязан к тому же `datasetId`/`snapshotId`. Он содержит `4 085` places и `4 902` entrances; exact merge, stable ID, grouping, type/region/alias policies и audit описаны в [stage5-catalog.md](stage5-catalog.md).
 
+## Browser acceptance 5.6
+
+Pinned Playwright `1.62.1` запускает настоящий headless Chromium с blocked service workers и fail-closed routing: любой запрос не к `127.0.0.1:4173` блокируется и делает тест неуспешным. Default suite пригоден для clean CI: production index, Poison manifest, V4 `map-assets.json` и sparse coverage остаются настоящими, а только ignored catalog/WebP payload подменяется минимальными валидными fixtures.
+
+Acceptance проверяет painted basemap canvas и V4 URLs, поиск места, status/note/custom-marker workflow, persistence после reload, zoom, keyboard pan, missing dataset, metadata error/retry и tile error/retry. Во время gate был найден runtime gap: `source.refresh()` не перезапрашивал cached `ERROR` tile. Runtime теперь хранит только упавшие OpenLayers `ImageTile` и повторяет их штатным `tile.load()`, не инвалидируя успешно загруженные tiles.
+
+Отдельный local-only `@prepared` gate не использует synthetic payload: он загружает настоящий catalog из `4 085` places и реальные WebP из активной V4 tree. Таким образом clean CI доказывает функциональный/offline контракт, а prepared gate связывает его с полным локальным release.
+
 ## Воспроизведение
 
 ```bash
@@ -123,7 +131,11 @@ pnpm data:poison:dataset:prepare
 pnpm data:poison:catalog:build
 pnpm data:poison:catalog:validate
 pnpm data:poison:catalog:prepare
+pnpm test:acceptance
+pnpm test:acceptance:prepared
 ```
+
+`test:acceptance` входит в `pnpm verify` и не требует proprietary/generated payload. `test:acceptance:prepared` запускается после публикации полного локального V4 dataset и поэтому намеренно не входит в обычный CI.
 
 Повторный deterministic audit без повторного raw render:
 
@@ -134,9 +146,9 @@ python3 -m tools.openmw_renderer.audit full \
 
 `dataset:prepare` выполняет validate → atomic immutable tiles → complete atomic immutable metadata package. Metadata-only публикации нет, поэтому невозможно сделать доступным `map-assets.json`, пока tile tree отсутствует. Все publication operations либо переиспользуют побайтно совпадающий immutable target, либо fail closed; если ОС не предоставляет atomic no-replace directory rename, publisher отказывается работать.
 
-## Остаток Этапа 5
+## Завершение Этапа 5
 
 - 5.5: **выполнено на 100%** — generic loader/`DatasetMap`, OpenLayers `TileLayer`, TES3 sparse grid/coverage, dynamic catalog/locales, `missing`/`loading`/`error` states и `ready` manifest;
-- 5.6: формальная network-free browser acceptance Poison Song workflow, включая search, statuses, notes, personal markers, reload persistence и негативные сценарии загрузки.
+- 5.6: **выполнено на 100%** — loopback-only real-Chromium acceptance покрывает search, statuses, notes, personal markers, reload persistence, zoom/pan и негативные сценарии загрузки; prepared gate подтверждает настоящий V4 payload.
 
-Basemap, catalog и runtime quality gates закрыты. Manifest уже имеет статус `ready`, но Этап 5 целиком не объявляется завершённым до acceptance 5.6.
+Basemap, catalog, runtime и product/browser quality gates закрыты. Poison Song manifest имеет статус `ready`; Exit Этапа 5 достигнут.

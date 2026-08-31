@@ -10,9 +10,9 @@ permissions:
 
 jobs:
   verify:
-    name: Install, typecheck, lint, unit, build
+    name: Install, typecheck, lint, unit, browser acceptance, build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -40,6 +40,12 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Browser acceptance
+        run: pnpm test:acceptance
 
       - name: Build
         run: pnpm build

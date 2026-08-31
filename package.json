@@ -48,11 +48,14 @@
     "test:catalog": "python3 -m unittest discover -s tools/catalog_pipeline/tests -t . -v",
     "test:renderer": "python3 -m unittest discover -s tools/land_renderer/tests -t . -v",
     "test:openmw-renderer": "python3 -m unittest discover -s tools/openmw_renderer/tests -t . -v",
+    "test:acceptance": "playwright test -c playwright.acceptance.config.ts",
+    "test:acceptance:prepared": "MORROWIND_ACCEPTANCE_PREPARED=1 playwright test -c playwright.acceptance.config.ts --grep @prepared",
     "test:watch": "vitest",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:acceptance && pnpm build"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.2",
     "@types/node": "26.3.0",

@@ -2,7 +2,7 @@
 
 - Дата фиксации: 2026-08-26
 - Последний полный аудит: 2026-08-31
-- Статус: этапы 0–4.5 завершены; этап 5 в работе — 5.1–5.5 завершены на 100%, полный quality-first V4 render/finalize/stabilization/audit опубликован и активирован Poison Song `ready` manifest-ом, immutable V1 сохранён для rollback; формальная product/browser acceptance 5.6 впереди; generic catalog pipeline готов для адаптации к этапу 6, где остаются Fullrest-specific gaps; этап 7 выполнен частично
+- Статус: этапы 0–5 завершены; полный quality-first V4 render/finalize/stabilization/audit опубликован и активирован Poison Song `ready` manifest-ом, immutable V1 сохранён для rollback, а pinned real-Chromium loopback-only acceptance и отдельный prepared-V4 gate закрыли 5.6; generic catalog pipeline готов для адаптации к этапу 6, где остаются Fullrest-specific gaps; этап 7 выполнен частично
 - Целевой репозиторий: `omggga/morrowind-map`
 
 ## 1. Цель
@@ -568,7 +568,7 @@ Node builder → static dist → Nginx runtime
 
 ## 17. Этапы реализации
 
-### Сводный аудит на 2026-08-29
+### Сводный аудит на 2026-08-31
 
 | Этап | Текущий статус | Что означает статус |
 | --- | --- | --- |
@@ -578,9 +578,9 @@ Node builder → static dist → Nginx runtime
 | 3 — progress/MIM | **100% complete в заявленном scope** | Dataset-scoped persistence, MIM import и portable backup реализованы |
 | 4 — LAND spike | **100% complete в spike scope** | Coordinate/resource oracle принят; LAND-only обоснованно отклонён как финальный basemap |
 | 4.5 — OpenMW spike | **100% complete в spike scope** | Bounded exporter и Linux/Docker quality gate приняты |
-| 5 — Poison Song | **В работе** | 5.1–5.5 завершены: quality-first V4 pyramid опубликована и активирована, deterministic EN catalog (`4 085` places / `4 902` entrances), generic runtime и `ready` manifest подключены; остаётся 5.6 product/browser acceptance |
+| 5 — Poison Song | **100% complete** | 5.1–5.6 завершены: V4 pyramid, deterministic EN catalog (`4 085` places / `4 902` entrances), generic runtime, `ready` manifest и offline real-browser acceptance приняты |
 | 6 — Fullrest exact | **Inputs mostly recovered; не завершён** | Exact content order найден и generic catalog pipeline готов; нужны Fullrest adapter, EN policy и решение по отсутствующему groundcover |
-| 7 — visual/UX polish | **Partially complete** | Базовый MIM-like/responsive/a11y слой есть в Original; cross-dataset acceptance отсутствует |
+| 7 — visual/UX polish | **Partially complete** | Базовый MIM-like/responsive/a11y слой есть; Poison functional acceptance готов, но cross-dataset visual/a11y acceptance отсутствует |
 
 Этапы 0–4.5 считаются закрытыми именно в их зафиксированных границах. Полный Poison/Fullrest basemap не является «хвостом» спайков: это отдельная production-работа Этапов 5–6.
 
@@ -657,7 +657,7 @@ Deliverables:
 
 Exit: текущие 741 visited, одна note и 6 personal markers воспроизводятся без duplicate-name loss.
 
-Remaining within Stage 3: none. Сохранённого pinned Playwright E2E для настоящего Canvas/browser reload пока нет; прежний browser smoke является ручным evidence. Воспроизводимый E2E для выбора версии, raster load, pan/zoom, search, EN/RU, MIM duplicate protection, JSON round-trip и reload перенесён в cross-cutting acceptance Этапа 7.
+Remaining within Stage 3: none. Stage 5.6 теперь даёт pinned Playwright E2E настоящего OpenLayers Canvas/browser reload для Poison Song. Original-specific EN/RU, MIM duplicate protection, JSON round-trip и полный cross-dataset matrix остаются cross-cutting acceptance Этапа 7.
 
 ### Этап 4 — LAND renderer spike
 
@@ -741,7 +741,7 @@ Exit: выполнен — все пять участков воспроизво
 
 ### Этап 5 — Poison Song
 
-Status: **in progress; 5.1–5.5 завершены на 100%, включая generic runtime и `ready` manifest; полный V4 release отрендерен, стабилизирован, прошёл audit, опубликован и активирован с сохранением V1 rollback; остаётся product/browser acceptance 5.6**.
+Status: **100% complete (verified 2026-08-31): 5.1–5.6 завершены; полный V4 release отрендерен, стабилизирован, прошёл audit, опубликован и активирован с сохранением V1 rollback; generic catalog/runtime и product/browser acceptance приняты**.
 
 Уже готово для переиспользования:
 
@@ -759,7 +759,7 @@ Status: **in progress; 5.1–5.5 завершены на 100%, включая ge
    **V4 visual regeneration: full render/finalize/stabilization/audit/publication/activation complete.** Отдельные roots `poison-song-26.08-v4` и Docker tag `stage5-v4` исключают смешивание с V1. Production v2 применяет single-pass grade `114/102/92` к исходному `544×544` capture после gutter crop и нормализует alpha по правилу `0→0, >0→255`; parent tiles, seam blend, stabilizer v2, audit v4 и publish contract повторяют и проверяют это правило на всей pyramid. Repeat-gate v4 сохраняет лимиты fraction/mean/p99/hard/alpha и вместо несовместимого с binary-alpha требования `opaqueDifferingPixels == 0` ограничивает максимальный opaque delta значением `48` и крупнейший связный hard-компонент значением `16 px`; publisher независимо перепроверяет все эти границы, сохраняя точный zero-opaque контракт V1. Optional `tilePyramid.presentation` отключает browser canvas/CSS correction только для baked V4, сохраняя V1 совместимость и view-only overscale `1.1×`. Полный audit прошёл с inventory `93758a5e…`, audit SHA `9dea3294…`, `5 464` tiles, `1 703 000 992` bytes и всеми `16` raw probes / `32` repeat runs. Content-addressed metadata опубликована, committed Poison Song manifest указывает на V4 `map-assets.json`; V1 inventory `d409e627…` и его metadata не изменены и доступны для rollback. Короткие generic producer-команды являются V4 aliases; immutable V1 доступен для отдельной validation.
 4. **5.4 — generic catalog pipeline: выполнено на 100%.** Exact order `Morrowind.esm → Tribunal.esm → Bloodmoon.esm → Tamriel_Data.esm → TR_Mainland.esm` объединяется с TES3 master-ordinal identity, last-wins overrides, deletion tombstones/resurrection и отдельной обработкой CELL metadata/references, DOOR base records, LAND/REGN и teleport/MVRF. Внутренние destination CELL и 8-neighbor components одноимённых exterior CELL сгруппированы в stable dataset-scoped Place/Entrance IDs; координатой multi-entrance place служит фактический entrance medoid. Выпущены `4 085` places (`3 755` interior + `330` named exterior) и `4 902` entrances, EN names/aliases, `14` типов и `3` региона. `locations.json`, `locales/en.json` и audit имеют canonical JSON, input/implementation/policy/output hashes, pinned counts и deterministic повторяемость; artifacts публикуются по catalog inventory hash. Текущий snapshot имеет `0` дополнительных aliases, что явно зафиксировано audit, а не означает отсутствие alias contract. Подробности: `docs/stage5-catalog.md`.
 5. **5.5 — contracts/runtime: выполнено на 100%.** WebP tile-pyramid/coverage/derivation contracts, catalog audit reference, fingerprint binding, строгие dataset/catalog validators и immutable content-addressed publication подключены к generic browser runtime. Единые `DatasetMap` и dataset loader динамически загружают каталог и объявленные manifest-ом локали: Original использует MIM `ImageStatic`, Poison Song — OpenLayers `TileLayer` с явной TES3 grid, fixed top-left XYZ и native `512×512` WebP. Sparse coverage отсекает отсутствующие tiles до URL/HTTP-запроса. Runtime различает `missing`, `loading` и `error`, включая retry для tile errors; Poison manifest переведён в `ready`. Backward-compatible optional presentation contract различает legacy V1 runtime adjustment и baked V4 без двойной обработки.
-6. **5.6 — product integration/acceptance: впереди.** Generic UI уже переиспользует search, statuses, notes и personal markers для EN-only Poison snapshot с независимым progress. Осталось закрыть формальную network-free browser acceptance всего workflow, включая reload persistence и негативные сценарии prepared-dataset/tile loading.
+6. **5.6 — product integration/acceptance: выполнено на 100%.** Pinned Playwright `1.62.1` запускает настоящий headless Chromium и fail-closed блокирует любой non-loopback traffic. Default CI suite использует реальные production index/manifest/V4 map-assets/coverage и подменяет только отсутствующие в Git тяжёлые catalog/tile bytes минимальными валидными fixtures. Он проверяет painted WebP canvas, поиск, status/note/custom-marker workflow, reload persistence, zoom и keyboard pan, non-retryable missing dataset, metadata failure/retry и tile failure/retry. Найденный acceptance-ом дефект повторной загрузки исправлен через штатный `ImageTile.load()` только для упавших tiles. Отдельный local-only `@prepared` gate загружает настоящий каталог `4 085` places и реальные tiles из полного ignored V4 payload.
 
 Deliverables:
 
@@ -769,7 +769,7 @@ Deliverables:
 - search, statuses, notes, personal markers и independent reload persistence;
 - offline/no-network E2E и full-scope resource/coordinate/seam/determinism reports.
 
-Exit: полный Poison catalog и owned tile pyramid hash-bound immutable manifest-ом; приложение без сети поддерживает search/status/note/personal markers/reload; effective LAND textures и direct exterior models имеют `0` unresolved; coordinate, seam и determinism gates проходят на полном scope.
+Exit: **достигнут.** Полный Poison catalog и owned tile pyramid hash-bound immutable manifest-ом; приложение без внешней сети поддерживает search/status/note/personal markers/reload/zoom/pan; default real-browser CI gate и prepared full-payload gate зелёные; effective LAND textures и direct exterior models имеют `0` unresolved; coordinate, seam и determinism gates проходят на полном scope.
 
 ### Этап 6 — Fullrest exact
 
@@ -820,9 +820,9 @@ Status: **partially complete foundation; cross-dataset acceptance pending**.
 1. Довести уже generic regions, types, statuses, strings и controls до третьего реального dataset после подключения Fullrest; убрать оставшийся snapshot-specific UX.
 2. Добавить OpenLayers text-label layer с deterministic declutter и zoom/type/status/region filters; сейчас labels на карте отсутствуют.
 3. Ввести стабильный URL contract как минимум для `dataset`, `region`, `x`, `y`, `z`, `lang`, `place`, включая back/forward, invalid-state fallback и shareable deep links. Сейчас `App` хранит выбор только в React state.
-4. Закрепить уже реализованные tile `missing`/`loading`/`error`/retry states воспроизводимыми browser fixtures на больших catalogs и pyramids.
+4. Расширить уже готовые Poison fixtures tile `missing`/`loading`/`error`/retry на Original, Fullrest и большие cross-dataset payloads.
 5. Провести финальный MIM-like font/icon/pixel tuning уже на готовых Poison/Fullrest подложках.
-6. Добавить pinned Playwright browser/visual fixtures для трёх datasets, desktop/mobile/landscape и ключевых states; OpenMW visual receipt проверяет basemap, но не UI.
+6. Расширить существующий Poison Playwright functional suite до browser/visual fixtures трёх datasets, desktop/mobile/landscape и ключевых states; OpenMW visual receipt проверяет basemap, но не UI.
 7. Выполнить keyboard-only/manual focus matrix и automated accessibility checks, включая dialog focus, contrast, touch, 200% reflow и screen-reader names.
 
 Deliverables:
@@ -881,7 +881,7 @@ Deliverables:
 | Межверсионная порча progress | Dataset-scoped storage и explicit migration map |
 | Browser storage eviction | Persistent storage request + portable JSON backup |
 | Очень большие tiles | 512px pyramid, active dataset loading, external volume |
-| Ручной browser smoke невоспроизводим | Pinned Playwright functional/visual/a11y acceptance в Этапе 7 |
+| Ручной browser smoke невоспроизводим | **Resolved для Poison functional flow в Этапе 5.6;** cross-dataset visual/a11y matrix остаётся в Этапе 7 |
 | Случайная публикация игровых файлов | External paths, `.gitignore`, verification перед commit/push |
 
 ## 20. Полезные технические источники
