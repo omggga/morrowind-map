@@ -45,6 +45,8 @@ describe("public dataset fixtures", () => {
     const manifest = parseDatasetManifest(poisonSongFixture);
     const catalogInventory =
       "3acf616265926d55c254c961e256cc4ab71aaba23f4dc18d9d368813f0490d3a";
+    const basemapInventory =
+      "93758a5e645013821d99a7989d69f3e4aa39373e2c5cb4b97873da421c5052b2";
 
     expect(manifest.localization.locales.map(({ locale }) => locale)).toEqual(["en"]);
     expect(manifest.localization.locales[0]).toMatchObject({
@@ -59,6 +61,10 @@ describe("public dataset fixtures", () => {
       warnings: [],
     });
     expect(manifest.provenance.kind).toBe("generated");
+    expect(manifest.artifacts.tiles).toEqual({
+      manifestUrl: `/datasets/metadata/poison-song-26.08/${basemapInventory}/map-assets.json`,
+      sha256: "b6e8c18b3986b99267eab9f3509a331865e77da978b8652e99054f5c48003de9",
+    });
     expect(manifest.artifacts.locations).toEqual({
       url: `/datasets/generated/poison-song-26.08/catalogs/${catalogInventory}/locations.json`,
       mediaType: "application/json",

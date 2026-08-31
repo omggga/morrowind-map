@@ -213,8 +213,8 @@
       }
     ],
     "tiles": {
-      "manifestUrl": "/datasets/metadata/poison-song-26.08/d409e627a75beac2caea56cea35bea132091bc851e1b22edbb4dbe3791f5cd17/map-assets.json",
-      "sha256": "b400cc972966f2c0c54cd33b48dafaa4c6873b783ecad67347c92190f2a5ecef"
+      "manifestUrl": "/datasets/metadata/poison-song-26.08/93758a5e645013821d99a7989d69f3e4aa39373e2c5cb4b97873da421c5052b2/map-assets.json",
+      "sha256": "b6e8c18b3986b99267eab9f3509a331865e77da978b8652e99054f5c48003de9"
     },
     "catalogAudit": {
       "url": "/datasets/metadata/poison-song-26.08/catalogs/3acf616265926d55c254c961e256cc4ab71aaba23f4dc18d9d368813f0490d3a/catalog-audit.json",
@@ -228,7 +228,7 @@
     "kind": "generated",
     "notes": [
       "Extent and center were derived from the effective LAND cell union of the pinned GOTY, Tamriel Data 26.08 and TR 26.08 metadata.",
-      "The owned lossless WebP pyramid contains 5,464 sparse z0-z7 tiles and is bound to inventory d409e627a75beac2caea56cea35bea132091bc851e1b22edbb4dbe3791f5cd17.",
+      "The activated quality-first V4 WebP pyramid contains 5,464 sparse z0-z7 tiles and is bound to inventory 93758a5e645013821d99a7989d69f3e4aa39373e2c5cb4b97873da421c5052b2.",
       "The full quality audit passed all tile, pyramid, cross-shard seam, raw-renderer, resource, coordinate and reproducibility gates.",
       "The generic TES3 catalog contains 4,085 places and 4,902 entrances, with complete English coverage, and is bound to inventory 3acf616265926d55c254c961e256cc4ab71aaba23f4dc18d9d368813f0490d3a.",
       "The catalog audit proves exact five-plugin load order, override and deletion semantics, stable identifiers, deterministic grouping and byte-identical regeneration.",

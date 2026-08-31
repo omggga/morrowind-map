@@ -1,6 +1,6 @@
 # Stage 5 — OpenMW production basemap
 
-Дата последнего полного аудита: 2026-08-29. Статус: **5.1–5.5 завершены на 100%: basemap/catalog опубликованы, generic runtime подключён, Poison Song manifest имеет статус `ready`. Этап 5 остаётся открыт до product/browser acceptance 5.6.**
+Дата последнего полного аудита: 2026-08-31. Статус: **5.1–5.5 завершены на 100%: quality-first V4 basemap опубликован и активирован Poison Song `ready` manifest-ом, V1 сохранён как immutable rollback, catalog опубликован и generic runtime подключён. Этап 5 остаётся открыт до product/browser acceptance 5.6.**
 
 ## Production pipeline
 
@@ -29,7 +29,26 @@ OpenMW generic defaults называют погодные текстуры `Tx_S
 
 Lossless WebP method 4 дал тот же decoded RGBA, что method 6, при `0.407 s` вместо `8.667 s` на контрольном Balmora tile и всего `+1.29%` к размеру. Прогноз полного pipeline был `5–6 h`; он использовался только как planning estimate и больше не является статусом выполнения.
 
-## Полный release 5.3
+## Активный V4 release 5.3
+
+V4 повторяет доказанную координатную модель V1, но использует opaque-water/binary-alpha postprocess, single-pass grade `114/102/92`, stabilizer v2 и presentation contract `mim-opaque-v4`. Poison Song manifest ссылается именно на этот release.
+
+| Release identity | Значение |
+| --- | --- |
+| Snapshot | `tr:poison-song-26.08:6964517551e0fcb0` |
+| Native tiles / shards | `3 984 / 492` |
+| Lower-zoom tiles | `1 480` |
+| Всего tiles / bytes | `5 464 / 1 703 000 992` |
+| Inventory logical SHA-256 | `93758a5e645013821d99a7989d69f3e4aa39373e2c5cb4b97873da421c5052b2` |
+| Inventory file SHA-256 | `871f9aaffdb19fba7eca97f89e49c8279cae688161010d1d3d0378505b618ef6` |
+| Audit SHA-256 | `9dea3294046201cceb1257f581a4ef9d63a3373042488ca3b4961196803d482e` |
+| `map-assets.json` SHA-256 | `b6e8c18b3986b99267eab9f3509a331865e77da978b8652e99054f5c48003de9` |
+
+Release находится в ignored каталоге `local-data/openmw-release/poison-song-26.08-v4`; content-addressed metadata зафиксирована в Git, а тяжёлая tile tree остаётся локальной. Полный audit проверил `5 464` tiles, все lower-zoom derivations, seam/resource/coordinate gates и `16` raw probes / `32` repeat runs. Все release gates прошли.
+
+## Исторический V1 baseline 5.3 (rollback)
+
+Ниже сохранены точные данные первого принятого release. V1 больше не является активной подложкой Poison Song, но его immutable metadata и локальная tile tree не изменены и остаются rollback target.
 
 Production output после `finalize` дополнительно проходит deterministic cross-shard stabilization. Алгоритм обрабатывает только native границы разных OpenMW processes, фиксирует RGBA до/после каждого изменённого tile в receipt и затем полностью перестраивает lower zoom. Исходный production output не изменяется.
 
@@ -48,7 +67,7 @@ Production output после `finalize` дополнительно проход�
 
 Release находится в ignored каталоге `local-data/openmw-release/poison-song-26.08`. Stabilizer создаёт immutable source snapshot, пинит CPython/ImageMagick/libwebp/producer identities и публикует release через no-replace rename; повтор с несовместимым состоянием завершается ошибкой.
 
-## Full seam/quality audit
+## Исторический V1 seam/quality audit
 
 Audit fail-closed проверил release целиком и завершился `passes: true`:
 
@@ -67,24 +86,26 @@ Logical audit SHA-256: `4439782ab6e2cdf0d8330168428c4c5550629beaf607f4b9f5507700
 
 Audit artifacts находятся в `local-data/openmw-release/poison-song-26.08/quality-audit`: `report.json`, `tiles.ndjson`, `seams.ndjson`, `resource-runtime.json`, raw-probe provenance и `worst-seams.webp`.
 
-## Подготовленный dataset contract
+## Активный dataset contract
 
 Publisher независимо перепроверяет inventory, stabilization receipt, audit, sparse coverage и raw renderer provenance. Затем tiles публикуются по immutable content address:
 
 ```text
 apps/web/public/datasets/generated/poison-song-26.08/
-  d409e627a75beac2caea56cea35bea132091bc851e1b22edbb4dbe3791f5cd17/
+  93758a5e645013821d99a7989d69f3e4aa39373e2c5cb4b97873da421c5052b2/
 ```
 
 APFS использует clone-on-write; на другой filesystem допускается обычная проверяемая copy. Полный metadata package, включая `map-assets.json`, появляется одним atomic exclusive directory rename только после полной публикации и проверки tiles:
 
 ```text
 /datasets/metadata/poison-song-26.08/
-  d409e627a75beac2caea56cea35bea132091bc851e1b22edbb4dbe3791f5cd17/
+  93758a5e645013821d99a7989d69f3e4aa39373e2c5cb4b97873da421c5052b2/
     map-assets.json
 ```
 
-SHA-256 `map-assets.json` — `b400cc972966f2c0c54cd33b48dafaa4c6873b783ecad67347c92190f2a5ecef`. Contract описывает sparse WebP pyramid, coverage, exact derivation receipt, quality report, полный integrity block и versioned URL template. Poison Song dataset manifest прямо ссылается на этот immutable файл, без отдельного изменяемого stable pointer. Location/localization artifacts также подготовлены отдельным content-addressed catalog pipeline; после подключения generic runtime manifest переведён в `ready`.
+SHA-256 активного V4 `map-assets.json` — `b6e8c18b3986b99267eab9f3509a331865e77da978b8652e99054f5c48003de9`. Contract описывает sparse WebP pyramid, coverage, exact derivation receipt, quality report, полный integrity block, baked presentation `mim-opaque-v4` и versioned URL template. Poison Song dataset manifest прямо ссылается на этот immutable файл, без отдельного изменяемого stable pointer. Location/localization artifacts также подготовлены отдельным content-addressed catalog pipeline; после подключения generic runtime manifest переведён в `ready`.
+
+Предыдущий V1 package `d409e627a75beac2caea56cea35bea132091bc851e1b22edbb4dbe3791f5cd17` с `map-assets.json` SHA-256 `b400cc972966f2c0c54cd33b48dafaa4c6873b783ecad67347c92190f2a5ecef` сохранён без изменений. Rollback требует только отдельного manifest commit, возвращающего этот immutable pointer.
 
 Runtime использует единые `DatasetMap` и dataset loader для manifest-driven загрузки map assets, location catalog и всех объявленных локалей. Original MIM остаётся на OpenLayers `ImageStatic`, а Poison Song использует `TileLayer` с явной TES3 grid, fixed top-left XYZ и native `512×512` WebP. Coverage index проверяется до построения tile URL, поэтому sparse holes не создают заведомо ошибочных HTTP-запросов. Отдельные UI states различают отсутствующий подготовленный dataset (`missing`), текущую загрузку и runtime/tile error с retry.
 
