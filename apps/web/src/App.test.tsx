@@ -12,7 +12,7 @@ vi.mock('./map/Tes3Map', () => ({
     <section aria-label="mock map">
       <h1>{dataset.title.en}</h1>
       <button type="button" onClick={onBack}>
-        Версии
+        Versions
       </button>
     </section>
   ),
@@ -20,11 +20,10 @@ vi.mock('./map/Tes3Map', () => ({
 
 const indexFixture = {
   schemaVersion: 1,
-  defaultDatasetId: 'original-goty',
+  defaultDatasetId: 'original-goty-hd',
   datasets: [
-    { datasetId: 'original-goty', manifestUrl: '/datasets/original.json', order: 1 },
-    { datasetId: 'fullrest-old', manifestUrl: '/datasets/fullrest.json', order: 2 },
-    { datasetId: 'poison-song', manifestUrl: '/datasets/poison.json', order: 3 },
+    { datasetId: 'original-goty-hd', manifestUrl: '/datasets/original.json', order: 1 },
+    { datasetId: 'poison-song', manifestUrl: '/datasets/poison.json', order: 2 },
   ],
 };
 
@@ -50,8 +49,7 @@ function manifestFixture(datasetId: string, mapKey: string, title: string) {
 }
 
 const manifests = [
-  manifestFixture('original-goty', 'original', 'Original GOTY'),
-  manifestFixture('fullrest-old', 'fullrest-old', 'Fullrest 25.08'),
+  manifestFixture('original-goty-hd', 'original', 'Original GOTY HD'),
   manifestFixture('poison-song', 'poison-song', 'Poison Song 26.08'),
 ];
 
@@ -72,15 +70,14 @@ describe('App dataset workflow', () => {
   it('loads all manifests, opens a selected map, and returns to the cards', async () => {
     render(<App />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('Читаю manifests');
+    expect(screen.getByRole('status')).toHaveTextContent('Reading manifests');
 
-    await screen.findByRole('button', { name: 'Открыть карту: Original GOTY' });
-    expect(screen.getAllByRole('button', { name: /Открыть карту:/ })).toHaveLength(3);
+    await screen.findByRole('button', { name: 'Open map: Original GOTY HD' });
+    expect(screen.getAllByRole('button', { name: /Open map:/ })).toHaveLength(2);
 
     const datasets = [
-      { card: 'Открыть карту: Original GOTY', heading: 'Original GOTY' },
-      { card: 'Открыть карту: Fullrest 25.08', heading: 'Fullrest 25.08' },
-      { card: 'Открыть карту: Poison Song 26.08', heading: 'Poison Song 26.08' },
+      { card: 'Open map: Original GOTY HD', heading: 'Original GOTY HD' },
+      { card: 'Open map: Poison Song 26.08', heading: 'Poison Song 26.08' },
     ];
 
     for (const dataset of datasets) {
@@ -89,7 +86,7 @@ describe('App dataset workflow', () => {
       expect(screen.getByRole('region', { name: 'mock map' })).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: dataset.heading })).toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole('button', { name: 'Версии' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Versions' }));
       await waitFor(() => expect(screen.getByRole('button', { name: dataset.card })).toHaveFocus());
     }
   });

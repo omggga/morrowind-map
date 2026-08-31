@@ -60,6 +60,27 @@ describe('editor crash-recovery drafts', () => {
     });
   });
 
+  it('ignores a place-note draft from the retired user-data epoch', async () => {
+    const placeKey = `${datasetId}\0${placeId}`;
+    window.localStorage.setItem(
+      `morrowind-map:draft:place-note:${encodeURIComponent(placeKey)}`,
+      'Retired draft',
+    );
+
+    render(
+      <PlaceProgressEditor
+        datasetId={datasetId}
+        placeId={placeId}
+        locale="en"
+        database={database}
+      />,
+    );
+
+    expect(screen.getByRole('textbox', { name: 'Personal note' })).toHaveValue('');
+    await new Promise((resolve) => window.setTimeout(resolve, 400));
+    expect(await database.progress.get(progressKey(datasetId, placeId))).toBeUndefined();
+  });
+
   it('restores an unsaved marker edit after an immediate unmount and persists it', async () => {
     const marker = await saveCustomMarker(
       database,
@@ -82,6 +103,23 @@ describe('editor crash-recovery drafts', () => {
         label: 'Recovered marker',
       });
     });
+  });
+
+  it('ignores a custom-marker draft from the retired user-data epoch', async () => {
+    const marker = await saveCustomMarker(
+      database,
+      { datasetId, label: 'Current marker', note: '', position: [10, 20] },
+      undefined,
+      () => 'retired-draft-marker',
+    );
+    window.localStorage.setItem(
+      `morrowind-map:draft:custom-marker:${encodeURIComponent(marker.id)}`,
+      JSON.stringify({ label: 'Retired marker', note: 'Retired note' }),
+    );
+
+    render(<CustomMarkerEditor marker={marker} locale="en" database={database} />);
+
+    expect(screen.getByRole('textbox', { name: 'Marker name' })).toHaveValue('Current marker');
   });
 
   it('moves focus into marker deletion confirmation and returns it on cancel', async () => {

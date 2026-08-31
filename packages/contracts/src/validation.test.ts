@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import datasetIndexFixture from "../../../apps/web/public/datasets/index.json";
-import fullrestFixture from "../../../apps/web/public/datasets/manifests/fullrest-25.08.json";
-import originalFixture from "../../../apps/web/public/datasets/manifests/original-goty.json";
+import originalFixture from "../../../apps/web/public/datasets/manifests/original-goty-hd.json";
 import poisonSongFixture from "../../../apps/web/public/datasets/manifests/poison-song-26.08.json";
 import {
   ContractValidationError,
@@ -13,16 +12,15 @@ import {
 } from "./validation";
 
 const manifestsByDatasetId: Readonly<Record<string, unknown>> = {
-  "original-goty": originalFixture,
-  "fullrest-25.08": fullrestFixture,
+  "original-goty-hd": originalFixture,
   "poison-song-26.08": poisonSongFixture,
 };
 
 describe("public dataset fixtures", () => {
-  it("validates the index and all three referenced manifests", () => {
+  it("validates the index and exactly two referenced manifests", () => {
     const index = parseDatasetIndex(datasetIndexFixture);
 
-    expect(index.datasets).toHaveLength(3);
+    expect(index.datasets).toHaveLength(2);
     for (const entry of index.datasets) {
       const manifest = parseDatasetManifest(manifestsByDatasetId[entry.datasetId]);
       expect(manifest.datasetId).toBe(entry.datasetId);
@@ -32,13 +30,86 @@ describe("public dataset fixtures", () => {
     }
   });
 
-  it("keeps Fullrest explicitly blocked and inexact", () => {
-    const manifest = parseDatasetManifest(fullrestFixture);
+  it("keeps Original HD blocked until its generated artifacts are published", () => {
+    const manifest = parseDatasetManifest(originalFixture);
 
+    expect(manifest.datasetId).toBe("original-goty-hd");
     expect(manifest.readiness.status).toBe("blocked");
-    expect(manifest.readiness.exactProfile).toBe(false);
-    expect(manifest.profile.status).toBe("unconfirmed");
+    expect(manifest.readiness.exactProfile).toBe(true);
+    expect(manifest.profile.status).toBe("confirmed");
     expect(manifest.readiness.blockers.length).toBeGreaterThan(0);
+    expect(manifest.localization).toMatchObject({
+      defaultLocale: "en",
+      locales: [{ locale: "en", status: "planned", coverage: 0 }],
+    });
+    expect(manifest.artifacts).toMatchObject({
+      locations: null,
+      tiles: null,
+      mimImport: null,
+    });
+  });
+
+  it("pins Original HD to the isolated English GOTY ESM/BSA profile", () => {
+    const expectIsolationIssue = (value: unknown) => {
+      const issues = getDatasetManifestValidationIssues(value);
+      expect(
+        issues.some(
+          ({ instancePath, message }) =>
+            instancePath === "/profile" && message.includes("isolated Original GOTY profile"),
+        ),
+      ).toBe(true);
+    };
+    const extraContent = structuredClone(originalFixture);
+    extraContent.profile.contentFiles.push({
+      name: "Tamriel_Data.esm",
+      kind: "esm",
+      version: null,
+      sha256: "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f",
+      loadOrder: 3,
+      inclusion: "required",
+      enabled: true,
+    });
+
+    const extraArchive = structuredClone(originalFixture);
+    extraArchive.profile.registeredArchives.push({
+      name: "Tamriel_Data.bsa",
+      sha256: "a".repeat(64),
+      order: 3,
+      required: true,
+      registered: true,
+    });
+
+    const extraDirectory = structuredClone(originalFixture);
+    extraDirectory.profile.dataDirectories.push({
+      id: "tamriel-data",
+      order: 1,
+      status: "confirmed",
+    });
+
+    for (const invalid of [extraContent, extraArchive, extraDirectory]) {
+      expectIsolationIssue(invalid);
+    }
+
+    const changedEsmHash = structuredClone(originalFixture);
+    changedEsmHash.profile.contentFiles[0]!.sha256 = "b".repeat(64);
+    const changedEsmOrder = structuredClone(originalFixture);
+    changedEsmOrder.profile.contentFiles[1]!.loadOrder = 2;
+    const changedBsaHash = structuredClone(originalFixture);
+    changedBsaHash.profile.registeredArchives[0]!.sha256 = "c".repeat(64);
+    const changedBsaOrder = structuredClone(originalFixture);
+    changedBsaOrder.profile.registeredArchives[2]!.order = 1;
+    const changedDirectory = structuredClone(originalFixture);
+    changedDirectory.profile.dataDirectories[0]!.id = "base-and-mods";
+
+    for (const invalid of [
+      changedEsmHash,
+      changedEsmOrder,
+      changedBsaHash,
+      changedBsaOrder,
+      changedDirectory,
+    ]) {
+      expectIsolationIssue(invalid);
+    }
   });
 
   it("publishes only English for Poison Song without creating another dataset", () => {
@@ -138,8 +209,8 @@ describe("semantic validation", () => {
     const invalid = structuredClone(datasetIndexFixture);
     invalid.defaultDatasetId = "missing-dataset";
     invalid.datasets[1] = {
-      datasetId: "original-goty",
-      manifestUrl: "/datasets/manifests/original-goty.json",
+      datasetId: "original-goty-hd",
+      manifestUrl: "/datasets/manifests/original-goty-hd.json",
       order: 0,
     };
 
@@ -152,20 +223,29 @@ describe("semantic validation", () => {
     );
   });
 
-  it("rejects cyclic locale fallback chains", () => {
-    const invalid = structuredClone(parseDatasetManifest(fullrestFixture));
-    const russianLocale = invalid.localization.locales.find(({ locale }) => locale === "ru");
-    if (!russianLocale) {
-      throw new Error("Fullrest fixture must declare the Russian locale");
-    }
-    russianLocale.fallbackLocale = "en";
+  it("rejects locales and fallback values outside the EN-only contract", () => {
+    const invalid = structuredClone(originalFixture) as unknown as {
+      localization: {
+        defaultLocale: string;
+        locales: Array<{
+          locale: string;
+          status: string;
+          coverage: number;
+          fallbackLocale: string | null;
+        }>;
+      };
+    };
+    invalid.localization.locales.push({
+      locale: "fr",
+      status: "available",
+      coverage: 1,
+      fallbackLocale: "en",
+    });
 
     const issues = getDatasetManifestValidationIssues(invalid);
     expect(
       issues.some(
-        ({ instancePath, keyword }) =>
-          keyword === "semantic" &&
-          /^\/localization\/locales\/\d+\/fallbackLocale$/.test(instancePath),
+        ({ instancePath, keyword }) => keyword === "maxItems" && instancePath === "/localization/locales",
       ),
     ).toBe(true);
   });

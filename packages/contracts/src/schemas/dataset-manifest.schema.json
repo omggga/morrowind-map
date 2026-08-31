@@ -28,7 +28,7 @@
       "$ref": "#/$defs/datasetId"
     },
     "mapKey": {
-      "enum": ["original", "fullrest-old", "poison-song"]
+      "enum": ["original", "poison-song"]
     },
     "snapshotId": {
       "type": "string",
@@ -87,7 +87,7 @@
       "$ref": "#/$defs/identifier"
     },
     "locale": {
-      "enum": ["en", "ru"]
+      "const": "en"
     },
     "sha256": {
       "type": "string",
@@ -120,9 +120,6 @@
       "required": ["en"],
       "properties": {
         "en": {
-          "$ref": "#/$defs/nonEmptyString"
-        },
-        "ru": {
           "$ref": "#/$defs/nonEmptyString"
         }
       }
@@ -214,7 +211,7 @@
         "locales": {
           "type": "array",
           "minItems": 1,
-          "maxItems": 2,
+          "maxItems": 1,
           "items": {
             "$ref": "#/$defs/localeDescriptor"
           }
@@ -546,7 +543,7 @@
         "locales": {
           "type": "array",
           "minItems": 1,
-          "maxItems": 2,
+          "maxItems": 1,
           "items": {
             "$ref": "#/$defs/localeArtifact"
           }
@@ -562,14 +559,7 @@
           ]
         },
         "mimImport": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/artifact"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "null"
         },
         "catalogAudit": {
           "anyOf": [

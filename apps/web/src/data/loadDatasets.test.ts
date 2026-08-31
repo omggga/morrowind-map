@@ -31,7 +31,7 @@ describe('loadDatasets', () => {
     );
 
     await expect(loadDatasets(new AbortController().signal)).rejects.toThrow(
-      'объявляет datasetId different, ожидался expected',
+      'declares datasetId different; expected expected',
     );
   });
 });

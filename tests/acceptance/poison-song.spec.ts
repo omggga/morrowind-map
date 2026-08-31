@@ -8,7 +8,8 @@ const V4_INVENTORY =
   '93758a5e645013821d99a7989d69f3e4aa39373e2c5cb4b97873da421c5052b2';
 const PLACE_ID = 'poison-song-26.08.place-014cd9c0ca05af58dc14';
 const PLACE_NAME = 'Pneuma Grove';
-const POISON_CARD_NAME = 'Открыть карту: Tamriel Rebuilt 26.08 — Poison Song';
+const POISON_CARD_NAME = 'Open map: Tamriel Rebuilt 26.08 — Poison Song';
+const ORIGINAL_CARD_NAME = 'Open map: Morrowind Game of the Year — HD';
 const SYNTHETIC_TILE = Buffer.from(
   'UklGRh4AAABXRUJQVlA4TBEAAAAvB8ABAAfQvK5Vqv+BiOh/AAA=',
   'base64',
@@ -299,9 +300,9 @@ test('recovers from a dataset asset error through Retry', async ({ page }) => {
 
   const alert = page.getByRole('alert');
   await expect(alert).toBeVisible();
-  await expect(alert).toContainText(/could not be opened|Не удалось открыть/i);
+  await expect(alert).toContainText('could not be opened');
   probe.restoreMapAssets();
-  await alert.getByRole('button', { name: /Retry|Повторить/ }).click();
+  await alert.getByRole('button', { name: 'Retry' }).click();
   await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
   await expect.poll(() => probe.mapAssetRequests.length).toBeGreaterThan(1);
   expect(probe.externalRequests).toEqual([]);
@@ -325,11 +326,11 @@ test('reports a tile failure and refreshes the source through Retry', async ({ p
 test('shows a non-retryable missing state for an unpublished dataset', async ({ page }) => {
   const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Открыть карту: Fullrest + Tamriel Rebuilt 25.08' }).click();
+  await page.getByRole('button', { name: ORIGINAL_CARD_NAME }).click();
 
   const status = page.getByRole('status');
-  await expect(status).toContainText(/not been published locally|ещё не опубликована локально/i);
-  await expect(status.getByRole('button', { name: /Retry|Повторить/ })).toHaveCount(0);
+  await expect(status).toContainText('not been published locally');
+  await expect(status.getByRole('button', { name: 'Retry' })).toHaveCount(0);
   expect(probe.externalRequests).toEqual([]);
 });
 

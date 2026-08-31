@@ -30,7 +30,7 @@ async function fetchJson(url: string, signal: AbortSignal): Promise<unknown> {
     signal,
   });
   if (!response.ok) {
-    throw new Error(`Не удалось загрузить ${url} (HTTP ${response.status})`);
+    throw new Error(`Could not load ${url} (HTTP ${response.status})`);
   }
   return response.json() as Promise<unknown>;
 }
@@ -41,7 +41,7 @@ function requireArtifactUrl(
   label: string,
 ): string {
   if (!url) {
-    throw new DatasetAssetsMissingError(`Dataset ${manifest.datasetId} не содержит ${label}`);
+    throw new DatasetAssetsMissingError(`Dataset ${manifest.datasetId} does not contain ${label}`);
   }
   return url;
 }
@@ -52,7 +52,7 @@ function assertIdentity(
   label: string,
 ): void {
   if (artifact.datasetId !== manifest.datasetId || artifact.snapshotId !== manifest.snapshotId) {
-    throw new Error(`${label} относится к другому dataset snapshot`);
+    throw new Error(`${label} belongs to a different dataset snapshot`);
   }
 }
 
@@ -66,7 +66,7 @@ function assertLocaleCoverage(
     structuralIds.size !== localeIds.size ||
     [...structuralIds].some((placeId) => !localeIds.has(placeId))
   ) {
-    throw new Error(`Locale ${localeCatalog.locale} не покрывает весь location catalog`);
+    throw new Error(`Locale ${localeCatalog.locale} does not cover the complete location catalog`);
   }
 }
 
@@ -85,21 +85,21 @@ function assertPyramidGrid(manifest: DatasetManifest, pyramid: TilePyramid): voi
   const [minX, minY, maxX, maxY] = pyramid.extent;
 
   if (minX < worldMinX || minY < worldMinY || maxX > worldMaxX || maxY > worldMaxY) {
-    throw new Error(`Tile pyramid ${pyramid.id} extent выходит за dataset manifest`);
+    throw new Error(`Tile pyramid ${pyramid.id} extent exceeds the dataset manifest`);
   }
   if (!arraysEqual(pyramid.origin, grid.origin)) {
-    throw new Error(`Tile pyramid ${pyramid.id} origin не совпадает с dataset manifest`);
+    throw new Error(`Tile pyramid ${pyramid.id} origin does not match the dataset manifest`);
   }
   if (!arraysEqual(pyramid.resolutions, grid.resolutions)) {
-    throw new Error(`Tile pyramid ${pyramid.id} resolutions не совпадают с dataset manifest`);
+    throw new Error(`Tile pyramid ${pyramid.id} resolutions do not match the dataset manifest`);
   }
   if (pyramid.tileSize !== grid.tileSize) {
-    throw new Error(`Tile pyramid ${pyramid.id} tileSize не совпадает с dataset manifest`);
+    throw new Error(`Tile pyramid ${pyramid.id} tileSize does not match the dataset manifest`);
   }
   const unknownRegions = pyramid.regionIds.filter((regionId) => !availableRegions.has(regionId));
   if (unknownRegions.length > 0) {
     throw new Error(
-      `Tile pyramid ${pyramid.id} содержит неизвестные regionIds: ${unknownRegions.join(', ')}`,
+      `Tile pyramid ${pyramid.id} contains unknown regionIds: ${unknownRegions.join(', ')}`,
     );
   }
 }
@@ -117,11 +117,6 @@ async function loadLocales(
             fetchJson(artifact.url, signal).then((source) => {
               const catalog = parsePlaceLocaleCatalog(source);
               assertIdentity(manifest, catalog, `${locale.toUpperCase()} locale catalog`);
-              if (catalog.locale !== locale) {
-                throw new Error(
-                  `Locale artifact ${locale} содержит catalog для locale ${catalog.locale}`,
-                );
-              }
               const descriptor = manifest.localization.locales.find(
                 (candidate) => candidate.locale === locale,
               );
@@ -188,7 +183,7 @@ function resolveLocaleFallbacks(
     if (effectivePlaces.length !== locations.places.length) {
       if (descriptor.locale === manifest.localization.defaultLocale) {
         throw new Error(
-          `Locale ${descriptor.locale} и её fallback chain не покрывают весь location catalog`,
+          `Locale ${descriptor.locale} and its fallback chain do not cover the complete location catalog`,
         );
       }
       continue;
@@ -202,7 +197,7 @@ function resolveLocaleFallbacks(
 
   if (!resolved.has(manifest.localization.defaultLocale)) {
     throw new Error(
-      `Default locale ${manifest.localization.defaultLocale} нельзя использовать для location catalog`,
+      `Default locale ${manifest.localization.defaultLocale} cannot be used for the location catalog`,
     );
   }
 
@@ -220,7 +215,7 @@ function assertRequiredLocaleArtifacts(manifest: DatasetManifest): void {
       !artifactByLocale.get(descriptor.locale)?.url
     ) {
       throw new DatasetAssetsMissingError(
-        `Dataset ${manifest.datasetId} не содержит ${descriptor.locale.toUpperCase()} locale catalog`,
+        `Dataset ${manifest.datasetId} does not contain an ${descriptor.locale.toUpperCase()} locale catalog`,
       );
     }
   }
@@ -264,7 +259,7 @@ export async function loadDataset(
   assertIdentity(manifest, locations, 'Location catalog');
   assertIdentity(manifest, mapAssets, 'Map assets');
   if (mapAssets.projection !== manifest.map.projection.code) {
-    throw new Error('Map assets projection не совпадает с dataset manifest');
+    throw new Error('Map assets projection does not match the dataset manifest');
   }
 
   const [rawLocales, tileCoverages] = await Promise.all([

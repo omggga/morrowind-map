@@ -14,7 +14,7 @@ async function fetchJson(url: string, signal: AbortSignal): Promise<unknown> {
   });
 
   if (!response.ok) {
-    throw new Error(`Не удалось загрузить ${url} (HTTP ${response.status})`);
+    throw new Error(`Could not load ${url} (HTTP ${response.status})`);
   }
 
   return response.json() as Promise<unknown>;
@@ -33,7 +33,7 @@ export async function loadDatasets(signal: AbortSignal): Promise<DatasetManifest
 
       if (manifest.datasetId !== datasetId) {
         throw new Error(
-          `Manifest ${manifestUrl} объявляет datasetId ${manifest.datasetId}, ожидался ${datasetId}`,
+          `Manifest ${manifestUrl} declares datasetId ${manifest.datasetId}; expected ${datasetId}`,
         );
       }
 

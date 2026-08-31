@@ -37,10 +37,8 @@ import {
   type DatasetBundle,
 } from '../data/loadDataset';
 import { buildPlaceViews, PlaceSearch, type PlaceView } from '../data/placeSearch';
-import { i18n } from '../i18n';
 import { userDatabase } from '../storage/database';
 import {
-  adoptLegacyDatasetSnapshot,
   ensureDatasetSnapshot,
   saveCustomMarker,
 } from '../storage/userData';
@@ -84,11 +82,6 @@ type RegionFilter = string;
 type LoadState =
   | { readonly status: 'loading' }
   | { readonly status: 'ready'; readonly bundle: DatasetBundle }
-  | {
-      readonly status: 'needs-legacy-adoption';
-      readonly bundle: DatasetBundle;
-      readonly storedRecords: number;
-    }
   | { readonly status: 'missing'; readonly message: string }
   | { readonly status: 'error'; readonly message: string };
 
@@ -156,20 +149,9 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown dataset error';
 }
 
-function localeFromManifest(dataset: DatasetManifest): Locale {
-  return dataset.localization.defaultLocale === 'en' ? 'en' : 'ru';
-}
-
-function localizedText(
-  text: Readonly<{ en: string; ru?: string }>,
-  locale: Locale,
-): string {
-  return locale === 'ru' ? (text.ru ?? text.en) : text.en;
-}
-
-function regionTitle(dataset: DatasetManifest, regionId: string, locale: Locale): string {
+function regionTitle(dataset: DatasetManifest, regionId: string): string {
   const region = dataset.regions.find(({ id }) => id === regionId);
-  return region ? localizedText(region.title, locale) : regionId;
+  return region?.title.en ?? regionId;
 }
 
 function regionExtent(
@@ -206,8 +188,8 @@ function regionExtent(
   ];
 }
 
-function formatCoordinate(value: number, locale: Locale): string {
-  return Math.round(value).toLocaleString(locale === 'ru' ? 'ru-RU' : 'en-US');
+function formatCoordinate(value: number): string {
+  return Math.round(value).toLocaleString('en-US');
 }
 
 export function DatasetMap({ dataset, datasetSnapshots, onBack }: DatasetMapProps) {
@@ -219,7 +201,7 @@ export function DatasetMap({ dataset, datasetSnapshots, onBack }: DatasetMapProp
     const controller = new AbortController();
     void loadDataset(dataset, controller.signal)
       .then(async (bundle) => {
-        const readiness = await ensureDatasetSnapshot(
+        await ensureDatasetSnapshot(
           userDatabase,
           dataset.datasetId,
           dataset.snapshotId,
@@ -227,15 +209,7 @@ export function DatasetMap({ dataset, datasetSnapshots, onBack }: DatasetMapProp
         if (controller.signal.aborted) {
           return;
         }
-        setLoadState(
-          readiness.kind === 'ready'
-            ? { status: 'ready', bundle }
-            : {
-                status: 'needs-legacy-adoption',
-                bundle,
-                storedRecords: readiness.storedRecords,
-              },
-        );
+        setLoadState({ status: 'ready', bundle });
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
@@ -258,31 +232,6 @@ export function DatasetMap({ dataset, datasetSnapshots, onBack }: DatasetMapProp
             <>
               <span className="load-indicator" aria-hidden="true" />
               <p>{t('map.loading')}</p>
-            </>
-          ) : loadState.status === 'needs-legacy-adoption' ? (
-            <>
-              <span className="load-state-code">LOCAL DATA</span>
-              <h2>{t('map.legacyDataTitle')}</h2>
-              <p>{t('map.legacyDataBody', { count: loadState.storedRecords })}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  const bundle = loadState.bundle;
-                  setLoadState({ status: 'loading' });
-                  void adoptLegacyDatasetSnapshot(
-                    userDatabase,
-                    dataset.datasetId,
-                    dataset.snapshotId,
-                  )
-                    .then(() => setLoadState({ status: 'ready', bundle }))
-                    .catch((error: unknown) =>
-                      setLoadState({ status: 'error', message: errorMessage(error) }),
-                    );
-                }}
-              >
-                {t('map.adoptLegacyData')}
-              </button>
-              <button type="button" onClick={onBack}>{t('map.versions')}</button>
             </>
           ) : loadState.status === 'missing' ? (
             <>
@@ -324,9 +273,6 @@ export function DatasetMap({ dataset, datasetSnapshots, onBack }: DatasetMapProp
 
 function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
   const { t } = useTranslation();
-  const title = i18n.resolvedLanguage?.startsWith('ru')
-    ? (dataset.title.ru ?? dataset.title.en)
-    : dataset.title.en;
   return (
     <header className="window-titlebar map-titlebar">
       <button className="back-button" type="button" onClick={onBack}>
@@ -335,7 +281,7 @@ function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
       </button>
       <div className="map-title-copy">
         <span className="titlebar-kicker">{dataset.mapKey.toUpperCase()} / TES3:WORLD</span>
-        <h1 id="map-title">{title}</h1>
+        <h1 id="map-title">{dataset.title.en}</h1>
       </div>
       <span className="titlebar-state">{t('map.local')}</span>
     </header>
@@ -363,10 +309,9 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
     new globalThis.Map<string, ProgressRecord>(),
   );
   const placingMarkerRef = useRef(false);
-  const localeRef = useRef<Locale>(localeFromManifest(dataset));
   const regionRef = useRef<RegionFilter>('all');
   const zoomRef = useRef(0);
-  const [locale, setLocale] = useState<Locale>(() => localeFromManifest(dataset));
+  const locale: Locale = 'en';
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState<RegionFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -391,13 +336,6 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
     const [x, y] = projectionDescriptor.center;
     return [x, y];
   }, [projectionDescriptor.center]);
-  const availableLocales = useMemo(
-    () =>
-      dataset.localization.locales
-        .map(({ locale: localeId }) => localeId)
-        .filter((localeId) => bundle.locales.has(localeId)),
-    [bundle.locales, dataset.localization.locales],
-  );
   const availableRegionIds = useMemo(() => {
     const placeRegions = new Set(bundle.locations.places.map(({ regionId }) => regionId));
     return dataset.regions
@@ -448,11 +386,6 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
       regionCustomMarkers.length,
     [regionCustomMarkers.length, regionPlaces, zoom],
   );
-
-  useEffect(() => {
-    void i18n.changeLanguage(locale);
-    localeRef.current = locale;
-  }, [locale]);
 
   useEffect(() => {
     const focusSearch = (event: KeyboardEvent) => {
@@ -518,7 +451,7 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
       setMarkerError(null);
       void saveCustomMarker(userDatabase, {
         datasetId: dataset.datasetId,
-        label: localeRef.current === 'ru' ? 'Личная отметка' : 'Personal marker',
+        label: 'Personal marker',
         note: '',
         position,
       })
@@ -910,18 +843,7 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
         <aside className="map-ledger" aria-label={t('map.searchLabel')}>
           <div className="ledger-heading">
             <span>INDEX / 001–{places.length.toLocaleString('en-US')}</span>
-            <div className="locale-switch" aria-label="Language">
-              {availableLocales.map((language) => (
-                <button
-                  key={language}
-                  type="button"
-                  aria-pressed={locale === language}
-                  onClick={() => setLocale(language)}
-                >
-                  {language.toUpperCase()}
-                </button>
-              ))}
-            </div>
+            <span className="locale-badge">EN</span>
           </div>
 
           <label className="place-search">
@@ -949,7 +871,7 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
               >
                 {regionId === 'all'
                   ? t('map.allRegions')
-                  : regionTitle(dataset, regionId, locale)}
+                  : regionTitle(dataset, regionId)}
               </button>
             ))}
           </fieldset>
@@ -957,7 +879,7 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
           <details className="ledger-data-tools">
             <summary>{t('map.dataTools')}</summary>
             <DataTools
-              dataset={dataset}
+              datasetId={dataset.datasetId}
               datasetSnapshots={datasetSnapshots}
               knownPlaceIds={knownPlaceIds}
               locale={locale}
@@ -1006,8 +928,8 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
                         <span>
                           <strong>{marker.label}</strong>
                           <small>
-                            X {formatCoordinate(marker.position[0], locale)} · Y{' '}
-                            {formatCoordinate(marker.position[1], locale)}
+                            X {formatCoordinate(marker.position[0])} · Y{' '}
+                            {formatCoordinate(marker.position[1])}
                           </small>
                         </span>
                       </button>
@@ -1036,7 +958,7 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
                       <strong>{place.name}</strong>
                       <small>
                         {t(`placeType.${place.place.type}`)} ·{' '}
-                        {regionTitle(dataset, place.place.regionId, locale)}
+                        {regionTitle(dataset, place.place.regionId)}
                       </small>
                     </span>
                   </button>
@@ -1125,7 +1047,7 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
               datasetId={dataset.datasetId}
               place={selectedPlace}
               locale={locale}
-              regionName={regionTitle(dataset, selectedPlace.place.regionId, locale)}
+              regionName={regionTitle(dataset, selectedPlace.place.regionId)}
               progress={progress.byPlaceId.get(selectedPlace.id)}
               onClose={() => setSelectedId(null)}
             />
@@ -1144,10 +1066,10 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
 
       <footer className="map-statusbar" aria-label="Map status">
         <span>
-          X&nbsp;<strong>{cursor ? formatCoordinate(cursor.world[0], locale) : '—'}</strong>
+          X&nbsp;<strong>{cursor ? formatCoordinate(cursor.world[0]) : '—'}</strong>
         </span>
         <span>
-          Y&nbsp;<strong>{cursor ? formatCoordinate(cursor.world[1], locale) : '—'}</strong>
+          Y&nbsp;<strong>{cursor ? formatCoordinate(cursor.world[1]) : '—'}</strong>
         </span>
         <span>
           CELL&nbsp;<strong>{cursor ? `${cursor.cell[0]}, ${cursor.cell[1]}` : '—, —'}</strong>
@@ -1180,12 +1102,6 @@ function PlaceCard({ datasetId, place, locale, regionName, progress, onClose }: 
       </button>
       <span className="place-card-index">{t('map.cardIndex')}</span>
       <h2 id="selected-place-title">{place.name}</h2>
-      {place.alternateName !== place.name ? (
-        <p className="alternate-name">
-          <span>{t('map.alternateName')}</span>
-          {place.alternateName}
-        </p>
-      ) : null}
       <dl>
         <div>
           <dt>{t('map.type')}</dt>
@@ -1202,8 +1118,8 @@ function PlaceCard({ datasetId, place, locale, regionName, progress, onClose }: 
         <div>
           <dt>{t('map.coordinates')}</dt>
           <dd>
-            {formatCoordinate(place.place.mapPosition[0], locale)} :{' '}
-            {formatCoordinate(place.place.mapPosition[1], locale)}
+            {formatCoordinate(place.place.mapPosition[0])} :{' '}
+            {formatCoordinate(place.place.mapPosition[1])}
           </dd>
         </div>
         <div>
@@ -1249,8 +1165,8 @@ function CustomMarkerCard({ marker, locale, inputRef, onClose, onDeleted }: Cust
       <span className="place-card-index">{t('map.personalMarker')}</span>
       <h2 id="selected-marker-title">{marker.label}</h2>
       <p className="custom-marker-coordinate">
-        X {formatCoordinate(marker.position[0], locale)} · Y{' '}
-        {formatCoordinate(marker.position[1], locale)}
+        X {formatCoordinate(marker.position[0])} · Y{' '}
+        {formatCoordinate(marker.position[1])}
       </p>
       <CustomMarkerEditor
         key={marker.id}

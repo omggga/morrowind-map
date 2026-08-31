@@ -9,6 +9,7 @@ import {
   type MorrowindMapDatabase,
 } from '../storage/database';
 import { savePlaceProgress } from '../storage/userData';
+import { LOCAL_STORAGE_PREFIX } from '../storage/userDataNamespace';
 import { getUserDataStrings } from './strings';
 
 const STATUSES: readonly ProgressStatus[] = ['unvisited', 'active', 'visited'];
@@ -39,7 +40,7 @@ function errorText(error: unknown): string {
 }
 
 function noteDraftStorageKey(placeKey: string): string {
-  return `morrowind-map:draft:place-note:${encodeURIComponent(placeKey)}`;
+  return `${LOCAL_STORAGE_PREFIX}:draft:place-note:${encodeURIComponent(placeKey)}`;
 }
 
 function readStoredNoteDraft(placeKey: string): string | null {

@@ -11,9 +11,7 @@ export interface PlaceView {
   readonly place: PlaceRecord;
   readonly locale: Locale;
   readonly name: string;
-  readonly alternateName: string;
   readonly aliases: readonly string[];
-  readonly alternateAliases: readonly string[];
   readonly searchableType: PlaceType;
 }
 
@@ -31,27 +29,17 @@ export function buildPlaceViews(
     throw new Error(`Missing ${locale} locale catalog`);
   }
   const primary = namesByPlace(selectedCatalog);
-  const alternateCatalogs = catalogs
-    .filter((catalog) => catalog.locale !== locale)
-    .map(namesByPlace);
-
   return places.map((place) => {
     const primaryName = primary.get(place.id);
     if (!primaryName) {
       throw new Error(`Missing localized name for ${place.id}`);
     }
-    const alternateNames = alternateCatalogs.flatMap((catalog) => {
-      const alternate = catalog.get(place.id);
-      return alternate ? [alternate] : [];
-    });
     return {
       id: place.id,
       place,
       locale,
       name: primaryName.name,
-      alternateName: alternateNames[0]?.name ?? primaryName.name,
       aliases: primaryName.aliases,
-      alternateAliases: alternateNames.flatMap(({ name, aliases }) => [name, ...aliases]),
       searchableType: place.type,
     };
   });
@@ -66,9 +54,7 @@ export class PlaceSearch {
     this.#index = new Fuse([...places], {
       keys: [
         { name: 'name', weight: 1 },
-        { name: 'alternateName', weight: 0.72 },
         { name: 'aliases', weight: 0.58 },
-        { name: 'alternateAliases', weight: 0.42 },
         { name: 'searchableType', weight: 0.25 },
         { name: 'place.sources.plugin', weight: 0.12 },
       ],

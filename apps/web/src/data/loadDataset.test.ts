@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DatasetManifest } from '@morrowind-map/contracts';
 import { DatasetAssetsMissingError, loadDataset } from './loadDataset';
 
-const originalSnapshotId = 'original:goty:fixture';
-const originalPlaceId = 'original-goty.vvardenfell.mim-0000';
+const originalSnapshotId = 'original:goty-hd:fixture';
+const originalPlaceId = 'original-goty-hd.place-balmora';
 const poisonSnapshotId = 'tr:poison-song-26.08:fixture';
 const poisonPlaceId = 'poison-song-26.08.place-0001';
 
@@ -13,10 +13,10 @@ const originalPlace = {
   type: 'settlement',
   mapPosition: [-20_000, -12_000],
   exteriorCell: [-3, -2],
-  mimCategory: 19,
+  mimCategory: null,
   minZoom: 0,
   entrances: [],
-  sources: [{ kind: 'mim', plugin: 'mwmain.gdb', recordId: null, mimIndex: 0 }],
+  sources: [{ kind: 'esm', plugin: 'Morrowind.esm', recordId: 'Balmora', mimIndex: null }],
 };
 
 const poisonPlace = {
@@ -33,19 +33,16 @@ const poisonPlace = {
 
 function originalManifest(): DatasetManifest {
   return {
-    datasetId: 'original-goty',
+    datasetId: 'original-goty-hd',
     snapshotId: originalSnapshotId,
     localization: {
-      defaultLocale: 'ru',
-      locales: [
-        { locale: 'en', status: 'available', coverage: 1, fallbackLocale: null },
-        { locale: 'ru', status: 'available', coverage: 1, fallbackLocale: null },
-      ],
+      defaultLocale: 'en',
+      locales: [{ locale: 'en', status: 'available', coverage: 1, fallbackLocale: null }],
     },
     regions: [
       {
         id: 'vvardenfell',
-        title: { en: 'Vvardenfell', ru: 'Вварденфелл' },
+        title: { en: 'Vvardenfell' },
         kind: 'exterior',
         status: 'available',
       },
@@ -66,10 +63,7 @@ function originalManifest(): DatasetManifest {
     },
     artifacts: {
       locations: { url: '/locations.json' },
-      locales: [
-        { locale: 'en', artifact: { url: '/en.json' } },
-        { locale: 'ru', artifact: { url: '/ru.json' } },
-      ],
+      locales: [{ locale: 'en', artifact: { url: '/en.json' } }],
       tiles: { manifestUrl: '/map-assets.json' },
     },
   } as unknown as DatasetManifest;
@@ -122,17 +116,17 @@ function poisonManifest(): DatasetManifest {
 function originalMapAssets() {
   return {
     schemaVersion: 1,
-    datasetId: 'original-goty',
+    datasetId: 'original-goty-hd',
     snapshotId: originalSnapshotId,
     projection: 'TES3:WORLD',
     rasters: [
       {
-        id: 'original-goty.vvardenfell',
+        id: 'original-goty-hd.vvardenfell-preview',
         regionId: 'vvardenfell',
         kind: 'static-image',
-        imageUrl: '/datasets/generated/original-goty/rasters/vvardenfell.jpg',
+        imageUrl: '/datasets/fixtures/original-goty-hd-vvardenfell.jpg',
         mediaType: 'image/jpeg',
-        pixelSize: [3300, 3800],
+        pixelSize: [1024, 1024],
         extent: [-32_768, -32_768, 32_768, 32_768],
         sha256: 'a'.repeat(64),
       },
@@ -235,27 +229,20 @@ afterEach(() => {
 });
 
 describe('loadDataset', () => {
-  it('preserves the Original EN/RU catalog and static raster behavior', async () => {
+  it('loads the EN-only Original catalog from ESM-derived place data', async () => {
     stubJson({
       '/locations.json': {
         schemaVersion: 1,
-        datasetId: 'original-goty',
+        datasetId: 'original-goty-hd',
         snapshotId: originalSnapshotId,
         places: [originalPlace],
       },
       '/en.json': {
         schemaVersion: 1,
-        datasetId: 'original-goty',
+        datasetId: 'original-goty-hd',
         snapshotId: originalSnapshotId,
         locale: 'en',
         places: [{ placeId: originalPlaceId, name: 'Balmora', aliases: [] }],
-      },
-      '/ru.json': {
-        schemaVersion: 1,
-        datasetId: 'original-goty',
-        snapshotId: originalSnapshotId,
-        locale: 'ru',
-        places: [{ placeId: originalPlaceId, name: 'Балмора', aliases: [] }],
       },
       '/map-assets.json': originalMapAssets(),
     });
@@ -263,8 +250,9 @@ describe('loadDataset', () => {
     const bundle = await loadDataset(originalManifest(), new AbortController().signal);
 
     expect(bundle.locations.places).toHaveLength(1);
-    expect(bundle.locales.get('ru')?.places[0]?.name).toBe('Балмора');
-    expect(bundle.mapAssets.rasters[0]?.regionId).toBe('vvardenfell');
+    expect([...bundle.locales.keys()]).toEqual(['en']);
+    expect(bundle.locales.get('en')?.places[0]?.name).toBe('Balmora');
+    expect(bundle.mapAssets.rasters[0]?.id).toBe('original-goty-hd.vvardenfell-preview');
     expect(bundle.tileCoverages.size).toBe(0);
   });
 
@@ -294,55 +282,6 @@ describe('loadDataset', () => {
     expect(bundle.tileCoverages.get('poison-song-26.08.basemap')?.tileCount).toBe(2);
   });
 
-  it('fills a partial locale through its declared fallback chain', async () => {
-    const manifest = originalManifest();
-    manifest.localization.locales[1] = {
-      locale: 'ru',
-      status: 'partial',
-      coverage: 0.5,
-      fallbackLocale: 'en',
-    };
-    const secondPlace = {
-      ...originalPlace,
-      id: 'original-goty.vvardenfell.mim-0001',
-      mapPosition: [4_096, 8_192],
-      exteriorCell: [0, 1],
-    };
-    stubJson({
-      '/locations.json': {
-        schemaVersion: 1,
-        datasetId: 'original-goty',
-        snapshotId: originalSnapshotId,
-        places: [originalPlace, secondPlace],
-      },
-      '/en.json': {
-        schemaVersion: 1,
-        datasetId: 'original-goty',
-        snapshotId: originalSnapshotId,
-        locale: 'en',
-        places: [
-          { placeId: originalPlaceId, name: 'Balmora', aliases: [] },
-          { placeId: secondPlace.id, name: 'Caldera', aliases: [] },
-        ],
-      },
-      '/ru.json': {
-        schemaVersion: 1,
-        datasetId: 'original-goty',
-        snapshotId: originalSnapshotId,
-        locale: 'ru',
-        places: [{ placeId: originalPlaceId, name: 'Балмора', aliases: [] }],
-      },
-      '/map-assets.json': originalMapAssets(),
-    });
-
-    const bundle = await loadDataset(manifest, new AbortController().signal);
-
-    expect(bundle.locales.get('ru')?.places).toEqual([
-      { placeId: originalPlaceId, name: 'Балмора', aliases: [] },
-      { placeId: secondPlace.id, name: 'Caldera', aliases: [] },
-    ]);
-  });
-
   it('rejects an available locale that does not cover the structural catalog', async () => {
     stubJson({
       '/poison-locations.json': {
@@ -364,7 +303,7 @@ describe('loadDataset', () => {
 
     await expect(
       loadDataset(poisonManifest(), new AbortController().signal),
-    ).rejects.toThrow('Locale en не покрывает весь location catalog');
+    ).rejects.toThrow('Locale en does not cover the complete location catalog');
   });
 
   it('uses a typed error for missing required dataset references', async () => {
@@ -394,7 +333,7 @@ describe('loadDataset', () => {
     );
     expect(error).toBeInstanceOf(DatasetAssetsMissingError);
     expect(error).toMatchObject({
-      message: 'Dataset poison-song-26.08 не содержит EN locale catalog',
+      message: 'Dataset poison-song-26.08 does not contain an EN locale catalog',
     });
   });
 
@@ -441,7 +380,7 @@ describe('loadDataset', () => {
 
     await expect(
       loadDataset(poisonManifest(), new AbortController().signal),
-    ).rejects.toThrow('resolutions не совпадают с dataset manifest');
+    ).rejects.toThrow('resolutions do not match the dataset manifest');
   });
 
   it('rejects pyramid regions that differ from available exterior regions', async () => {
@@ -466,6 +405,6 @@ describe('loadDataset', () => {
 
     await expect(
       loadDataset(poisonManifest(), new AbortController().signal),
-    ).rejects.toThrow('содержит неизвестные regionIds: unknown');
+    ).rejects.toThrow('contains unknown regionIds: unknown');
   });
 });

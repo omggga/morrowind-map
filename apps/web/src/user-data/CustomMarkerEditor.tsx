@@ -16,6 +16,7 @@ import {
   deleteCustomMarker,
   saveCustomMarker,
 } from '../storage/userData';
+import { LOCAL_STORAGE_PREFIX } from '../storage/userDataNamespace';
 import { getUserDataStrings } from './strings';
 
 interface MarkerDraft {
@@ -45,7 +46,7 @@ function errorText(error: unknown): string {
 }
 
 function markerDraftStorageKey(markerId: string): string {
-  return `morrowind-map:draft:custom-marker:${encodeURIComponent(markerId)}`;
+  return `${LOCAL_STORAGE_PREFIX}:draft:custom-marker:${encodeURIComponent(markerId)}`;
 }
 
 function readStoredMarkerDraft(markerId: string): MarkerDraft | null {

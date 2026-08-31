@@ -29,10 +29,6 @@ export type {
   MapDescriptor,
   MapAssetsManifest,
   MapKey,
-  MimCustomMarkerEntry,
-  MimImportBundle,
-  MimProgressEntry,
-  MimSourceFile,
   ModuleDescriptor,
   ModuleStatus,
   Point,
@@ -69,7 +65,6 @@ export type {
   TilePyramidPresentation,
   TileSetReference,
   TileYRange,
-  ImportReceipt,
   UserDataProvenance,
   UserDataProvenanceKind,
 } from "./types";
@@ -80,7 +75,6 @@ export {
   getLocationCatalogValidationIssues,
   getMapAssetsManifestValidationIssues,
   getTileCoverageValidationIssues,
-  getMimImportBundleValidationIssues,
   getPlaceLocaleCatalogValidationIssues,
   getPortableBackupValidationIssues,
   isDatasetIndex,
@@ -88,7 +82,6 @@ export {
   isLocationCatalog,
   isMapAssetsManifest,
   isTileCoverage,
-  isMimImportBundle,
   isPlaceLocaleCatalog,
   isPortableBackup,
   parseDatasetIndex,
@@ -96,18 +89,14 @@ export {
   parseLocationCatalog,
   parseMapAssetsManifest,
   parseTileCoverage,
-  parseMimImportBundle,
   parsePlaceLocaleCatalog,
   parsePortableBackup,
 } from "./validation";
 export type { ContractKind, ContractValidationIssue } from "./validation";
-export { createMimImportReceiptId } from "./import-receipt";
-
 export { default as datasetIndexSchema } from "./schemas/dataset-index.schema.json";
 export { default as datasetManifestSchema } from "./schemas/dataset-manifest.schema.json";
 export { default as locationCatalogSchema } from "./schemas/location-catalog.schema.json";
 export { default as mapAssetsSchema } from "./schemas/map-assets.schema.json";
 export { default as tileCoverageSchema } from "./schemas/tile-coverage.schema.json";
-export { default as mimImportSchema } from "./schemas/mim-import.schema.json";
 export { default as placeLocaleCatalogSchema } from "./schemas/place-locale-catalog.schema.json";
 export { default as portableBackupSchema } from "./schemas/portable-backup.schema.json";

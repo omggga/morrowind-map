@@ -119,7 +119,6 @@ pnpm data:poison:catalog:prepare
 ```bash
 pnpm install
 pnpm exec playwright install chromium
-pnpm data:original
 pnpm dev
 ```
 

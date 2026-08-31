@@ -10,7 +10,6 @@
   },
   "scripts": {
     "dev": "pnpm --filter @morrowind-map/web dev",
-    "data:original": "python3 -m tools.data_pipeline.build_original",
     "data:renderer-spike": "python3 -m tools.land_renderer.spike",
     "data:openmw-spike": "python3 -m tools.openmw_renderer.spike",
     "data:openmw-smoke": "python3 -m tools.openmw_renderer.spike --skip-build --smoke-only",
@@ -42,9 +41,8 @@
     "build": "pnpm --filter @morrowind-map/web build",
     "typecheck": "tsc --project tsconfig.json --pretty false && pnpm -r --if-present typecheck",
     "lint": "eslint . --max-warnings=0",
-    "test": "pnpm test:unit && pnpm test:pipeline && pnpm test:catalog && pnpm test:renderer && pnpm test:openmw-renderer",
+    "test": "pnpm test:unit && pnpm test:catalog && pnpm test:renderer && pnpm test:openmw-renderer",
     "test:unit": "vitest run",
-    "test:pipeline": "python3 -m unittest discover -s tools/data_pipeline/tests -v",
     "test:catalog": "python3 -m unittest discover -s tools/catalog_pipeline/tests -t . -v",
     "test:renderer": "python3 -m unittest discover -s tools/land_renderer/tests -t . -v",
     "test:openmw-renderer": "python3 -m unittest discover -s tools/openmw_renderer/tests -t . -v",

@@ -1,37 +1,32 @@
 import { useId, useRef, useState, type ChangeEvent } from 'react';
-import type { DatasetManifest, Locale } from '@morrowind-map/contracts';
+import type { Locale } from '@morrowind-map/contracts';
 import {
   userDatabase,
   type MorrowindMapDatabase,
 } from '../storage/database';
 import {
-  applyMimImport,
   createPortableBackup,
   importPortableBackup,
   type BackupImportResult,
-  type MimImportResult,
 } from '../storage/userData';
 import { getUserDataStrings } from './strings';
 
 const MAX_BACKUP_FILE_BYTES = 10 * 1024 * 1024;
 
-type BusyOperation = 'mim' | 'export' | 'backup' | null;
+type BusyOperation = 'export' | 'backup' | null;
 
 type Feedback =
   | { readonly tone: 'error'; readonly detail: string }
-  | { readonly tone: 'status'; readonly kind: 'mim-duplicate' }
-  | { readonly tone: 'status'; readonly kind: 'mim-result'; readonly result: MimImportResult }
   | { readonly tone: 'status'; readonly kind: 'backup-exported' }
   | { readonly tone: 'status'; readonly kind: 'backup-result'; readonly result: BackupImportResult };
 
 export interface DataToolsProps {
-  readonly dataset: DatasetManifest;
+  readonly datasetId: string;
   readonly knownPlaceIds: ReadonlySet<string>;
   readonly locale: Locale;
   readonly datasetSnapshots: Readonly<Record<string, string>>;
   readonly database?: MorrowindMapDatabase;
   readonly className?: string;
-  readonly onMimImport?: (result: MimImportResult) => void;
   readonly onBackupImport?: (result: BackupImportResult) => void;
 }
 
@@ -52,13 +47,12 @@ function downloadBackup(contents: string, exportedAt: string): void {
 }
 
 export function DataTools({
-  dataset,
+  datasetId,
   knownPlaceIds,
   locale,
   datasetSnapshots,
   database = userDatabase,
   className,
-  onMimImport,
   onBackupImport,
 }: DataToolsProps) {
   const strings = getUserDataStrings(locale);
@@ -68,7 +62,6 @@ export function DataTools({
   const latestOperationRef = useRef(0);
   const [busy, setBusy] = useState<BusyOperation>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const mimArtifact = dataset.artifacts.mimImport;
 
   const beginOperation = (operation: Exclude<BusyOperation, null>) => {
     const operationId = latestOperationRef.current + 1;
@@ -87,38 +80,6 @@ export function DataTools({
 
   const failOperation = (operationId: number, error: unknown) => {
     finishOperation(operationId, { tone: 'error', detail: errorDetail(error) });
-  };
-
-  const importMim = async () => {
-    if (!mimArtifact || busy !== null) {
-      return;
-    }
-
-    const operationId = beginOperation('mim');
-    try {
-      const response = await fetch(mimArtifact.url, {
-        headers: { Accept: 'application/json' },
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${mimArtifact.url}`);
-      }
-      const result = await applyMimImport(
-        database,
-        await response.json() as unknown,
-        dataset.datasetId,
-        dataset.snapshotId,
-        knownPlaceIds,
-      );
-      onMimImport?.(result);
-      finishOperation(
-        operationId,
-        result.duplicate
-          ? { tone: 'status', kind: 'mim-duplicate' }
-          : { tone: 'status', kind: 'mim-result', result },
-      );
-    } catch (error: unknown) {
-      failOperation(operationId, error);
-    }
   };
 
   const exportJson = async () => {
@@ -152,7 +113,7 @@ export function DataTools({
       const input: unknown = JSON.parse(await file.text());
       const result = await importPortableBackup(database, input, {
         currentSnapshots: datasetSnapshots,
-        knownPlaceIdsByDataset: new Map([[dataset.datasetId, knownPlaceIds]]),
+        knownPlaceIdsByDataset: new Map([[datasetId, knownPlaceIds]]),
       });
       onBackupImport?.(result);
       finishOperation(operationId, { tone: 'status', kind: 'backup-result', result });
@@ -166,10 +127,6 @@ export function DataTools({
     feedbackText = feedback.detail === strings.fileTooLarge
       ? feedback.detail
       : `${strings.operationFailed}: ${feedback.detail}`;
-  } else if (feedback?.kind === 'mim-duplicate') {
-    feedbackText = strings.mimDuplicate;
-  } else if (feedback?.kind === 'mim-result') {
-    feedbackText = strings.mimResult(feedback.result);
   } else if (feedback?.kind === 'backup-exported') {
     feedbackText = strings.backupExported;
   } else if (feedback?.kind === 'backup-result') {
@@ -184,16 +141,6 @@ export function DataTools({
     >
       <h2 id={headingId}>{strings.dataToolsTitle}</h2>
       <div className="user-data-tools__actions">
-        <button
-          type="button"
-          disabled={!mimArtifact || busy !== null}
-          onClick={() => void importMim()}
-          title={mimArtifact ? undefined : strings.mimUnavailable}
-        >
-          {busy === 'mim' ? strings.importing : strings.mimImport}
-        </button>
-        {!mimArtifact ? <p className="user-data-tools__hint">{strings.mimUnavailable}</p> : null}
-
         <button type="button" disabled={busy !== null} onClick={() => void exportJson()}>
           {busy === 'export' ? strings.exporting : strings.exportJson}
         </button>

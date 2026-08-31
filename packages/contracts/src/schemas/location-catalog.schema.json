@@ -58,7 +58,7 @@
       "additionalProperties": false,
       "required": ["kind", "plugin", "recordId", "mimIndex"],
       "properties": {
-        "kind": { "enum": ["mim", "esm"] },
+        "kind": { "const": "esm" },
         "plugin": { "type": "string", "minLength": 1, "maxLength": 255 },
         "recordId": {
           "anyOf": [

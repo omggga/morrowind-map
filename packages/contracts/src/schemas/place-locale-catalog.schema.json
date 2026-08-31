@@ -9,7 +9,7 @@
     "schemaVersion": { "const": 1 },
     "datasetId": { "$ref": "#/$defs/identifier" },
     "snapshotId": { "$ref": "#/$defs/snapshotId" },
-    "locale": { "enum": ["en", "ru"] },
+    "locale": { "const": "en" },
     "places": {
       "type": "array",
       "items": {

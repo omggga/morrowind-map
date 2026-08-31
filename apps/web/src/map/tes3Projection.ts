@@ -79,5 +79,5 @@ export function buildCellGrid(
 }
 
 export function formatWorldCoordinate(value: number): string {
-  return Math.round(value).toLocaleString('ru-RU');
+  return Math.round(value).toLocaleString('en-US');
 }

@@ -10,11 +10,10 @@
     "exportedAt",
     "datasets",
     "progress",
-    "customMarkers",
-    "importReceipts"
+    "customMarkers"
   ],
   "properties": {
-    "schemaVersion": { "const": 2 },
+    "schemaVersion": { "const": 3 },
     "kind": { "const": "morrowind-map-backup" },
     "exportedAt": { "$ref": "#/$defs/timestamp" },
     "datasets": {
@@ -29,10 +28,6 @@
     "customMarkers": {
       "type": "array",
       "items": { "$ref": "#/$defs/customMarker" }
-    },
-    "importReceipts": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/importReceipt" }
     }
   },
   "$defs": {
@@ -47,16 +42,6 @@
       "minLength": 1,
       "maxLength": 160,
       "pattern": "^[a-z0-9][a-z0-9:._-]+$"
-    },
-    "sha256": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "mimImportReceiptId": {
-      "type": "string",
-      "minLength": 101,
-      "maxLength": 101,
-      "pattern": "^mim:[a-f0-9]{32}:[a-f0-9]{64}$"
     },
     "timestamp": {
       "type": "string",
@@ -80,10 +65,8 @@
       "additionalProperties": false,
       "required": ["kind", "sourceFingerprint"],
       "properties": {
-        "kind": { "enum": ["manual", "mim-import"] },
-        "sourceFingerprint": {
-          "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
-        }
+        "kind": { "const": "manual" },
+        "sourceFingerprint": { "type": "null" }
       }
     },
     "progress": {
@@ -132,24 +115,6 @@
           "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }]
         },
         "provenance": { "$ref": "#/$defs/provenance" }
-      }
-    },
-    "importReceipt": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "datasetId",
-        "sourceKind",
-        "sourceFingerprint",
-        "importedAt"
-      ],
-      "properties": {
-        "id": { "$ref": "#/$defs/mimImportReceiptId" },
-        "datasetId": { "$ref": "#/$defs/identifier" },
-        "sourceKind": { "const": "mim" },
-        "sourceFingerprint": { "$ref": "#/$defs/sha256" },
-        "importedAt": { "$ref": "#/$defs/timestamp" }
       }
     }
   }

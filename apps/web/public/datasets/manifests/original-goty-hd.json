@@ -1,15 +1,13 @@
 {
   "schemaVersion": 1,
-  "datasetId": "original-goty",
+  "datasetId": "original-goty-hd",
   "mapKey": "original",
-  "snapshotId": "original:goty:332684d75ed7e331",
+  "snapshotId": "original:goty:fff441f864a7f73e",
   "title": {
-    "en": "Original Morrowind + expansions",
-    "ru": "Оригинальный Morrowind + дополнения"
+    "en": "Morrowind Game of the Year — HD"
   },
   "summary": {
-    "en": "Vvardenfell, Solstheim and a planned Tribunal interior inset.",
-    "ru": "Вварденфелл, Солстхейм и планируемая интерьерная схема Tribunal."
+    "en": "A high-detail Vvardenfell and Solstheim map rendered from the unmodified English base game and expansions."
   },
   "release": {
     "name": "Morrowind Game of the Year Edition",
@@ -17,24 +15,20 @@
     "build": null
   },
   "readiness": {
-    "status": "ready",
+    "status": "blocked",
     "exactProfile": true,
-    "blockers": [],
+    "blockers": [
+      "The Original HD catalog and WebP tile pyramid have not been published yet."
+    ],
     "warnings": []
   },
   "localization": {
-    "defaultLocale": "ru",
+    "defaultLocale": "en",
     "locales": [
       {
         "locale": "en",
-        "status": "available",
-        "coverage": 1,
-        "fallbackLocale": null
-      },
-      {
-        "locale": "ru",
-        "status": "available",
-        "coverage": 1,
+        "status": "planned",
+        "coverage": 0,
         "fallbackLocale": null
       }
     ]
@@ -43,26 +37,23 @@
     {
       "id": "vvardenfell",
       "title": {
-        "en": "Vvardenfell",
-        "ru": "Вварденфелл"
+        "en": "Vvardenfell"
       },
       "kind": "exterior",
-      "status": "available"
+      "status": "blocked"
     },
     {
       "id": "solstheim",
       "title": {
-        "en": "Solstheim",
-        "ru": "Солстхейм"
+        "en": "Solstheim"
       },
       "kind": "exterior",
-      "status": "available"
+      "status": "blocked"
     },
     {
       "id": "mournhold",
       "title": {
-        "en": "Mournhold",
-        "ru": "Морнхолд"
+        "en": "Mournhold"
       },
       "kind": "interior-inset",
       "status": "planned"
@@ -124,7 +115,7 @@
     ],
     "dataDirectories": [
       {
-        "id": "base-game",
+        "id": "bsa",
         "order": 0,
         "status": "confirmed"
       }
@@ -134,14 +125,14 @@
         "id": "tribunal",
         "status": "enabled",
         "notes": [
-          "Mournhold will be represented as an interior inset rather than fake exterior geography."
+          "Tribunal assets are available, but Mournhold requires a separate interior inset instead of false exterior coordinates."
         ]
       },
       {
         "id": "bloodmoon",
         "status": "enabled",
         "notes": [
-          "Solstheim belongs to this dataset and is not a fourth map version."
+          "Solstheim is rendered in the same exterior tile pyramid."
         ]
       }
     ]
@@ -161,53 +152,25 @@
     }
   },
   "artifacts": {
-    "locations": {
-      "url": "/datasets/generated/original-goty/locations.json",
-      "mediaType": "application/json",
-      "sha256": "1282c7f3ec38112d113e75a635a2f18ea5f2843c51e575b0d4760330547a7fd8",
-      "bytes": 871016
-    },
+    "locations": null,
     "locales": [
       {
         "locale": "en",
-        "artifact": {
-          "url": "/datasets/generated/original-goty/locales/en.json",
-          "mediaType": "application/json",
-          "sha256": "8be1de9575e9f8fd28152b6288666745970eeee486973110991c3de94967ae27",
-          "bytes": 130403
-        }
-      },
-      {
-        "locale": "ru",
-        "artifact": {
-          "url": "/datasets/generated/original-goty/locales/ru.json",
-          "mediaType": "application/json",
-          "sha256": "34f9f5fd7f0a7df8f3c0f5927ecb62850aa68281d29013036aa3b0629fe14483",
-          "bytes": 143627
-        }
+        "artifact": null
       }
     ],
-    "tiles": {
-      "manifestUrl": "/datasets/generated/original-goty/map-assets.json",
-      "sha256": "bf5bc6cd1ef116c9b3629bbd4f3a5507f136038077dff5b8540cf49743d6b59b"
-    },
-    "mimImport": {
-      "url": "/datasets/generated/original-goty/mim-import.json",
-      "mediaType": "application/json",
-      "sha256": "c1a4fb8e96eefe5728f82f66b7870431a9b6fe3bc82ac3f6f92527e4a89d84b4",
-      "bytes": 107155
-    }
+    "tiles": null,
+    "catalogAudit": null,
+    "mimImport": null
   },
   "provenance": {
-    "kind": "generated",
+    "kind": "placeholder",
     "notes": [
-      "The immutable profile hash is derived from the pinned English GOTY ESM files.",
-      "The local artifact pipeline combines 933 MIM markers with 77 additional exterior ESM destinations.",
-      "Bloodmoon uses its exact LAND-cell raster extent; MIM-only points use a 55-door north-up calibration with 469 TES3-unit RMS error.",
-      "MIM JPEG files remain local ignored inputs and are not stored in Git."
+      "The isolated source profile contains only Morrowind, Tribunal and Bloodmoon ESM/BSA files.",
+      "Tamriel Data, Tamriel Rebuilt and loose Fullrest assets are excluded from this dataset."
     ],
     "knownIssues": [
-      "Mournhold needs an interior graph or inset contract before its locations are published."
+      "Mournhold is interior topology and is deferred to a separate inset pipeline."
     ]
   }
 }

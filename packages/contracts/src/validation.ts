@@ -5,19 +5,16 @@ import datasetIndexSchema from "./schemas/dataset-index.schema.json";
 import datasetManifestSchema from "./schemas/dataset-manifest.schema.json";
 import locationCatalogSchema from "./schemas/location-catalog.schema.json";
 import mapAssetsSchema from "./schemas/map-assets.schema.json";
-import mimImportSchema from "./schemas/mim-import.schema.json";
 import placeLocaleCatalogSchema from "./schemas/place-locale-catalog.schema.json";
 import portableBackupSchema from "./schemas/portable-backup.schema.json";
 import tileCoverageSchema from "./schemas/tile-coverage.schema.json";
-import { createMimImportReceiptId } from "./import-receipt";
-import { PORTABLE_BACKUP_SCHEMA_VERSION, TES3_CELL_SIZE } from "./types";
+import { TES3_CELL_SIZE } from "./types";
 import type {
   DatasetIndex,
   DatasetManifest,
   LocationCatalog,
   LocaleDescriptor,
   MapAssetsManifest,
-  MimImportBundle,
   PlaceLocaleCatalog,
   PortableBackup,
   SourceProfileDescriptor,
@@ -31,7 +28,6 @@ export type ContractKind =
   | "place locale catalog"
   | "map assets manifest"
   | "tile coverage"
-  | "MIM import bundle"
   | "portable backup";
 
 export interface ContractValidationIssue {
@@ -71,8 +67,61 @@ const validatePlaceLocaleCatalogSchema =
   ajv.compile<PlaceLocaleCatalog>(placeLocaleCatalogSchema);
 const validateMapAssetsSchema = ajv.compile<MapAssetsManifest>(mapAssetsSchema);
 const validateTileCoverageSchema = ajv.compile<TileCoverage>(tileCoverageSchema);
-const validateMimImportSchema = ajv.compile<MimImportBundle>(mimImportSchema);
 const validatePortableBackupSchema = ajv.compile<PortableBackup>(portableBackupSchema);
+
+const ORIGINAL_GOTY_HD_CONTENT_FILES = [
+  {
+    name: "Morrowind.esm",
+    kind: "esm",
+    version: null,
+    sha256: "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+    loadOrder: 0,
+    inclusion: "required",
+    enabled: true,
+  },
+  {
+    name: "Tribunal.esm",
+    kind: "esm",
+    version: null,
+    sha256: "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+    loadOrder: 1,
+    inclusion: "required",
+    enabled: true,
+  },
+  {
+    name: "Bloodmoon.esm",
+    kind: "esm",
+    version: null,
+    sha256: "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357",
+    loadOrder: 2,
+    inclusion: "required",
+    enabled: true,
+  },
+] as const;
+
+const ORIGINAL_GOTY_HD_ARCHIVES = [
+  {
+    name: "Morrowind.bsa",
+    sha256: "3dcd5e6bfa08245521a53374bf733ee5c920df49103898a15aa31144ad64cf48",
+    order: 0,
+    required: true,
+    registered: true,
+  },
+  {
+    name: "Tribunal.bsa",
+    sha256: "3901e7a146f7a64a4ae9534c80d5974f7ab15adf5c48c4561d9313c0f7831d69",
+    order: 1,
+    required: true,
+    registered: true,
+  },
+  {
+    name: "Bloodmoon.bsa",
+    sha256: "7c20956791400d958cb407f0b7c1c19ceaf46719df7eb724d0b450299360bd7c",
+    order: 2,
+    required: true,
+    registered: true,
+  },
+] as const;
 
 function schemaIssues(validate: ValidateFunction): ContractValidationIssue[] {
   return (validate.errors ?? []).map((error: ErrorObject) => ({
@@ -319,6 +368,58 @@ function getProfileSemanticIssues(profile: SourceProfileDescriptor): ContractVal
   return issues;
 }
 
+function getOriginalGotyHdProfileIssues(
+  manifest: DatasetManifest,
+): ContractValidationIssue[] {
+  if (manifest.datasetId !== "original-goty-hd") {
+    return [];
+  }
+
+  const contentMatches =
+    manifest.profile.contentFiles.length === ORIGINAL_GOTY_HD_CONTENT_FILES.length &&
+    manifest.profile.contentFiles.every((entry, index) => {
+      const expected = ORIGINAL_GOTY_HD_CONTENT_FILES[index];
+      return (
+        expected !== undefined &&
+        entry.name === expected.name &&
+        entry.kind === expected.kind &&
+        entry.version === expected.version &&
+        entry.sha256 === expected.sha256 &&
+        entry.loadOrder === expected.loadOrder &&
+        entry.inclusion === expected.inclusion &&
+        entry.enabled === expected.enabled
+      );
+    });
+  const archivesMatch =
+    manifest.profile.registeredArchives.length === ORIGINAL_GOTY_HD_ARCHIVES.length &&
+    manifest.profile.registeredArchives.every((entry, index) => {
+      const expected = ORIGINAL_GOTY_HD_ARCHIVES[index];
+      return (
+        expected !== undefined &&
+        entry.name === expected.name &&
+        entry.sha256 === expected.sha256 &&
+        entry.order === expected.order &&
+        entry.required === expected.required &&
+        entry.registered === expected.registered
+      );
+    });
+  const [dataDirectory] = manifest.profile.dataDirectories;
+  const dataDirectoriesMatch =
+    manifest.profile.dataDirectories.length === 1 &&
+    dataDirectory?.id === "bsa" &&
+    dataDirectory.order === 0 &&
+    dataDirectory.status === "confirmed";
+
+  return contentMatches && archivesMatch && dataDirectoriesMatch
+    ? []
+    : [
+        semanticIssue(
+          "/profile",
+          "must exactly match the isolated Original GOTY profile (Morrowind, Tribunal and Bloodmoon ESM/BSA only)",
+        ),
+      ];
+}
+
 function getManifestSemanticIssues(manifest: DatasetManifest): ContractValidationIssue[] {
   const issues: ContractValidationIssue[] = [];
   const { extent, center, cellSize } = manifest.map.projection;
@@ -365,6 +466,7 @@ function getManifestSemanticIssues(manifest: DatasetManifest): ContractValidatio
     ),
     ...getLocaleSemanticIssues(manifest, manifest.localization.locales),
     ...getProfileSemanticIssues(manifest.profile),
+    ...getOriginalGotyHdProfileIssues(manifest),
   );
 
   if (manifest.readiness.status === "blocked" && manifest.readiness.blockers.length === 0) {
@@ -741,123 +843,6 @@ export function getTileCoverageValidationIssues(
   return issues;
 }
 
-export function getMimImportBundleValidationIssues(
-  value: unknown,
-): ContractValidationIssue[] {
-  if (!validateMimImportSchema(value)) {
-    return schemaIssues(validateMimImportSchema);
-  }
-
-  const issues = [
-    ...duplicateIssues(
-      value.sourceFiles.map((sourceFile) => sourceFile.path),
-      "/sourceFiles",
-      "source file paths",
-    ),
-    ...duplicateIssues(
-      value.progress.map((progress) => progress.placeId),
-      "/progress",
-      "MIM progress place ids",
-    ),
-    ...duplicateIssues(
-      value.customMarkers.map((marker) => marker.id),
-      "/customMarkers",
-      "MIM custom marker ids",
-    ),
-  ];
-  value.progress.forEach((progress, index) => {
-    if (!progress.placeId.startsWith(`${value.targetDatasetId}.`)) {
-      issues.push(
-        semanticIssue(
-          `/progress/${index}/placeId`,
-          "must be scoped to targetDatasetId",
-        ),
-      );
-    }
-  });
-  value.customMarkers.forEach((marker, index) => {
-    if (!marker.id.startsWith(`${value.targetDatasetId}.`)) {
-      issues.push(
-        semanticIssue(
-          `/customMarkers/${index}/id`,
-          "must be scoped to targetDatasetId",
-        ),
-      );
-    }
-  });
-  return issues;
-}
-
-function getProvenanceIssues(
-  provenance: PortableBackup["progress"][number]["provenance"],
-  instancePath: string,
-): ContractValidationIssue[] {
-  if (provenance.kind === "manual" && provenance.sourceFingerprint !== null) {
-    return [semanticIssue(instancePath, "manual provenance requires a null fingerprint")];
-  }
-  if (provenance.kind === "mim-import" && provenance.sourceFingerprint === null) {
-    return [semanticIssue(instancePath, "MIM provenance requires a source fingerprint")];
-  }
-  return [];
-}
-
-interface PortableBackupNormalizationResult {
-  value: unknown;
-  issues: ContractValidationIssue[];
-}
-
-function isUnknownRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function normalizeLegacyPortableBackup(value: unknown): PortableBackupNormalizationResult {
-  if (!isUnknownRecord(value) || value.schemaVersion !== 1) {
-    return { value, issues: [] };
-  }
-
-  const issues: ContractValidationIssue[] = [];
-  const importReceipts = Array.isArray(value.importReceipts)
-    ? (value.importReceipts as unknown[]).map((receipt, index) => {
-        if (!isUnknownRecord(receipt)) {
-          return receipt;
-        }
-
-        const { datasetId, id, sourceFingerprint } = receipt;
-        if (
-          typeof datasetId !== "string" ||
-          typeof id !== "string" ||
-          typeof sourceFingerprint !== "string"
-        ) {
-          return receipt;
-        }
-
-        if (id !== `mim:${datasetId}:${sourceFingerprint}`) {
-          issues.push(
-            semanticIssue(
-              `/importReceipts/${index}/id`,
-              "legacy receipt id must match datasetId and sourceFingerprint",
-            ),
-          );
-          return receipt;
-        }
-
-        return {
-          ...receipt,
-          id: createMimImportReceiptId(datasetId, sourceFingerprint),
-        };
-      })
-    : value.importReceipts;
-
-  return {
-    value: {
-      ...value,
-      schemaVersion: PORTABLE_BACKUP_SCHEMA_VERSION,
-      importReceipts,
-    },
-    issues,
-  };
-}
-
 export function getPortableBackupValidationIssues(value: unknown): ContractValidationIssue[] {
   if (!validatePortableBackupSchema(value)) {
     return schemaIssues(validatePortableBackupSchema);
@@ -874,11 +859,6 @@ export function getPortableBackupValidationIssues(value: unknown): ContractValid
       value.customMarkers.map(({ id }) => id),
       "/customMarkers",
       "custom marker ids",
-    ),
-    ...duplicateIssues(
-      value.importReceipts.map(({ id }) => id),
-      "/importReceipts",
-      "import receipt ids",
     ),
   ];
 
@@ -899,7 +879,6 @@ export function getPortableBackupValidationIssues(value: unknown): ContractValid
     if (Number.isNaN(Date.parse(progress.updatedAt))) {
       issues.push(semanticIssue(`/progress/${index}/updatedAt`, "must be a real timestamp"));
     }
-    issues.push(...getProvenanceIssues(progress.provenance, `/progress/${index}/provenance`));
   });
   value.customMarkers.forEach((marker, index) => {
     if (!datasetIds.has(marker.datasetId)) {
@@ -941,32 +920,6 @@ export function getPortableBackupValidationIssues(value: unknown): ContractValid
         );
       }
     }
-    issues.push(
-      ...getProvenanceIssues(marker.provenance, `/customMarkers/${index}/provenance`),
-    );
-  });
-  value.importReceipts.forEach((receipt, index) => {
-    if (!datasetIds.has(receipt.datasetId)) {
-      issues.push(
-        semanticIssue(`/importReceipts/${index}/datasetId`, "must be declared in datasets"),
-      );
-    }
-    if (Number.isNaN(Date.parse(receipt.importedAt))) {
-      issues.push(
-        semanticIssue(`/importReceipts/${index}/importedAt`, "must be a real timestamp"),
-      );
-    }
-    if (
-      receipt.id !==
-      createMimImportReceiptId(receipt.datasetId, receipt.sourceFingerprint)
-    ) {
-      issues.push(
-        semanticIssue(
-          `/importReceipts/${index}/id`,
-          "must be the canonical id for datasetId and sourceFingerprint",
-        ),
-      );
-    }
   });
   return issues;
 }
@@ -996,10 +949,6 @@ export function isTileCoverage(
   mapAssets?: MapAssetsManifest,
 ): value is TileCoverage {
   return getTileCoverageValidationIssues(value, mapAssets).length === 0;
-}
-
-export function isMimImportBundle(value: unknown): value is MimImportBundle {
-  return getMimImportBundleValidationIssues(value).length === 0;
 }
 
 export function isPortableBackup(value: unknown): value is PortableBackup {
@@ -1057,22 +1006,10 @@ export function parseTileCoverage(
   return value as TileCoverage;
 }
 
-export function parseMimImportBundle(value: unknown): MimImportBundle {
-  const issues = getMimImportBundleValidationIssues(value);
-  if (issues.length > 0) {
-    throw new ContractValidationError("MIM import bundle", issues);
-  }
-  return value as MimImportBundle;
-}
-
 export function parsePortableBackup(value: unknown): PortableBackup {
-  const normalized = normalizeLegacyPortableBackup(value);
-  const issues = [
-    ...normalized.issues,
-    ...getPortableBackupValidationIssues(normalized.value),
-  ];
+  const issues = getPortableBackupValidationIssues(value);
   if (issues.length > 0) {
     throw new ContractValidationError("portable backup", issues);
   }
-  return normalized.value as PortableBackup;
+  return value as PortableBackup;
 }

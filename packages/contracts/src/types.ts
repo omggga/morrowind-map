@@ -1,14 +1,14 @@
 export const DATASET_SCHEMA_VERSION = 1 as const;
 export const ARTIFACT_SCHEMA_VERSION = 1 as const;
-export const PORTABLE_BACKUP_SCHEMA_VERSION = 2 as const;
+export const PORTABLE_BACKUP_SCHEMA_VERSION = 3 as const;
 export const TES3_PROJECTION_CODE = "TES3:WORLD" as const;
 export const TES3_CELL_SIZE = 8192 as const;
 
 export type DatasetSchemaVersion = typeof DATASET_SCHEMA_VERSION;
 export type Tes3ProjectionCode = typeof TES3_PROJECTION_CODE;
 export type Tes3CellSize = typeof TES3_CELL_SIZE;
-export type Locale = "en" | "ru";
-export type MapKey = "original" | "fullrest-old" | "poison-song";
+export type Locale = "en";
+export type MapKey = "original" | "poison-song";
 export type DatasetReadiness = "placeholder" | "blocked" | "ready";
 export type LocaleStatus = "available" | "partial" | "planned" | "unavailable";
 export type RegionKind = "exterior" | "interior-inset";
@@ -33,16 +33,15 @@ export type PlaceType =
   | "shop"
   | "landmark"
   | "other";
-export type PlaceSourceKind = "mim" | "esm";
+export type PlaceSourceKind = "esm";
 export type ProgressStatus = "unvisited" | "active" | "visited";
-export type UserDataProvenanceKind = "manual" | "mim-import";
+export type UserDataProvenanceKind = "manual";
 
 export type Point = readonly [x: number, y: number];
 export type Extent = readonly [minX: number, minY: number, maxX: number, maxY: number];
 
 export interface LocalizedText {
   en: string;
-  ru?: string;
 }
 
 export interface DatasetIndexEntry {
@@ -167,7 +166,8 @@ export interface DatasetArtifacts {
   locations: ArtifactReference | null;
   locales: LocaleArtifactReference[];
   tiles: TileSetReference | null;
-  mimImport: ArtifactReference | null;
+  /** Deprecated manifest slot retained as null for the immutable Poison Song manifest. */
+  mimImport: null;
   catalogAudit?: ArtifactReference | null;
 }
 
@@ -334,7 +334,7 @@ export interface TileCoverage {
 
 export interface UserDataProvenance {
   kind: UserDataProvenanceKind;
-  sourceFingerprint: string | null;
+  sourceFingerprint: null;
 }
 
 export interface ProgressRecord {
@@ -358,43 +358,6 @@ export interface CustomMarkerRecord {
   provenance: UserDataProvenance;
 }
 
-export interface ImportReceipt {
-  id: string;
-  datasetId: string;
-  sourceKind: "mim";
-  sourceFingerprint: string;
-  importedAt: string;
-}
-
-export interface MimSourceFile {
-  path: string;
-  sha256: string;
-}
-
-export interface MimProgressEntry {
-  placeId: string;
-  status: ProgressStatus;
-  note: string;
-}
-
-export interface MimCustomMarkerEntry {
-  id: string;
-  label: string;
-  note: string;
-  position: Point;
-}
-
-export interface MimImportBundle {
-  schemaVersion: typeof ARTIFACT_SCHEMA_VERSION;
-  kind: "mim-progress";
-  targetDatasetId: string;
-  targetSnapshotId: string;
-  sourceFingerprint: string;
-  sourceFiles: MimSourceFile[];
-  progress: MimProgressEntry[];
-  customMarkers: MimCustomMarkerEntry[];
-}
-
 export interface PortableBackup {
   schemaVersion: typeof PORTABLE_BACKUP_SCHEMA_VERSION;
   kind: "morrowind-map-backup";
@@ -402,5 +365,4 @@ export interface PortableBackup {
   datasets: Record<string, string>;
   progress: ProgressRecord[];
   customMarkers: CustomMarkerRecord[];
-  importReceipts: ImportReceipt[];
 }

@@ -33,7 +33,7 @@ const dataset = {
 describe('DatasetMap loading states', () => {
   beforeEach(async () => {
     vi.mocked(loadDataset).mockReset();
-    await i18n.changeLanguage('ru');
+    await i18n.changeLanguage('en');
   });
 
   afterEach(cleanup);
@@ -43,20 +43,20 @@ describe('DatasetMap loading states', () => {
 
     render(<DatasetMap dataset={dataset} datasetSnapshots={{}} onBack={vi.fn()} />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('Открываю набор данных карты');
+    expect(screen.getByRole('status')).toHaveTextContent('Opening the map dataset');
   });
 
   it('distinguishes an unpublished local dataset from a runtime error', async () => {
     vi.mocked(loadDataset).mockRejectedValue(
-      new DatasetAssetsMissingError('Dataset не содержит location catalog'),
+      new DatasetAssetsMissingError('Dataset does not contain a location catalog'),
     );
 
     render(<DatasetMap dataset={dataset} datasetSnapshots={{}} onBack={vi.fn()} />);
 
     const status = await screen.findByRole('status');
-    expect(status).toHaveTextContent('Эта карта ещё не опубликована локально');
-    expect(status).toHaveTextContent('Dataset не содержит location catalog');
-    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument();
+    expect(status).toHaveTextContent('This map has not been published locally yet');
+    expect(status).toHaveTextContent('Dataset does not contain a location catalog');
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 
   it('shows runtime errors and retries the complete bundle load', async () => {
@@ -67,9 +67,9 @@ describe('DatasetMap loading states', () => {
     render(<DatasetMap dataset={dataset} datasetSnapshots={{}} onBack={vi.fn()} />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('HTTP 503');
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     await waitFor(() => expect(loadDataset).toHaveBeenCalledTimes(2));
-    expect(screen.getByRole('status')).toHaveTextContent('Открываю набор данных карты');
+    expect(screen.getByRole('status')).toHaveTextContent('Opening the map dataset');
   });
 });

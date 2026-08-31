@@ -9,8 +9,8 @@ import {
   parseTileCoverage,
 } from "./validation";
 
-const snapshotId = "original:goty:fixture";
-const placeId = "original-goty.vvardenfell.mim-0000";
+const snapshotId = "original:goty-hd:fixture";
+const placeId = "original-goty-hd.vvardenfell.fixture";
 
 function sparseMapAssetsFixture() {
   return {
@@ -105,10 +105,10 @@ function tileCoverageFixture() {
 }
 
 describe("generated dataset artifact contracts", () => {
-  it("accepts a location, locale and static raster vertical slice", () => {
+  it("accepts an English ESM location and static raster vertical slice", () => {
     const locations = parseLocationCatalog({
       schemaVersion: 1,
-      datasetId: "original-goty",
+      datasetId: "original-goty-hd",
       snapshotId,
       places: [
         {
@@ -117,15 +117,15 @@ describe("generated dataset artifact contracts", () => {
           type: "settlement",
           mapPosition: [-20_000, -12_000],
           exteriorCell: [-3, -2],
-          mimCategory: 19,
+          mimCategory: null,
           minZoom: 2,
           entrances: [],
           sources: [
             {
-              kind: "mim",
-              plugin: "mwmain.gdb",
-              recordId: null,
-              mimIndex: 0,
+              kind: "esm",
+              plugin: "Morrowind.esm",
+              recordId: "Balmora",
+              mimIndex: null,
             },
           ],
         },
@@ -133,22 +133,22 @@ describe("generated dataset artifact contracts", () => {
     });
     const locale = parsePlaceLocaleCatalog({
       schemaVersion: 1,
-      datasetId: "original-goty",
+      datasetId: "original-goty-hd",
       snapshotId,
-      locale: "ru",
-      places: [{ placeId, name: "Балмора", aliases: [] }],
+      locale: "en",
+      places: [{ placeId, name: "Balmora", aliases: [] }],
     });
     const assets = parseMapAssetsManifest({
       schemaVersion: 1,
-      datasetId: "original-goty",
+      datasetId: "original-goty-hd",
       snapshotId,
       projection: "TES3:WORLD",
       rasters: [
         {
-          id: "original-goty.vvardenfell",
+          id: "original-goty-hd.vvardenfell",
           regionId: "vvardenfell",
           kind: "static-image",
-          imageUrl: "/datasets/generated/original-goty/rasters/vvardenfell.jpg",
+          imageUrl: "/datasets/generated/original-goty-hd/rasters/vvardenfell.jpg",
           mediaType: "image/jpeg",
           pixelSize: [3300, 3800],
           extent: [-196_608, -180_224, 196_608, 229_376],
@@ -158,7 +158,7 @@ describe("generated dataset artifact contracts", () => {
     });
 
     expect(locations.places[0]?.id).toBe(placeId);
-    expect(locale.places[0]?.name).toBe("Балмора");
+    expect(locale.places[0]?.name).toBe("Balmora");
     expect(assets.rasters[0]?.pixelSize).toEqual([3300, 3800]);
   });
 
@@ -178,7 +178,7 @@ describe("generated dataset artifact contracts", () => {
     expect(() =>
       parseLocationCatalog({
         schemaVersion: 1,
-        datasetId: "original-goty",
+        datasetId: "original-goty-hd",
         snapshotId,
         places: [duplicatePlace, duplicatePlace],
       }),
@@ -186,15 +186,15 @@ describe("generated dataset artifact contracts", () => {
     expect(() =>
       parseMapAssetsManifest({
         schemaVersion: 1,
-        datasetId: "original-goty",
+        datasetId: "original-goty-hd",
         snapshotId,
         projection: "TES3:WORLD",
         rasters: [
           {
-            id: "original-goty.vvardenfell",
+            id: "original-goty-hd.vvardenfell",
             regionId: "vvardenfell",
             kind: "static-image",
-            imageUrl: "/datasets/generated/original-goty/rasters/vvardenfell.jpg",
+            imageUrl: "/datasets/generated/original-goty-hd/rasters/vvardenfell.jpg",
             mediaType: "image/jpeg",
             pixelSize: [3300, 3800],
             extent: [1, 0, -1, 2],
@@ -207,7 +207,7 @@ describe("generated dataset artifact contracts", () => {
 
   it("rejects global entrance collisions, coordinate-cell mismatches and duplicate aliases", () => {
     const entrance = {
-      id: "original-goty.entrance-shared",
+      id: "original-goty-hd.entrance-shared",
       coordinate: [100, 200],
       exteriorCell: [0, 0],
       sourcePlugin: "Morrowind.esm",
@@ -222,11 +222,11 @@ describe("generated dataset artifact contracts", () => {
     expect(() =>
       parseLocationCatalog({
         schemaVersion: 1,
-        datasetId: "original-goty",
+        datasetId: "original-goty-hd",
         snapshotId,
         places: [
           {
-            id: "original-goty.place-a",
+            id: "original-goty-hd.place-a",
             regionId: "vvardenfell",
             type: "other",
             mapPosition: [100, 200],
@@ -237,7 +237,7 @@ describe("generated dataset artifact contracts", () => {
             sources: [source],
           },
           {
-            id: "original-goty.place-b",
+            id: "original-goty-hd.place-b",
             regionId: "vvardenfell",
             type: "other",
             mapPosition: [100, 200],
@@ -253,12 +253,12 @@ describe("generated dataset artifact contracts", () => {
     expect(() =>
       parsePlaceLocaleCatalog({
         schemaVersion: 1,
-        datasetId: "original-goty",
+        datasetId: "original-goty-hd",
         snapshotId,
         locale: "en",
         places: [
           {
-            placeId: "original-goty.place-a",
+            placeId: "original-goty-hd.place-a",
             name: "Balmora",
             aliases: ["BALMORA", "Market", "market"],
           },
@@ -357,7 +357,7 @@ describe("generated dataset artifact contracts", () => {
   it("checks coverage identity, tile count and zooms against map assets", () => {
     const assets = parseMapAssetsManifest(sparseMapAssetsFixture());
     const invalid = tileCoverageFixture();
-    invalid.datasetId = "original-goty";
+    invalid.datasetId = "original-goty-hd";
     invalid.tileCount = 8;
     invalid.levels[2]!.z = 3;
 

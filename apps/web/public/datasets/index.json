@@ -1,21 +1,16 @@
 {
   "schemaVersion": 1,
-  "defaultDatasetId": "original-goty",
+  "defaultDatasetId": "original-goty-hd",
   "datasets": [
     {
-      "datasetId": "original-goty",
-      "manifestUrl": "/datasets/manifests/original-goty.json",
+      "datasetId": "original-goty-hd",
+      "manifestUrl": "/datasets/manifests/original-goty-hd.json",
       "order": 0
-    },
-    {
-      "datasetId": "fullrest-25.08",
-      "manifestUrl": "/datasets/manifests/fullrest-25.08.json",
-      "order": 1
     },
     {
       "datasetId": "poison-song-26.08",
       "manifestUrl": "/datasets/manifests/poison-song-26.08.json",
-      "order": 2
+      "order": 1
     }
   ]
 }
