@@ -1,0 +1,33 @@
+ARG STAGE45_IMAGE=morrowind-map-openmw:0.51.0-stage45
+FROM ${STAGE45_IMAGE}
+
+ARG STAGE45_IMAGE_ID=unverified
+
+COPY tools/openmw_renderer/patches/openmw-0.51.0-map-export-batch.patch /tmp/openmw-map-export-batch.patch
+RUN git -C /src/openmw apply --check /tmp/openmw-map-export-batch.patch \
+    && git -C /src/openmw apply /tmp/openmw-map-export-batch.patch \
+    && cmake --build /build/openmw --target openmw --parallel 4 \
+    && cmake --install /build/openmw
+
+ARG PRODUCTION_FINGERPRINT=unversioned
+RUN { \
+        printf 'production_renderer=openmw-export-production-v2\n'; \
+        printf 'production_fingerprint=%s\n' "${PRODUCTION_FINGERPRINT}"; \
+        printf 'production_scene_grid=5x5\n'; \
+        printf 'production_rtt_grid=3x3\n'; \
+      } >> /opt/openmw/build-manifest.txt
+
+COPY tools/openmw_renderer/entrypoint-production.sh /usr/local/bin/morrowind-map-openmw-original
+RUN chmod 0755 /usr/local/bin/morrowind-map-openmw-original
+
+LABEL org.opencontainers.image.title="morrowind-map Original GOTY HD exporter" \
+      org.opencontainers.image.revision="f4bec41444214a7903bebd178389ca22ca13f646" \
+      io.morrowind-map.stage="5" \
+      io.morrowind-map.dataset="original-goty-hd" \
+      io.morrowind-map.snapshot="original:goty:8b2690c0ce1c954e" \
+      io.morrowind-map.stage45-image-id="${STAGE45_IMAGE_ID}" \
+      io.morrowind-map.production-fingerprint="${PRODUCTION_FINGERPRINT}" \
+      io.morrowind-map.scene-grid="5x5" \
+      io.morrowind-map.rtt-grid="3x3"
+
+ENTRYPOINT ["/usr/local/bin/morrowind-map-openmw-original"]

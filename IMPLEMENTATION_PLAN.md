@@ -545,13 +545,13 @@ Node builder → static dist → Nginx runtime
 | Этап | Текущий статус | Что означает статус |
 | --- | --- | --- |
 | 0 — repository/plan | **100% complete** | Private GitHub repository, plan, ignore rules и initial push проверены |
-| 1 — contracts/skeleton | **100% complete в historical scope** | Skeleton, contracts, первоначальный three-card landing, TES3 projection и CI работали; landing будет сокращён до двух cards в Stage 6 |
+| 1 — contracts/skeleton | **100% complete в historical scope** | Skeleton, contracts, TES3 projection и CI работают; active landing уже сокращён до двух EN-only cards в Stage 6 cleanup |
 | 2 — Original MIM | **100% complete, superseded** | Исторический Vvardenfell/Solstheim raster + 1 010 EN/RU places принят, но будет заменён EN-only Original GOTY HD |
 | 3 — progress/MIM | **100% complete в historical scope** | Dataset-scoped persistence, MIM import и portable backup были реализованы; MIM runtime снимается, общий JSON backup остаётся |
 | 4 — LAND spike | **100% complete в spike scope** | Coordinate/resource oracle принят; LAND-only обоснованно отклонён как финальный basemap |
 | 4.5 — OpenMW spike | **100% complete в spike scope** | Bounded exporter и Linux/Docker quality gate приняты |
 | 5 — Poison Song | **100% complete** | 5.1–5.6 завершены: V4 pyramid, deterministic EN catalog (`4 085` places / `4 902` entrances), generic runtime, `ready` manifest и offline real-browser acceptance приняты |
-| 6 — Original GOTY HD | **Planned; cleanup first** | Fullrest Stage 6 superseded; затем чистый base-trio profile, `1 540` LAND / `198` shards / `2 114` tiles и EN catalog `1 036 / 1 205` |
+| 6 — Original GOTY HD | **In progress; profile/catalog ready** | Cleanup и новый data epoch завершены; isolated base-trio profile, deterministic plan и EN catalog готовы, Docker smoke/render/audit/publication ещё выполняются |
 | 7 — two-map visual/UX polish | **Partially complete** | Базовый MIM-like/responsive/a11y слой есть; Poison functional acceptance готов, но acceptance новой Original HD ещё отсутствует |
 
 Этапы 0–4.5 считаются закрытыми именно в их исторически зафиксированных границах. Poison V4 закрыт Stage 5 и заморожен; новый Original HD является отдельной production-работой Stage 6.
@@ -745,17 +745,17 @@ Exit: **достигнут.** Полный Poison catalog и owned tile pyramid 
 
 ### Этап 6 — Original GOTY HD
 
-Status: **planned; starts after explicit cleanup; supersedes the old Fullrest Stage 6**.
+Status: **in progress; cleanup, storage boundary, isolated profile, deterministic plan and catalog pipeline complete; runtime smoke/render/audit/publication pending**.
 
 Stage 6 выполняется строго в dependency order:
 
-1. **Freeze Poison Song V4.** Зафиксировать текущие manifest/map-assets/catalog/tile inventory hashes как regression gate. Никакие renderer/profile/catalog/presentation artifacts Poison V4 не меняются.
-2. **Cleanup active product.** Удалить Fullrest card/manifest/runtime references, MIM raster/catalog/import adoption и RU locale/UI paths. Удалить локальные старые Fullrest/MIM/RU generated inputs, сохранив `morr-dev/bsa`, `morr-dev/tamriel` и полный готовый Poison V4 release/metadata/catalog/tiles.
-3. **Storage boundary.** Ввести новый logical user-data epoch для `original` и `poison-song`, не меняя identity готового Poison dataset. Старую IndexedDB не очищать: прежние Fullrest/MIM/RU records остаются инертными. JSON export/import остаётся generic и охватывает только две активные карты текущего epoch.
-4. **Original profile.** Создать fail-closed profile с content order `Morrowind.esm → Tribunal.esm → Bloodmoon.esm` и archives `Morrowind.bsa → Tribunal.bsa → Bloodmoon.bsa`. Tamriel Data, Tamriel Rebuilt и Fullrest paths запрещены profile/audit gate-ом.
-5. **Smoke.** Проверить Balmora, Vivec, Ald’ruhn, Seyda Neen и Solstheim теми же V4 presentation rules: native `512×512`, grade `114/102/92`, binary alpha, opaque water, render gutters и view-only `1.1×` overscale.
+1. **Freeze Poison Song V4 — complete.** Manifest SHA-256 остаётся `cca410d5…`; frozen renderer/profile/catalog/presentation artifacts не изменены.
+2. **Cleanup active product — complete (`3717f7d`).** Fullrest card/manifest/runtime references, MIM raster/catalog/import adoption и RU locale/UI paths удалены. Локальные `morr-dev/game`, MIM maps и старый generated Original удалены; `morr-dev/bsa`, текущие TR inputs и полный Poison V4 сохранены.
+3. **Storage boundary — complete.** Новый namespace `morrowind-map-two-map-en-v1` не открывает и не очищает прежнюю IndexedDB. Generic JSON export/import охватывает только две активные карты текущего epoch.
+4. **Original profile/plan — code complete.** Fail-closed profile содержит только `Morrowind.esm → Tribunal.esm → Bloodmoon.esm` и три одноимённых BSA, включая необходимые Bloodmoon snow/blizzard aliases. Snapshot `original:goty:8b2690c0ce1c954e`; plan `9ad7c366…`, `1 540` LAND / `198` shards.
+5. **Smoke — pending runtime.** Проверить Balmora, Vivec, Ald’ruhn, Seyda Neen и Solstheim теми же V4 presentation rules: native `512×512`, grade `114/102/92`, binary alpha, opaque water, render gutters и view-only `1.1×` overscale.
 6. **Production render.** Отрендерить подтверждённые `1 540` LAND cells в `198` shards, выполнить finalize/stabilize/audit и построить lossless WebP pyramid `z0…z7` общим объёмом `2 114` tiles.
-7. **Catalog.** Выпустить generic EN catalog `1 036` places / `1 205` entrances (`944` Vvardenfell, `92` Solstheim), unresolved door destinations `0`, с deterministic audit и immutable publication.
+7. **Catalog — pipeline and production build complete; publication pending.** Generic EN catalog содержит `1 036` places / `1 205` entrances (`944` Vvardenfell, `92` Solstheim), unresolved door destinations `0`, inventory `6ea0c0a0…`.
 8. **Runtime/acceptance.** Активировать Original через тот же OpenLayers tile runtime, расширить two-map browser acceptance на search/status/note/personal markers/reload/zoom/pan, missing/error/retry и JSON backup.
 9. **Mournhold follow-up.** Основная карта содержит Vvardenfell + Solstheim. Tribunal входит в profile и catalog, но Mournhold, состоящий из interior cells без обычного LAND, выпускается позднее отдельным inset/submap с собственной локальной системой координат и не блокирует основной Original release.
 

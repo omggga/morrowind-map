@@ -18,6 +18,7 @@ Stage 5.6 закреплён pinned Playwright/Chromium acceptance. Default suit
 Архитектура OpenMW exporter: [docs/adr/0002-openmw-offline-exporter.md](docs/adr/0002-openmw-offline-exporter.md).
 Production pipeline и реальные измерения: [docs/stage5-openmw-production.md](docs/stage5-openmw-production.md).
 Generic catalog pipeline и audit: [docs/stage5-catalog.md](docs/stage5-catalog.md).
+Original GOTY HD pipeline: [docs/stage6-original-hd.md](docs/stage6-original-hd.md).
 
 ## Данные
 
@@ -34,7 +35,7 @@ Cleanup удаляет из активного продукта Fullrest placeho
 
 ### Original GOTY HD — Stage 6
 
-Работа идёт в фиксированном порядке: сначала freeze/hash gate Poison V4, затем cleanup Fullrest/MIM/RU и новый logical IndexedDB user-data epoch, после этого isolated Original profile, smoke на Balmora/Vivec/Ald’ruhn/Seyda Neen/Solstheim, production render `1 540` native cells в `198` shards, finalize/stabilize/audit/publish `2 114` tiles и публикация EN catalog `1 036 / 1 205`. Последним шагом Original подключается к общему tile runtime и проходит two-map real-browser acceptance. Mournhold остаётся отдельным следующим этапом и не блокирует Vvardenfell + Solstheim release.
+Cleanup Fullrest/MIM/RU и новый logical IndexedDB user-data epoch завершены. Isolated Original profile, deterministic plan и EN catalog pipeline готовы; snapshot `original:goty:8b2690c0ce1c954e` содержит только шесть английских GOTY inputs. Следующие gates: smoke на Balmora/Vivec/Ald’ruhn/Seyda Neen/Solstheim, production render `1 540` native cells в `198` shards, finalize/stabilize/audit/publish `2 114` tiles и подключение Original к two-map real-browser acceptance. Mournhold остаётся отдельным следующим этапом и не блокирует Vvardenfell + Solstheim release.
 
 LAND renderer spike воспроизводится отдельно из Poison Song 26.08, Tamriel Data 26.08 и трёх vanilla BSA. Требуется ImageMagick 7; ESM/BSA и generated renders остаются вне Git:
 

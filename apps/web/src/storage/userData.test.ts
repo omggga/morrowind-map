@@ -10,7 +10,7 @@ import {
 } from './userData';
 
 const datasetId = 'original-goty-hd';
-const snapshotId = 'original:goty:fff441f864a7f73e';
+const snapshotId = 'original:goty:8b2690c0ce1c954e';
 const placeId = 'original-goty-hd.place-fixture';
 const secondDatasetId = 'poison-song-26.08';
 const secondSnapshotId = 'tr:poison-song-26.08:6964517551e0fcb0';
