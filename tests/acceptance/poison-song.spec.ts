@@ -10,6 +10,12 @@ const PLACE_ID = 'poison-song-26.08.place-014cd9c0ca05af58dc14';
 const PLACE_NAME = 'Pneuma Grove';
 const POISON_CARD_NAME = 'Open map: Tamriel Rebuilt 26.08 — Poison Song';
 const ORIGINAL_CARD_NAME = 'Open map: Morrowind Game of the Year — HD';
+const ORIGINAL_DATASET_ID = 'original-goty-hd';
+const ORIGINAL_INVENTORY =
+  'aade4b98c2fb905fd2617871345292a638e3a4a25c6d036db7a3cc18bb2dd014';
+const ORIGINAL_CATALOG_INVENTORY =
+  '6ea0c0a0272f6c8456a947c9dc36bac5116a9cd524cc4b351fdad867cf3e0df1';
+const ORIGINAL_PLACE_NAME = 'Balmora, Guild of Mages';
 const SYNTHETIC_TILE = Buffer.from(
   'UklGRh4AAABXRUJQVlA4TBEAAAAvB8ABAAfQvK5Vqv+BiOh/AAA=',
   'base64',
@@ -53,6 +59,7 @@ interface RouteOptions {
   readonly syntheticPayloads?: boolean;
   readonly failMapAssets?: boolean;
   readonly failTiles?: boolean;
+  readonly blockOriginalManifest?: boolean;
 }
 
 interface NetworkProbe {
@@ -74,6 +81,7 @@ async function installOfflineRoutes(
     syntheticPayloads = true,
     failMapAssets = false,
     failTiles = false,
+    blockOriginalManifest = false,
   }: RouteOptions = {},
 ): Promise<NetworkProbe> {
   let mapAssetsUnavailable = failMapAssets;
@@ -119,16 +127,54 @@ async function installOfflineRoutes(
     }
 
     const { pathname } = url;
+    if (
+      blockOriginalManifest &&
+      pathname === `/datasets/manifests/${ORIGINAL_DATASET_ID}.json`
+    ) {
+      const response = await route.fetch();
+      const manifest = (await response.json()) as {
+        readiness: {
+          status: string;
+          blockers: string[];
+        };
+        localization: {
+          locales: Array<{ status: string; coverage: number }>;
+        };
+        regions: Array<{ status: string }>;
+        artifacts: {
+          locations: unknown;
+          locales: Array<{ artifact: unknown }>;
+          tiles: unknown;
+          catalogAudit: unknown;
+        };
+        provenance: { kind: string };
+      };
+      manifest.readiness.status = 'blocked';
+      manifest.readiness.blockers = ['Synthetic unpublished-dataset acceptance fixture.'];
+      manifest.localization.locales[0]!.status = 'planned';
+      manifest.localization.locales[0]!.coverage = 0;
+      for (const region of manifest.regions) {
+        if (region.status === 'available') {
+          region.status = 'blocked';
+        }
+      }
+      manifest.artifacts.locations = null;
+      manifest.artifacts.locales[0]!.artifact = null;
+      manifest.artifacts.tiles = null;
+      manifest.artifacts.catalogAudit = null;
+      manifest.provenance.kind = 'placeholder';
+      await route.fulfill({ response, json: manifest });
+      return;
+    }
     const isCatalog = pathname.includes(`/datasets/generated/${DATASET_ID}/catalogs/`);
     const isLocations = isCatalog && pathname.endsWith('/locations.json');
     const isLocale = isCatalog && pathname.endsWith('/locales/en.json');
     const isMapAssets =
-      pathname ===
-      `/datasets/metadata/${DATASET_ID}/${V4_INVENTORY}/map-assets.json`;
+      pathname.startsWith('/datasets/metadata/') && pathname.endsWith('/map-assets.json');
     const isTile =
-      pathname.startsWith(
-        `/datasets/generated/${DATASET_ID}/${V4_INVENTORY}/tiles/`,
-      ) && pathname.endsWith('.webp');
+      pathname.startsWith('/datasets/generated/') &&
+      pathname.includes('/tiles/') &&
+      pathname.endsWith('.webp');
 
     if (isMapAssets) {
       probe.mapAssetRequests.push(pathname);
@@ -169,6 +215,13 @@ async function openPoisonSong(page: Page): Promise<void> {
   await expect(
     page.getByRole('heading', { name: 'Tamriel Rebuilt 26.08 — Poison Song' }),
   ).toBeVisible();
+  await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
+}
+
+async function openOriginal(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.getByRole('button', { name: ORIGINAL_CARD_NAME }).click();
+  await expect(page.getByRole('heading', { name: 'Morrowind Game of the Year — HD' })).toBeVisible();
   await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
 }
 
@@ -324,7 +377,10 @@ test('reports a tile failure and refreshes the source through Retry', async ({ p
 });
 
 test('shows a non-retryable missing state for an unpublished dataset', async ({ page }) => {
-  const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
+  const probe = await installOfflineRoutes(page, {
+    syntheticPayloads: false,
+    blockOriginalManifest: true,
+  });
   await page.goto('/');
   await page.getByRole('button', { name: ORIGINAL_CARD_NAME }).click();
 
@@ -355,6 +411,92 @@ test('@prepared renders the complete local V4 catalog and tile pyramid', async (
   await expect.poll(() => probe.tileRequests.length).toBeGreaterThan(0);
   await expect.poll(() => hasPaintedBasemap(page)).toBe(true);
   expect(probe.tileRequests.every((path) => path.includes(V4_INVENTORY))).toBe(true);
+  expect(probe.externalRequests).toEqual([]);
+  expect(probe.localFailures).toEqual([]);
+});
+
+test('@prepared renders and searches the complete local Original HD dataset', async ({ page }) => {
+  test.skip(
+    process.env.MORROWIND_ACCEPTANCE_PREPARED !== '1',
+    'Run pnpm test:acceptance:prepared when the ignored Original HD payload is available.',
+  );
+  const generatedRoot = join(
+    process.cwd(),
+    'apps/web/public/datasets/generated',
+    ORIGINAL_DATASET_ID,
+  );
+  expect(existsSync(join(generatedRoot, ORIGINAL_INVENTORY, 'tiles'))).toBe(true);
+  expect(
+    existsSync(
+      join(
+        generatedRoot,
+        'catalogs',
+        ORIGINAL_CATALOG_INVENTORY,
+        'locations.json',
+      ),
+    ),
+  ).toBe(true);
+
+  const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
+  await openOriginal(page);
+  await expect(page.getByText('1036 places')).toBeVisible();
+  await page.getByRole('searchbox', { name: 'Find a place' }).fill(ORIGINAL_PLACE_NAME);
+  await page.getByRole('button', { name: new RegExp(`^${ORIGINAL_PLACE_NAME}`) }).click();
+  await expect(page.getByRole('heading', { name: ORIGINAL_PLACE_NAME })).toBeVisible();
+  await expect.poll(() => probe.tileRequests.length).toBeGreaterThan(0);
+  await expect.poll(() => hasPaintedBasemap(page)).toBe(true);
+
+  const progress = page.getByLabel('Place progress');
+  const visitedStatus = progress.getByRole('button', { name: 'Visited', exact: true });
+  await visitedStatus.click();
+  await expect(visitedStatus).toHaveAttribute('aria-pressed', 'true');
+  await progress.getByRole('textbox', { name: 'Personal note' }).fill('Original route cleared.');
+  await progress.getByRole('button', { name: 'Save note' }).click();
+  await expect(progress.getByRole('status')).toHaveText('Saved.');
+
+  const zoomValue = page.getByLabel('Map status').locator('.statusbar-zoom strong');
+  const zoomBefore = Number(await zoomValue.innerText());
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect.poll(async () => Number(await zoomValue.innerText())).toBeGreaterThan(zoomBefore);
+  await page.getByRole('button', { name: 'Close place card' }).click();
+
+  const map = page.getByLabel('Interactive map in TES3 world coordinates');
+  const coordinatesBeforePan = await cursorCoordinatesAtMapCenter(page);
+  await map.focus();
+  await map.press('ArrowRight');
+  await expect.poll(() => cursorCoordinatesAtMapCenter(page)).not.toBe(coordinatesBeforePan);
+
+  await page.getByRole('button', { name: 'Add personal marker' }).click();
+  await map.focus();
+  await map.press('Enter');
+  const markerEditor = page.getByLabel('Custom marker');
+  await markerEditor.getByRole('textbox', { name: 'Marker name' }).fill('Original field pin');
+  await markerEditor.getByRole('textbox', { name: 'Personal note' }).fill('Base-game only.');
+  await markerEditor.getByRole('button', { name: 'Save marker' }).click();
+  await expect(markerEditor.getByRole('status')).toHaveText('Saved.');
+
+  await page.reload();
+  await page.getByRole('button', { name: ORIGINAL_CARD_NAME }).click();
+  await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
+  await page.getByRole('searchbox', { name: 'Find a place' }).fill(ORIGINAL_PLACE_NAME);
+  await page.getByRole('button', { name: new RegExp(`^${ORIGINAL_PLACE_NAME}`) }).click();
+  const reloadedProgress = page.getByLabel('Place progress');
+  await expect(
+    reloadedProgress.getByRole('button', { name: 'Visited', exact: true }),
+  ).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(reloadedProgress.getByRole('textbox', { name: 'Personal note' })).toHaveValue(
+    'Original route cleared.',
+  );
+  await expect(
+    page
+      .getByRole('region', { name: 'Personal markers' })
+      .getByRole('button', { name: /^Original field pin/ }),
+  ).toBeVisible();
+
+  expect(probe.tileRequests.every((path) => path.includes(ORIGINAL_INVENTORY))).toBe(true);
   expect(probe.externalRequests).toEqual([]);
   expect(probe.localFailures).toEqual([]);
 });

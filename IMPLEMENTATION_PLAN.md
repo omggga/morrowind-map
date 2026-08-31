@@ -1,8 +1,8 @@
 # Morrowind Map — план реализации
 
 - Дата фиксации: 2026-08-26
-- Последний полный аудит: 2026-08-31
-- Статус: этапы 0–5 завершены в исторически зафиксированных границах; Poison Song V4 опубликован и считается immutable; прежний Fullrest Stage 6 снят с продукта и заменён новым dependency-ordered Stage 6 для чистого Original GOTY HD; этап 7 выполнен частично
+- Последний полный аудит: 2026-09-01
+- Статус: этапы 0–6 завершены в зафиксированных границах; Poison Song V4 опубликован и считается immutable; чистый Original GOTY HD отрендерен, прошёл полный аудит, опубликован и принят в browser acceptance; этап 7 выполнен частично
 - Целевой репозиторий: `omggga/morrowind-map`
 
 ## 1. Цель
@@ -369,7 +369,7 @@ Portable backup:
 
 Текущее состояние:
 
-- Original GOTY HD — следующий production run Stage 6: `1 540` native LAND tiles, `198` shards и `2 114` tiles `z0…z7` для Vvardenfell + Solstheim;
+- Original GOTY HD — опубликованная audited sparse lossless WebP pyramid `z0…z7`: `1 540` native LAND tiles, `198` shards и `2 114` tiles для Vvardenfell + Solstheim, inventory `aade4b98c2fb905fd2617871345292a638e3a4a25c6d036db7a3cc18bb2dd014`;
 - Poison Song — собственная sparse lossless WebP pyramid `z0…z7`, подключённая через OpenLayers `TileLayer`;
 - MIM, UESP и Fullrest `world.dds` не являются production runtime dependencies.
 
@@ -540,7 +540,7 @@ Node builder → static dist → Nginx runtime
 
 ## 17. Этапы реализации
 
-### Сводный аудит на 2026-08-31
+### Сводный аудит на 2026-09-01
 
 | Этап | Текущий статус | Что означает статус |
 | --- | --- | --- |
@@ -551,10 +551,10 @@ Node builder → static dist → Nginx runtime
 | 4 — LAND spike | **100% complete в spike scope** | Coordinate/resource oracle принят; LAND-only обоснованно отклонён как финальный basemap |
 | 4.5 — OpenMW spike | **100% complete в spike scope** | Bounded exporter и Linux/Docker quality gate приняты |
 | 5 — Poison Song | **100% complete** | 5.1–5.6 завершены: V4 pyramid, deterministic EN catalog (`4 085` places / `4 902` entrances), generic runtime, `ready` manifest и offline real-browser acceptance приняты |
-| 6 — Original GOTY HD | **In progress; profile/catalog ready** | Cleanup и новый data epoch завершены; isolated base-trio profile, deterministic plan и EN catalog готовы, Docker smoke/render/audit/publication ещё выполняются |
-| 7 — two-map visual/UX polish | **Partially complete** | Базовый MIM-like/responsive/a11y слой есть; Poison functional acceptance готов, но acceptance новой Original HD ещё отсутствует |
+| 6 — Original GOTY HD | **100% complete** | Изолированный base-trio profile, smoke `5/5`, full render/audit/publication, EN catalog, strict validators и real-browser acceptance обеих карт приняты |
+| 7 — two-map visual/UX polish | **Partially complete** | Functional browser acceptance двух реальных datasets готов; labels, URL/deep links, расширенный visual/a11y polish остаются |
 
-Этапы 0–4.5 считаются закрытыми именно в их исторически зафиксированных границах. Poison V4 закрыт Stage 5 и заморожен; новый Original HD является отдельной production-работой Stage 6.
+Этапы 0–4.5 считаются закрытыми именно в их исторически зафиксированных границах. Poison V4 закрыт Stage 5 и заморожен; Original HD закрыт Stage 6 как отдельный audited production release.
 
 ### Этап 0 — репозиторий и план
 
@@ -745,19 +745,19 @@ Exit: **достигнут.** Полный Poison catalog и owned tile pyramid 
 
 ### Этап 6 — Original GOTY HD
 
-Status: **in progress; cleanup, storage boundary, isolated profile, deterministic plan and catalog pipeline complete; runtime smoke/render/audit/publication pending**.
+Status: **100% complete (verified 2026-09-01): cleanup, storage boundary, isolated profile, deterministic plan, smoke, production render, audit, publication, catalog и browser acceptance выполнены**.
 
 Stage 6 выполняется строго в dependency order:
 
 1. **Freeze Poison Song V4 — complete.** Manifest SHA-256 остаётся `cca410d5…`; frozen renderer/profile/catalog/presentation artifacts не изменены.
 2. **Cleanup active product — complete (`3717f7d`).** Fullrest card/manifest/runtime references, MIM raster/catalog/import adoption и RU locale/UI paths удалены. Локальные `morr-dev/game`, MIM maps и старый generated Original удалены; `morr-dev/bsa`, текущие TR inputs и полный Poison V4 сохранены.
 3. **Storage boundary — complete.** Новый namespace `morrowind-map-two-map-en-v1` не открывает и не очищает прежнюю IndexedDB. Generic JSON export/import охватывает только две активные карты текущего epoch.
-4. **Original profile/plan — code complete.** Fail-closed profile содержит только `Morrowind.esm → Tribunal.esm → Bloodmoon.esm` и три одноимённых BSA, включая необходимые Bloodmoon snow/blizzard aliases. Snapshot `original:goty:8b2690c0ce1c954e`; plan `9ad7c366…`, `1 540` LAND / `198` shards.
-5. **Smoke — pending runtime.** Проверить Balmora, Vivec, Ald’ruhn, Seyda Neen и Solstheim теми же V4 presentation rules: native `512×512`, grade `114/102/92`, binary alpha, opaque water, render gutters и view-only `1.1×` overscale.
-6. **Production render.** Отрендерить подтверждённые `1 540` LAND cells в `198` shards, выполнить finalize/stabilize/audit и построить lossless WebP pyramid `z0…z7` общим объёмом `2 114` tiles.
-7. **Catalog — pipeline and production build complete; publication pending.** Generic EN catalog содержит `1 036` places / `1 205` entrances (`944` Vvardenfell, `92` Solstheim), unresolved door destinations `0`, inventory `6ea0c0a0…`.
-8. **Runtime/acceptance.** Активировать Original через тот же OpenLayers tile runtime, расширить two-map browser acceptance на search/status/note/personal markers/reload/zoom/pan, missing/error/retry и JSON backup.
-9. **Mournhold follow-up.** Основная карта содержит Vvardenfell + Solstheim. Tribunal входит в profile и catalog, но Mournhold, состоящий из interior cells без обычного LAND, выпускается позднее отдельным inset/submap с собственной локальной системой координат и не блокирует основной Original release.
+4. **Original profile/plan — complete.** Fail-closed profile содержит только `Morrowind.esm → Tribunal.esm → Bloodmoon.esm` и три одноимённых BSA, включая необходимые Bloodmoon snow/blizzard aliases; Tamriel Data, Tamriel Rebuilt и Fullrest отсутствуют. Snapshot `original:goty:8b2690c0ce1c954e`; profile `8b2690c0ce1c954e603d317728b19339f4b985ce3c362b0bc0eee93b3841b2a7`; plan `9ad7c36652b18615234819aba986df32a89125b1365d47eddef0f847af90886c`, `1 540` LAND / `198` shards.
+5. **Smoke — complete, `5/5`.** Balmora, Vivec, Ald’ruhn, Seyda Neen и Solstheim прошли с теми же V4 presentation rules: native `512×512`, grade `114/102/92`, binary alpha, opaque water, render gutters и view-only `1.1×` overscale.
+6. **Production render/audit/publication — complete.** Все `1 540` LAND cells отрендерены в `198` shards; finalize/stabilize построили lossless WebP pyramid `z0…z7` из `2 114` tiles. Final basemap inventory: `aade4b98c2fb905fd2617871345292a638e3a4a25c6d036db7a3cc18bb2dd014`; full audit имеет статус `passed`, hash `44f722800682e23be1ded7dedf27d5eae19a94864b834e92b488a53ae6c7b4a0`. Publish и strict validators прошли.
+7. **Catalog — complete and published.** Generic EN catalog содержит `1 036` places / `1 205` entrances (`944` Vvardenfell, `92` Solstheim), unresolved door destinations `0`, inventory `6ea0c0a0272f6c8456a947c9dc36bac5116a9cd524cc4b351fdad867cf3e0df1`.
+8. **Runtime/acceptance — complete.** Original активирован через общий OpenLayers tile runtime. Real-browser acceptance существует для обоих реальных datasets и покрывает search/status/note/personal markers/reload/zoom/pan, missing/error/retry и JSON backup.
+9. **Mournhold follow-up — отдельно и не блокирует Stage 6.** Основная карта содержит Vvardenfell + Solstheim. Tribunal входит в profile и catalog, но Mournhold, состоящий из interior cells без обычного LAND, будет выпущен отдельным inset/submap с собственной локальной системой координат.
 
 Deliverables:
 
@@ -770,27 +770,28 @@ Deliverables:
 - full-scope resource/coordinate/seam/determinism и real-browser acceptance reports;
 - отдельный post-release plan для Mournhold inset.
 
-Exit: доступны ровно две EN-only cards; Poison Song V4 byte/hash-identical исходному release; Original готов из base trio без TR/TD/Fullrest contamination, имеет audited pyramid и catalog; обе карты работают offline в новом user-data epoch с независимым progress; старые browser data не удалены и не видны в UI.
+Exit: **достигнут.** Доступны ровно две EN-only cards; Poison Song V4 byte/hash-identical исходному release; Original опубликован из base trio без TR/TD/Fullrest contamination, имеет audited pyramid и catalog; обе реальные карты прошли browser acceptance и работают offline в новом user-data epoch с независимым progress; старые browser data не удалены и не видны в UI. Mournhold остаётся отдельным неблокирующим follow-up.
 
 ### Этап 7 — visual/UX polish
 
-Status: **partially complete foundation; cross-dataset acceptance pending**.
+Status: **partially complete foundation; functional acceptance двух реальных datasets выполнен, расширенный visual/UX/a11y polish остаётся**.
 
-Уже реализовано преимущественно для Original:
+Уже реализовано:
 
 - MIM-like palette, square markers и базовая typography/pixel стилизация;
 - responsive breakpoints для desktop/mobile, `focus-visible`, reduced-motion и tab-focus карты;
 - базовые keyboard actions (`/`, `Escape`), возврат focus на landing и ARIA labels;
 - loading/error/no-results states и ручной mobile/browser smoke.
+- pinned real-browser functional acceptance для Original GOTY HD и Poison Song V4 на настоящих prepared datasets.
 
 Остаток работ:
 
-1. Довести generic regions, types, statuses, strings и controls до двух реальных datasets после подключения Original GOTY HD; убрать Fullrest/MIM/RU и оставшийся snapshot-specific UX.
+1. Довести generic regions, types, statuses, strings и controls двух реальных datasets за пределами уже принятого functional Stage 6 scope; убрать оставшийся snapshot-specific UX.
 2. Добавить OpenLayers text-label layer с deterministic declutter и zoom/type/status/region filters; сейчас labels на карте отсутствуют.
 3. Ввести стабильный URL contract как минимум для `dataset`, `region`, `x`, `y`, `z`, `place`, включая back/forward, invalid-state fallback и shareable deep links. Сейчас `App` хранит выбор только в React state.
-4. Расширить уже готовые Poison fixtures tile `missing`/`loading`/`error`/retry на Original и большие two-map payloads.
+4. Расширить уже готовые functional tile `missing`/`loading`/`error`/retry cases двух datasets дополнительными большими payload и visual fixtures.
 5. Провести финальный MIM-like font/icon/pixel tuning на готовых Poison/Original подложках.
-6. Расширить существующий Poison Playwright functional suite до browser/visual fixtures двух datasets, desktop/mobile/landscape и ключевых states; OpenMW visual receipt проверяет basemap, но не UI.
+6. Расширить существующий two-dataset Playwright functional suite до visual fixtures desktop/mobile/landscape и ключевых UI states; OpenMW visual receipt проверяет basemap, но не UI.
 7. Выполнить keyboard-only/manual focus matrix и automated accessibility checks, включая dialog focus, contrast, touch, 200% reflow и screen-reader names.
 
 Deliverables:
@@ -844,7 +845,7 @@ Stage 8 публикует только два EN-only manifests/datasets. Read-
 | Изменение готового Poison V4 при переиспользовании pipeline | Freeze manifest/catalog/tile hashes до cleanup и проверять byte/hash identity после integration |
 | Старые MIM/Fullrest/RU records в браузере | Новый logical user-data epoch; без purge/destructive migration; старые records не перечисляются UI/export |
 | LAND-only выглядит пусто | **Resolved:** LAND остаётся oracle, финальный basemap строится OpenMW exporter |
-| OpenMW exporter/reproducibility | **Resolved для Poison V4;** тот же proven pipeline применяется к отдельному base-trio Original profile в Stage 6 |
+| OpenMW exporter/reproducibility | **Resolved для Poison V4 и Original GOTY HD:** оба production releases прошли соответствующие full-scope audit gates |
 | Тысячи OpenMW captures слишком медленны/велики | Batch targets, checkpoint/resume, native masters, lower zoom from children, inventory/hash/size budget до полного run |
 | Изменение TR под тем же названием | Immutable snapshot/content hash |
 | Межверсионная порча progress | Новый dataset-scoped namespace без автоматической миграции старых MIM IDs |

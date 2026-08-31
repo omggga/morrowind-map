@@ -5,13 +5,15 @@
 1. **Original GOTY HD** — только английские `Morrowind.esm`, `Tribunal.esm`, `Bloodmoon.esm` и одноимённые BSA; Tamriel Data / Tamriel Rebuilt / Fullrest в этот profile не подключаются.
 2. **Tamriel Rebuilt 26.08 (Poison Song V4)** — существующий готовый release, который остаётся immutable и не перерендеривается.
 
-Старый Original на MIM-растровой подложке с EN/RU каталогом и MIM import был завершён в исторических Stage 2–3, но теперь superseded. Новый Original получит scene-rendered HD pyramid для Vvardenfell + Solstheim и generic EN catalog `1 036` places / `1 205` entrances. Mournhold не приклеивается к world LAND: для него после основной карты планируется отдельный inset/submap с локальными координатами.
+Старый Original на MIM-растровой подложке с EN/RU каталогом и MIM import был завершён в исторических Stage 2–3, но теперь superseded. Новый Original получил scene-rendered HD pyramid для Vvardenfell + Solstheim и generic EN catalog `1 036` places / `1 205` entrances. Mournhold не приклеивается к world LAND: он остаётся отдельным неблокирующим follow-up в виде inset/submap с локальными координатами.
 
-Текущий статус: **Этап 5 завершён на 100% (5.1–5.6)**. Pinned headless OpenMW pipeline построил для Poison Song `3 984` native tiles, после cross-shard stabilization — полную quality-first V4 sparse lossless WebP pyramid `z0…z7`: `5 464` tiles, `1 703 000 992` bytes, inventory `93758a5e…`. Full audit `9dea3294…` проверил декодирование каждого tile, все `10 467` соседств, точное происхождение всех `1 480` lower-zoom tiles, `492` runtime resource reports, `0 px` coordinate error и независимый raw rerender `32` cells; все release gates прошли. Generic TES3 catalog pipeline выпустил `4 085` places и `4 902` entrances. Poison Song V4 теперь является immutable regression baseline. Прежний Fullrest Stage 6 снят; новый Stage 6 посвящён Original GOTY HD.
+Текущий статус: **этапы 5 и 6 завершены на 100%**. Pinned headless OpenMW pipeline построил для Poison Song `3 984` native tiles, после cross-shard stabilization — полную quality-first V4 sparse lossless WebP pyramid `z0…z7`: `5 464` tiles, `1 703 000 992` bytes, inventory `93758a5e…`. Full audit `9dea3294…` проверил декодирование каждого tile, все `10 467` соседств, точное происхождение всех `1 480` lower-zoom tiles, `492` runtime resource reports, `0 px` coordinate error и независимый raw rerender `32` cells; все release gates прошли. Generic TES3 catalog pipeline выпустил `4 085` places и `4 902` entrances. Poison Song V4 остаётся immutable regression baseline.
 
-Browser runtime использует единые `DatasetMap` и dataset loader. Poison Song уже работает через `TileLayer` и явную TES3 tile grid с top-left XYZ. Stage 6 переводит Original с исторического `ImageStatic` MIM adapter на тот же tile runtime: подтверждённый scope — `1 540` LAND cells, `198` render shards и `2 114` lossless WebP tiles `z0…z7`.
+Stage 6 опубликовал Original snapshot `original:goty:8b2690c0ce1c954e` из строго изолированного profile `8b2690c0ce1c954e603d317728b19339f4b985ce3c362b0bc0eee93b3841b2a7`; deterministic plan `9ad7c36652b18615234819aba986df32a89125b1365d47eddef0f847af90886c` охватывает `1 540` LAND cells и `198` render shards. Smoke прошёл `5/5`; full render/finalize/stabilize создали `2 114` lossless WebP tiles `z0…z7`. Final basemap inventory — `aade4b98c2fb905fd2617871345292a638e3a4a25c6d036db7a3cc18bb2dd014`, passed audit hash — `44f722800682e23be1ded7dedf27d5eae19a94864b834e92b488a53ae6c7b4a0`.
 
-Stage 5.6 закреплён pinned Playwright/Chromium acceptance. Default suite запрещает любой non-loopback traffic и проверяет painted WebP canvas, поиск, статусы, заметки, личные маркеры, reload persistence, zoom/pan, missing dataset и восстановление после ошибок metadata/tile. Отдельный local-only `@prepared` gate загружает настоящий ignored V4 catalog (`4 085` places) и реальные tiles.
+Browser runtime использует единые `DatasetMap`, dataset loader, `TileLayer` и явную TES3 tile grid с top-left XYZ. Original и Poison Song прошли real-browser acceptance на обоих настоящих prepared datasets; full render/audit/publish и strict validators Original зелёные.
+
+Pinned Playwright/Chromium acceptance запрещает любой non-loopback traffic и проверяет painted WebP canvas, поиск, статусы, заметки, личные маркеры, reload persistence, zoom/pan, missing dataset и восстановление после ошибок metadata/tile. Отдельный local-only `@prepared` gate загружает реальные ignored catalogs и tiles обеих карт.
 
 Подробный план: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 Результаты LAND gate: [docs/adr/0001-land-renderer-spike.md](docs/adr/0001-land-renderer-spike.md).
@@ -35,7 +37,7 @@ Cleanup удаляет из активного продукта Fullrest placeho
 
 ### Original GOTY HD — Stage 6
 
-Cleanup Fullrest/MIM/RU и новый logical IndexedDB user-data epoch завершены. Isolated Original profile, deterministic plan и EN catalog pipeline готовы; snapshot `original:goty:8b2690c0ce1c954e` содержит только шесть английских GOTY inputs. Следующие gates: smoke на Balmora/Vivec/Ald’ruhn/Seyda Neen/Solstheim, production render `1 540` native cells в `198` shards, finalize/stabilize/audit/publish `2 114` tiles и подключение Original к two-map real-browser acceptance. Mournhold остаётся отдельным следующим этапом и не блокирует Vvardenfell + Solstheim release.
+Stage 6 завершён. Snapshot `original:goty:8b2690c0ce1c954e` содержит только английские `Morrowind.esm`, `Tribunal.esm`, `Bloodmoon.esm` и три одноимённых BSA — без Tamriel Data, Tamriel Rebuilt, Fullrest, loose assets и дополнительных plugins. Profile `8b2690c0ce1c954e603d317728b19339f4b985ce3c362b0bc0eee93b3841b2a7` и plan `9ad7c36652b18615234819aba986df32a89125b1365d47eddef0f847af90886c` прошли fail-closed проверки. Smoke `5/5`, полный render/audit/publish и strict validators зелёные; опубликованы `1 540` native LAND tiles в `198` shards и pyramid из `2 114` tiles. Catalog `1 036` places / `1 205` entrances опубликован с inventory `6ea0c0a0272f6c8456a947c9dc36bac5116a9cd524cc4b351fdad867cf3e0df1`; final basemap inventory — `aade4b98c2fb905fd2617871345292a638e3a4a25c6d036db7a3cc18bb2dd014`, passed audit hash — `44f722800682e23be1ded7dedf27d5eae19a94864b834e92b488a53ae6c7b4a0`. Browser acceptance существует для обеих реальных карт. Mournhold остаётся отдельным неблокирующим follow-up.
 
 LAND renderer spike воспроизводится отдельно из Poison Song 26.08, Tamriel Data 26.08 и трёх vanilla BSA. Требуется ImageMagick 7; ESM/BSA и generated renders остаются вне Git:
 
@@ -137,10 +139,10 @@ pnpm build
 
 Или одной командой: `pnpm verify`. Она включает default browser acceptance; в CI pinned Chromium устанавливается автоматически. Python data pipeline, LAND и OpenMW spike/production fixture tests входят в `pnpm test`; полная генерация игровых данных запускается отдельно и в CI не выполняется.
 
-После `data:poison:v4:dataset:prepare` полный локальный V4 payload дополнительно проверяется так:
+После подготовки локальных content-addressed payload обеих карт они дополнительно проверяются так:
 
 ```bash
 pnpm test:acceptance:prepared
 ```
 
-Этот gate не входит в обычный CI, потому что proprietary/generated catalog и `5 464` WebP tiles не хранятся в Git.
+Этот gate не входит в обычный CI, потому что proprietary/generated catalogs и полные WebP payload обеих карт не хранятся в Git.

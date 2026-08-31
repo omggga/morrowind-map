@@ -30,23 +30,54 @@ describe("public dataset fixtures", () => {
     }
   });
 
-  it("keeps Original HD blocked until its generated artifacts are published", () => {
+  it("publishes Original HD with pinned basemap and English catalog artifacts", () => {
     const manifest = parseDatasetManifest(originalFixture);
+    const catalogInventory =
+      "6ea0c0a0272f6c8456a947c9dc36bac5116a9cd524cc4b351fdad867cf3e0df1";
+    const basemapInventory =
+      "aade4b98c2fb905fd2617871345292a638e3a4a25c6d036db7a3cc18bb2dd014";
 
     expect(manifest.datasetId).toBe("original-goty-hd");
-    expect(manifest.readiness.status).toBe("blocked");
-    expect(manifest.readiness.exactProfile).toBe(true);
+    expect(manifest.readiness).toMatchObject({
+      status: "ready",
+      exactProfile: true,
+      blockers: [],
+      warnings: [],
+    });
     expect(manifest.profile.status).toBe("confirmed");
-    expect(manifest.readiness.blockers.length).toBeGreaterThan(0);
     expect(manifest.localization).toMatchObject({
       defaultLocale: "en",
-      locales: [{ locale: "en", status: "planned", coverage: 0 }],
+      locales: [{ locale: "en", status: "available", coverage: 1 }],
     });
-    expect(manifest.artifacts).toMatchObject({
-      locations: null,
-      tiles: null,
-      mimImport: null,
+    expect(manifest.provenance.kind).toBe("generated");
+    expect(manifest.artifacts.tiles).toEqual({
+      manifestUrl: `/datasets/metadata/original-goty-hd/${basemapInventory}/map-assets.json`,
+      sha256: "aee6af3f16a0fcd739d87702991b52a72d1022299dd038dab7f370c2ac4071e7",
     });
+    expect(manifest.artifacts.locations).toEqual({
+      url: `/datasets/generated/original-goty-hd/catalogs/${catalogInventory}/locations.json`,
+      mediaType: "application/json",
+      sha256: "2f1711b8eb7cea50a7f37fc3b3042ab188268c49bab2f356f1d452c286ca869b",
+      bytes: 522768,
+    });
+    expect(manifest.artifacts.locales).toEqual([
+      {
+        locale: "en",
+        artifact: {
+          url: `/datasets/generated/original-goty-hd/catalogs/${catalogInventory}/locales/en.json`,
+          mediaType: "application/json",
+          sha256: "5e75464dbf6db5c9a4f668ba7defc3306d14c9d120efb98a65a1767b0fa184df",
+          bytes: 107432,
+        },
+      },
+    ]);
+    expect(manifest.artifacts.catalogAudit).toEqual({
+      url: `/datasets/metadata/original-goty-hd/catalogs/${catalogInventory}/catalog-audit.json`,
+      mediaType: "application/json",
+      sha256: "46312ba10205a32b47cec07e7d609234646925a7c8ebe9ba0ecb6afb988ab207",
+      bytes: 7907,
+    });
+    expect(manifest.artifacts.mimImport).toBeNull();
   });
 
   it("pins Original HD to the isolated English GOTY ESM/BSA profile", () => {
