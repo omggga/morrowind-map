@@ -71,6 +71,27 @@ EXPECTED_RAW_THRESHOLDS = {
     "repeatHardPixelDelta": 8,
     "repeatHardFractionMax": 0.01,
     "repeatAlphaDifferingFractionMax": 0.02,
+    "repeatMaximumOpaqueDeltaMax": 48,
+    "repeatLargestHardComponentPixelsMax": 16,
+    "releaseMeanExcessMax": 8.0,
+    "releaseP99PixelExcessMax": 8,
+    "releaseMaximumPixelExcessMax": 32,
+    "releaseHardPixelFractionMax": 0.01,
+}
+LEGACY_RAW_THRESHOLDS = {
+    "overlapMeanDeltaMax": 0.5,
+    "overlapP99DeltaMax": 8,
+    "overlapHardPixelDelta": 8,
+    "overlapHardFractionMax": 0.01,
+    "overlapAlphaDifferingFractionMax": 0.02,
+    "overlapMaximumOpaqueDeltaMax": 32,
+    "overlapLargestHardComponentPixelsMax": 16,
+    "repeatDifferingFractionMax": 0.03,
+    "repeatMeanDeltaMax": 0.1,
+    "repeatP99DeltaMax": 8,
+    "repeatHardPixelDelta": 8,
+    "repeatHardFractionMax": 0.01,
+    "repeatAlphaDifferingFractionMax": 0.02,
     "repeatOpaqueDifferingPixelsMax": 0,
     "releaseMeanExcessMax": 8.0,
     "releaseP99PixelExcessMax": 8,
@@ -89,7 +110,7 @@ DEFAULT_METADATA_ROOT = (
 )
 QUALITY_REPORT_RELATIVE_PATH = Path("quality-audit/report.json")
 PUBLISHED_QUALITY_REPORT_NAME = "basemap-audit.json"
-EXPECTED_AUDIT_VERSION = "poison-basemap-quality-binary-alpha-v3"
+EXPECTED_AUDIT_VERSION = "poison-basemap-quality-binary-alpha-v4"
 EXPECTED_AUDIT_SCHEMA_VERSION = 2
 LEGACY_AUDIT_VERSION = "poison-basemap-quality-v2"
 LEGACY_AUDIT_SCHEMA_VERSION = 1
@@ -639,6 +660,7 @@ def _validate_quality_gate_evidence(
     *,
     stabilization_receipt_file_sha256: str,
     require_binary_alpha: bool,
+    raw_thresholds: Mapping[str, object],
 ) -> None:
     scope = inventory.source_scope
     identity = _gate_mapping(stabilization.get("identity"), "stabilization identity")
@@ -847,7 +869,7 @@ def _validate_quality_gate_evidence(
             "passes": True,
             "status": "passed",
             "selectedCrossShardSeams": scope["rawCrossShardProbes"],
-            "thresholds": EXPECTED_RAW_THRESHOLDS,
+            "thresholds": raw_thresholds,
             "selectionStrategy": "pinned-plus-directional-risk-strata-v2",
             "pinnedProbeIds": list(PINNED_RAW_PROBE_IDS),
         },
@@ -1062,6 +1084,9 @@ def validate_quality_report(
             source_root / STABILIZATION_RECEIPT_PATH
         ),
         require_binary_alpha=current,
+        raw_thresholds=(
+            EXPECTED_RAW_THRESHOLDS if current else LEGACY_RAW_THRESHOLDS
+        ),
     )
     raw_gate = gates["rawProbes"]
     if (

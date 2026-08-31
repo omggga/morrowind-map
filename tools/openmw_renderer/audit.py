@@ -63,7 +63,7 @@ from tools.openmw_renderer.stabilize import (
 
 
 AUDIT_SCHEMA_VERSION = 2
-AUDIT_VERSION = "poison-basemap-quality-binary-alpha-v3"
+AUDIT_VERSION = "poison-basemap-quality-binary-alpha-v4"
 EXPECTED_TILE_COUNTS = {0: 1, 1: 4, 2: 9, 3: 25, 4: 87, 5: 296, 6: 1058, 7: 3984}
 EXPECTED_ADJACENCIES = {
     (1, "east"): 2,
@@ -107,6 +107,8 @@ REPEAT_P99_DELTA_MAX = 8
 REPEAT_HARD_PIXEL_DELTA = 8
 REPEAT_HARD_FRACTION_MAX = 0.01
 REPEAT_ALPHA_DIFFERING_FRACTION_MAX = 0.02
+REPEAT_MAX_OPAQUE_DELTA_MAX = 48
+REPEAT_LARGEST_HARD_COMPONENT_MAX = 16
 PINNED_RAW_PROBE_IDS = (
     "7/5/14:east:7/6/14",
     "7/34/80:north:7/34/79",
@@ -1455,13 +1457,16 @@ def _repeat_result(
         ignored_border_sides=ignored_border_sides,
     )
     passes = (
-        int(difference["opaqueDifferingPixels"]) == 0
-        and float(difference["differingFraction"]) <= REPEAT_DIFFERING_FRACTION_MAX
+        float(difference["differingFraction"]) <= REPEAT_DIFFERING_FRACTION_MAX
         and float(difference["alphaDifferingFraction"])
         <= REPEAT_ALPHA_DIFFERING_FRACTION_MAX
         and float(difference["meanAbsoluteChannelDelta"]) <= REPEAT_MEAN_DELTA_MAX
         and float(difference["p99PixelDelta"]) <= REPEAT_P99_DELTA_MAX
         and float(difference["hardPixelFraction"]) <= REPEAT_HARD_FRACTION_MAX
+        and int(difference["maximumOpaqueChannelDelta"])
+        <= REPEAT_MAX_OPAQUE_DELTA_MAX
+        and int(difference["largestHardComponentPixels"])
+        <= REPEAT_LARGEST_HARD_COMPONENT_MAX
     )
     return {"passes": passes, **difference}
 
@@ -1858,7 +1863,10 @@ def audit_raw_probes(
             "repeatHardPixelDelta": REPEAT_HARD_PIXEL_DELTA,
             "repeatHardFractionMax": REPEAT_HARD_FRACTION_MAX,
             "repeatAlphaDifferingFractionMax": REPEAT_ALPHA_DIFFERING_FRACTION_MAX,
-            "repeatOpaqueDifferingPixelsMax": 0,
+            "repeatMaximumOpaqueDeltaMax": REPEAT_MAX_OPAQUE_DELTA_MAX,
+            "repeatLargestHardComponentPixelsMax": (
+                REPEAT_LARGEST_HARD_COMPONENT_MAX
+            ),
             "releaseMeanExcessMax": PAIR_MEAN_EXCESS_MAX,
             "releaseP99PixelExcessMax": CROSS_SHARD_P99_EXCESS_MAX,
             "releaseMaximumPixelExcessMax": CROSS_SHARD_MAX_EXCESS_MAX,

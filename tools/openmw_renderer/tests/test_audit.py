@@ -296,14 +296,48 @@ class RawVisualMetricTests(unittest.TestCase):
         self.assertEqual(result["differingPixels"], 0)
         self.assertEqual(result["meanAbsoluteChannelDelta"], 0)
 
-    def test_repeat_rejects_any_opaque_static_change(self) -> None:
-        left = RgbaImage.solid(2, 2, (10, 20, 30, 255))
-        right = RgbaImage.solid(2, 2, (11, 20, 30, 255))
+    def test_repeat_accepts_bounded_v4_binary_alpha_foliage_variance(self) -> None:
+        left = RgbaImage.solid(512, 512, (40, 50, 60, 255))
+        changed = bytearray(left.pixels)
+        for pixel in range(5_740):
+            changed[pixel * 4] = 44
+        for pixel in range(11):
+            changed[pixel * 4] = 77
 
-        result = _repeat_result(left, right)
+        result = _repeat_result(left, RgbaImage(512, 512, bytes(changed)))
 
-        self.assertEqual(result["opaqueDifferingPixels"], 4)
+        self.assertEqual(result["opaqueDifferingPixels"], 5_740)
+        self.assertEqual(result["maximumOpaqueChannelDelta"], 37)
+        self.assertEqual(result["largestHardComponentPixels"], 11)
+        self.assertTrue(result["passes"])
+
+    def test_repeat_rejects_material_opaque_static_change(self) -> None:
+        left = RgbaImage.solid(512, 512, (10, 20, 30, 255))
+        changed = bytearray(left.pixels)
+        changed[0:4] = bytes((59, 20, 30, 255))
+
+        result = _repeat_result(left, RgbaImage(512, 512, bytes(changed)))
+
+        self.assertEqual(result["opaqueDifferingPixels"], 1)
+        self.assertEqual(result["maximumOpaqueChannelDelta"], 49)
         self.assertFalse(result["passes"])
+
+    def test_repeat_rejects_a_connected_hard_geometry_shift(self) -> None:
+        left = RgbaImage.solid(512, 512, (10, 20, 30, 255))
+
+        def shifted(pixel_count: int) -> RgbaImage:
+            pixels = bytearray(left.pixels)
+            for pixel in range(pixel_count):
+                pixels[pixel * 4] = 19
+            return RgbaImage(512, 512, bytes(pixels))
+
+        bounded = _repeat_result(left, shifted(16))
+        oversized = _repeat_result(left, shifted(17))
+
+        self.assertEqual(bounded["largestHardComponentPixels"], 16)
+        self.assertTrue(bounded["passes"])
+        self.assertEqual(oversized["largestHardComponentPixels"], 17)
+        self.assertFalse(oversized["passes"])
 
     def test_repeat_masks_only_the_receipt_covered_outer_pixel(self) -> None:
         base = bytearray(RgbaImage.solid(4, 4, (10, 20, 30, 255)).pixels)

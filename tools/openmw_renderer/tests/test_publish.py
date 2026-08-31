@@ -521,7 +521,11 @@ def _fixture(
                         "rendererContractEqual": True,
                         "nonImageProvenanceEqual": True,
                     },
-                    "thresholds": publish_module.EXPECTED_RAW_THRESHOLDS,
+                    "thresholds": (
+                        publish_module.EXPECTED_RAW_THRESHOLDS
+                        if v4
+                        else publish_module.LEGACY_RAW_THRESHOLDS
+                    ),
                     "selectionStrategy": "pinned-plus-directional-risk-strata-v2",
                     "pinnedProbeIds": list(publish_module.PINNED_RAW_PROBE_IDS),
                     "probes": [
@@ -598,6 +602,20 @@ class CoverageTests(unittest.TestCase):
     new=_fixture_validated_stabilization,
 )
 class ValidationTests(unittest.TestCase):
+    def test_legacy_quality_keeps_the_immutable_repeat_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _fixture(root, v4=False)
+
+            inventory = validate_source(root)
+            quality = validate_quality_report(root, inventory)
+            report = json.loads(quality.path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            report["gates"]["rawProbes"]["thresholds"],
+            publish_module.LEGACY_RAW_THRESHOLDS,
+        )
+
     def test_v4_publication_declares_baked_presentation_and_legacy_omits_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -645,6 +663,31 @@ class ValidationTests(unittest.TestCase):
                 ValueError,
                 "inventory.alphaIntermediatePixels",
             ):
+                validate_quality_report(root, inventory)
+
+    def test_v4_quality_rejects_stale_repeat_threshold_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _fixture(root)
+            inventory = validate_source(root)
+            report_path = root / "quality-audit" / "report.json"
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            thresholds = report["gates"]["rawProbes"]["thresholds"]
+            thresholds.pop("repeatMaximumOpaqueDeltaMax")
+            thresholds.pop("repeatLargestHardComponentPixelsMax")
+            thresholds["repeatOpaqueDifferingPixelsMax"] = 0
+            report["auditSha256"] = _sha256(
+                _canonical(
+                    {
+                        key: value
+                        for key, value in report.items()
+                        if key != "auditSha256"
+                    }
+                )
+            )
+            _write_json(report_path, report)
+
+            with self.assertRaisesRegex(ValueError, "rawProbes.thresholds"):
                 validate_quality_report(root, inventory)
 
     def test_validate_source_does_not_require_quality_report(self) -> None:
