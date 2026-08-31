@@ -143,6 +143,40 @@ def _legacy_provenance_fingerprint(provenance: dict[str, object]) -> str:
     )
 
 
+def _released_repeat_evidence(*, v4: bool) -> list[dict[str, object]]:
+    if not v4:
+        return [
+            {"passes": True, "opaqueDifferingPixels": 0},
+            {"passes": True, "opaqueDifferingPixels": 0},
+        ]
+    return [
+        {
+            "passes": True,
+            "opaqueDifferingPixels": 5_096,
+            "differingFraction": 0.019515857,
+            "alphaDifferingFraction": 0.0,
+            "meanAbsoluteChannelDelta": 0.049099843,
+            "p99PixelDelta": 3.0,
+            "hardPixelDelta": 8,
+            "hardPixelFraction": 0.001976095,
+            "maximumOpaqueChannelDelta": 34,
+            "largestHardComponentPixels": 9,
+        },
+        {
+            "passes": True,
+            "opaqueDifferingPixels": 5_740,
+            "differingFraction": 0.021982146,
+            "alphaDifferingFraction": 0.0,
+            "meanAbsoluteChannelDelta": 0.089869256,
+            "p99PixelDelta": 4.0,
+            "hardPixelDelta": 8,
+            "hardPixelFraction": 0.005438092,
+            "maximumOpaqueChannelDelta": 37,
+            "largestHardComponentPixels": 11,
+        },
+    ]
+
+
 def _fixture(
     root: Path,
     *,
@@ -536,10 +570,7 @@ def _fixture(
                             "releaseSeamPasses": True,
                             "repairRequired": False,
                             "repairCoveredByReceipt": False,
-                            "releasedRepeat": [
-                                {"passes": True, "opaqueDifferingPixels": 0},
-                                {"passes": True, "opaqueDifferingPixels": 0},
-                            ],
+                            "releasedRepeat": _released_repeat_evidence(v4=v4),
                         }
                         for identifier in publish_module.PINNED_RAW_PROBE_IDS
                     ],
@@ -602,6 +633,85 @@ class CoverageTests(unittest.TestCase):
     new=_fixture_validated_stabilization,
 )
 class ValidationTests(unittest.TestCase):
+    def test_v4_quality_accepts_bounded_opaque_repeat_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _fixture(root)
+
+            quality = validate_quality_report(root, validate_source(root))
+            report = json.loads(quality.path.read_text(encoding="utf-8"))
+
+        repeats = report["gates"]["rawProbes"]["probes"][0]["releasedRepeat"]
+        self.assertEqual(
+            [repeat["opaqueDifferingPixels"] for repeat in repeats],
+            [5_096, 5_740],
+        )
+
+    def test_v4_quality_accepts_repeat_metric_boundaries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _fixture(root)
+            inventory = validate_source(root)
+            report_path = root / "quality-audit" / "report.json"
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            repeat = report["gates"]["rawProbes"]["probes"][0][
+                "releasedRepeat"
+            ][0]
+            repeat["maximumOpaqueChannelDelta"] = 48
+            repeat["largestHardComponentPixels"] = 16
+            report["auditSha256"] = _sha256(
+                _canonical(
+                    {
+                        key: value
+                        for key, value in report.items()
+                        if key != "auditSha256"
+                    }
+                )
+            )
+            _write_json(report_path, report)
+
+            validate_quality_report(root, inventory)
+
+    def test_v4_quality_rechecks_every_repeat_limit(self) -> None:
+        excesses = (
+            ("differingFraction", 0.030001),
+            ("alphaDifferingFraction", 0.020001),
+            ("meanAbsoluteChannelDelta", 0.100001),
+            ("meanAbsoluteChannelDelta", 10**1_000),
+            ("p99PixelDelta", 8.001),
+            ("hardPixelDelta", 9),
+            ("hardPixelFraction", 0.010001),
+            ("maximumOpaqueChannelDelta", 49),
+            ("largestHardComponentPixels", 17),
+        )
+        for field, value in excesses:
+            with self.subTest(field=field):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    _fixture(root)
+                    inventory = validate_source(root)
+                    report_path = root / "quality-audit" / "report.json"
+                    report = json.loads(report_path.read_text(encoding="utf-8"))
+                    report["gates"]["rawProbes"]["probes"][0][
+                        "releasedRepeat"
+                    ][0][field] = value
+                    report["auditSha256"] = _sha256(
+                        _canonical(
+                            {
+                                key: item
+                                for key, item in report.items()
+                                if key != "auditSha256"
+                            }
+                        )
+                    )
+                    _write_json(report_path, report)
+
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "raw probe evidence is incomplete",
+                    ):
+                        validate_quality_report(root, inventory)
+
     def test_legacy_quality_keeps_the_immutable_repeat_contract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -615,6 +725,33 @@ class ValidationTests(unittest.TestCase):
             report["gates"]["rawProbes"]["thresholds"],
             publish_module.LEGACY_RAW_THRESHOLDS,
         )
+
+    def test_legacy_quality_rejects_nonzero_opaque_repeat_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _fixture(root, v4=False)
+            inventory = validate_source(root)
+            report_path = root / "quality-audit" / "report.json"
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            report["gates"]["rawProbes"]["probes"][0]["releasedRepeat"][0][
+                "opaqueDifferingPixels"
+            ] = 1
+            report["auditSha256"] = _sha256(
+                _canonical(
+                    {
+                        key: value
+                        for key, value in report.items()
+                        if key != "auditSha256"
+                    }
+                )
+            )
+            _write_json(report_path, report)
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "raw probe evidence is incomplete",
+            ):
+                validate_quality_report(root, inventory)
 
     def test_v4_publication_declares_baked_presentation_and_legacy_omits_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

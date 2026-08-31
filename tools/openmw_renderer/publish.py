@@ -653,6 +653,53 @@ def _nonnegative_integer(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
+def _finite_nonnegative_number(value: object) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return value >= 0
+    return isinstance(value, float) and math.isfinite(value) and value >= 0.0
+
+
+def _repeat_evidence_matches_contract(
+    repeat: object,
+    *,
+    require_binary_alpha: bool,
+    raw_thresholds: Mapping[str, object],
+) -> bool:
+    if (
+        not isinstance(repeat, dict)
+        or repeat.get("passes") is not True
+        or not _nonnegative_integer(repeat.get("opaqueDifferingPixels"))
+    ):
+        return False
+    if not require_binary_alpha:
+        return repeat["opaqueDifferingPixels"] == 0
+
+    bounded_metrics = (
+        ("differingFraction", "repeatDifferingFractionMax"),
+        ("alphaDifferingFraction", "repeatAlphaDifferingFractionMax"),
+        ("meanAbsoluteChannelDelta", "repeatMeanDeltaMax"),
+        ("p99PixelDelta", "repeatP99DeltaMax"),
+        ("hardPixelFraction", "repeatHardFractionMax"),
+    )
+    if any(
+        not _finite_nonnegative_number(repeat.get(metric))
+        or repeat[metric] > raw_thresholds[threshold]
+        for metric, threshold in bounded_metrics
+    ):
+        return False
+    return (
+        repeat.get("hardPixelDelta") == raw_thresholds["repeatHardPixelDelta"]
+        and _nonnegative_integer(repeat.get("maximumOpaqueChannelDelta"))
+        and repeat["maximumOpaqueChannelDelta"]
+        <= raw_thresholds["repeatMaximumOpaqueDeltaMax"]
+        and _nonnegative_integer(repeat.get("largestHardComponentPixels"))
+        and repeat["largestHardComponentPixels"]
+        <= raw_thresholds["repeatLargestHardComponentPixelsMax"]
+    )
+
+
 def _validate_quality_gate_evidence(
     gates: Mapping[str, Any],
     inventory: ValidatedInventory,
@@ -945,9 +992,11 @@ def _validate_quality_gate_evidence(
             or not isinstance(repeats, list)
             or len(repeats) != 2
             or any(
-                not isinstance(repeat, dict)
-                or repeat.get("passes") is not True
-                or repeat.get("opaqueDifferingPixels") != 0
+                not _repeat_evidence_matches_contract(
+                    repeat,
+                    require_binary_alpha=require_binary_alpha,
+                    raw_thresholds=raw_thresholds,
+                )
                 for repeat in repeats
             )
             or probe.get("releaseSeamPasses") is not True
