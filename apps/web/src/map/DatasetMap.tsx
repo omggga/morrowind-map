@@ -139,6 +139,8 @@ interface BasemapRuntimeState {
 
 type MarkerEmphasis = 'default' | 'hovered' | 'selected';
 
+const INITIAL_MAP_ZOOM_DELTA = 1;
+
 const MARKER_ICON_SOURCES = new globalThis.Map<MarkerKind, string>(
   MARKER_KINDS.map((kind) => {
     const semantic = MARKER_SEMANTICS[kind];
@@ -149,7 +151,7 @@ const MARKER_ICON_SOURCES = new globalThis.Map<MarkerKind, string>(
 
 function createMarkerStyles(kind: MarkerKind, emphasis: MarkerEmphasis): Style[] {
   const baseZIndex = emphasis === 'selected' ? 112 : emphasis === 'hovered' ? 102 : 92;
-  const scale = emphasis === 'selected' ? 0.66 : emphasis === 'hovered' ? 0.58 : 0.5;
+  const scale = emphasis === 'selected' ? 0.33 : emphasis === 'hovered' ? 0.29 : 0.25;
   return [new Style({
     image: new Icon({
       src: MARKER_ICON_SOURCES.get(kind) ?? '',
@@ -195,19 +197,12 @@ function createPlaceLabelStyle(
     text: new Text({
       text: name,
       font: selected
-        ? '600 12px "Atkinson Hyperlegible Next Variable", Arial, sans-serif'
-        : '500 12px "Atkinson Hyperlegible Next Variable", Arial, sans-serif',
-      offsetY: -18,
-      padding: [3, 5, 3, 5],
-      fill: new Fill({ color: selected ? '#201d14' : searchMatch ? '#f0dda0' : '#e8dfc2' }),
-      stroke: selected ? undefined : new Stroke({ color: '#17130d', width: 2 }),
-      backgroundFill: new Fill({
-        color: selected ? 'rgba(216, 202, 145, 0.98)' : 'rgba(20, 22, 17, 0.88)',
-      }),
-      backgroundStroke: new Stroke({
-        color: selected ? '#fff2b2' : searchMatch ? '#b09b5f' : '#535847',
-        width: 1,
-      }),
+        ? '600 10px "Atkinson Hyperlegible Next Variable", Arial, sans-serif'
+        : '500 10px "Atkinson Hyperlegible Next Variable", Arial, sans-serif',
+      offsetY: -11,
+      padding: [1, 2, 1, 2],
+      fill: new Fill({ color: selected ? '#fff2b2' : searchMatch ? '#f0dda0' : '#e8dfc2' }),
+      stroke: new Stroke({ color: '#17130d', width: 2 }),
       declutterMode: 'declutter',
       overflow: true,
     }),
@@ -1278,6 +1273,12 @@ function DatasetMapReady({
         maxZoom: Math.min(4, view.getMaxZoom()),
         padding: [44, 44, 44, 44],
       });
+      if (initialNavigation.regionId === 'all') {
+        const fittedZoom = view.getZoom();
+        if (fittedZoom !== undefined) {
+          view.setZoom(Math.min(view.getMaxZoom(), fittedZoom + INITIAL_MAP_ZOOM_DELTA));
+        }
+      }
     }
     zoomRef.current = view.getZoom() ?? 0;
     setZoom(zoomRef.current);

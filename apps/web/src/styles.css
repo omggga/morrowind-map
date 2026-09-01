@@ -160,7 +160,7 @@ textarea:focus-visible,
   inset: -3%;
   overflow: hidden;
   background: var(--ui-void);
-  filter: saturate(0.72) sepia(0.12) contrast(1.1) brightness(0.58);
+  filter: saturate(0.86) sepia(0.08) contrast(1.06) brightness(0.84);
   opacity: 0;
   pointer-events: none;
   transform: scale(1.025);
@@ -208,9 +208,9 @@ textarea:focus-visible,
   z-index: 1;
   inset: 0;
   background:
-    radial-gradient(circle at 72% 45%, transparent 0 15%, rgba(9, 8, 6, 0.24) 48%, rgba(9, 8, 6, 0.82) 100%),
-    linear-gradient(90deg, rgba(9, 8, 6, 0.96) 0%, rgba(9, 8, 6, 0.82) 34%, rgba(9, 8, 6, 0.34) 68%, rgba(9, 8, 6, 0.76) 100%),
-    linear-gradient(0deg, rgba(9, 8, 6, 0.68), transparent 36%, rgba(9, 8, 6, 0.42));
+    radial-gradient(circle at 72% 45%, transparent 0 18%, rgba(9, 8, 6, 0.12) 50%, rgba(9, 8, 6, 0.58) 100%),
+    linear-gradient(90deg, rgba(9, 8, 6, 0.86) 0%, rgba(9, 8, 6, 0.68) 34%, rgba(9, 8, 6, 0.16) 68%, rgba(9, 8, 6, 0.48) 100%),
+    linear-gradient(0deg, rgba(9, 8, 6, 0.46), transparent 36%, rgba(9, 8, 6, 0.26));
   pointer-events: none;
 }
 
@@ -667,6 +667,7 @@ textarea:focus-visible,
 }
 
 .place-filter-drawer {
+  flex: 0 0 auto;
   min-height: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--ui-brass) 58%, transparent);
   color: var(--text-subtle);
@@ -1555,8 +1556,8 @@ textarea:focus-visible,
 
   .landing-atmosphere {
     background:
-      linear-gradient(0deg, rgba(9, 8, 6, 0.94), rgba(9, 8, 6, 0.3) 58%, rgba(9, 8, 6, 0.7)),
-      radial-gradient(circle at 50% 28%, transparent 0 12%, rgba(9, 8, 6, 0.7) 72%);
+      linear-gradient(0deg, rgba(9, 8, 6, 0.82), rgba(9, 8, 6, 0.22) 58%, rgba(9, 8, 6, 0.54)),
+      radial-gradient(circle at 50% 28%, transparent 0 14%, rgba(9, 8, 6, 0.5) 76%);
   }
 
   .landing-content {

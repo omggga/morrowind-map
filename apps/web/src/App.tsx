@@ -65,8 +65,8 @@ function landingChoices(datasets: readonly DatasetManifest[]): readonly DatasetM
 function landingBackdropDataset(
   datasets: readonly DatasetManifest[],
 ): DatasetManifest | null {
-  return datasets.find(({ mapKey }) => mapKey === 'tamriel-rebuilt') ??
-    datasets.find(({ mapKey }) => mapKey === 'original') ??
+  return datasets.find(({ mapKey }) => mapKey === 'original') ??
+    datasets.find(({ mapKey }) => mapKey === 'tamriel-rebuilt') ??
     null;
 }
 

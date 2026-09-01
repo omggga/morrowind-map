@@ -693,6 +693,53 @@ test('keeps the open filter drawer in mobile ledger flow', async ({ page }) => {
   expect(probe.localFailures).toEqual([]);
 });
 
+test('keeps catalog filters above the growing result list after zoom', async ({ page }) => {
+  const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`/?dataset=${ORIGINAL_DATASET_ID}&region=all&x=-22000&y=-15000&z=1`);
+  await expect(page.getByRole('heading', { name: 'Morrowind Game of the Year — HD' })).toBeVisible();
+  await openFilterDrawer(page);
+
+  const catalogResults = page.locator('.place-results > button.place-result');
+  const initialResultCount = await catalogResults.count();
+  const zoomIn = page.getByRole('button', { name: 'Zoom in' });
+  await zoomIn.click();
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => catalogResults.count()).toBeGreaterThan(initialResultCount);
+
+  const settlementFilter = typeFilterButton(page, 'Settlement');
+  const geometry = await page.evaluate(() => {
+    const body = document.querySelector<HTMLElement>('.place-filter-drawer__body');
+    const followingRow = document.querySelector<HTMLElement>('.place-results');
+    const button = [...document.querySelectorAll<HTMLButtonElement>('.place-filter-option')]
+      .find((candidate) => candidate.textContent?.trim().startsWith('Settlement'));
+    if (!body || !followingRow || !button) {
+      return null;
+    }
+    const bodyRect = body.getBoundingClientRect();
+    const followingRect = followingRow.getBoundingClientRect();
+    const buttonRect = button.getBoundingClientRect();
+    const hitTarget = document.elementFromPoint(
+      buttonRect.left + buttonRect.width / 2,
+      buttonRect.top + buttonRect.height / 2,
+    );
+    return {
+      bodyBottom: bodyRect.bottom,
+      followingTop: followingRect.top,
+      filterReceivesPointer: hitTarget !== null && button.contains(hitTarget),
+    };
+  });
+  expect(geometry).not.toBeNull();
+  expect(geometry?.bodyBottom ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(
+    (geometry?.followingTop ?? Number.NEGATIVE_INFINITY) + 1,
+  );
+  expect(geometry?.filterReceivesPointer).toBe(true);
+  await settlementFilter.click();
+  await expect(settlementFilter).toHaveAttribute('aria-pressed', 'true');
+  expect(probe.externalRequests).toEqual([]);
+  expect(probe.localFailures).toEqual([]);
+});
+
 test('loads the Stage 7.3 visual system entirely from local assets', async ({ page }) => {
   const probe = await installOfflineRoutes(page);
   const fixture = filterAcceptanceFixtures[0];
@@ -1021,11 +1068,22 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
 
   await expect.poll(() => probe.mapAssetRequests.length).toBeGreaterThan(0);
   await expect.poll(() => probe.tileRequests.length).toBeGreaterThan(0);
+  await expect.poll(() => probe.tileRequests.some((path) =>
+    path.includes(`/${ORIGINAL_DATASET_ID}/${ORIGINAL_INVENTORY}/`)
+  )).toBe(true);
+  await expect.poll(() => probe.tileRequests.some((path) =>
+    path.includes(`/${DATASET_ID}/${V4_INVENTORY}/`)
+  )).toBe(true);
   await expect.poll(() => hasPaintedBasemap(page)).toBe(true);
+  expect(probe.mapAssetRequests).toContain(
+    `/datasets/metadata/${ORIGINAL_DATASET_ID}/${ORIGINAL_INVENTORY}/map-assets.json`,
+  );
   expect(probe.mapAssetRequests).toContain(
     `/datasets/metadata/${DATASET_ID}/${V4_INVENTORY}/map-assets.json`,
   );
-  expect(probe.tileRequests.every((path) => path.includes(V4_INVENTORY))).toBe(true);
+  expect(probe.tileRequests.every((path) =>
+    path.includes(ORIGINAL_INVENTORY) || path.includes(V4_INVENTORY)
+  )).toBe(true);
 
   await searchAndOpenPlace(page);
   const progress = page.getByLabel('Place progress');
@@ -1052,8 +1110,11 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   await map.focus();
   await map.press('Enter');
   const markerEditor = page.getByLabel('Custom marker');
-  await markerEditor.getByRole('textbox', { name: 'Marker name' }).fill('Field note pin');
-  await markerEditor.getByRole('textbox', { name: 'Personal note' }).fill('Hidden cache.');
+  const markerName = markerEditor.getByRole('textbox', { name: 'Marker name' });
+  const markerNote = markerEditor.getByRole('textbox', { name: 'Personal note' });
+  await expect(markerName).toBeFocused();
+  await markerName.fill('Field note pin');
+  await markerNote.fill('Hidden cache.');
   await markerEditor.getByRole('button', { name: 'Save marker' }).click();
   await expect(markerEditor.getByRole('status')).toHaveText('Saved.');
   await expect(markerEditor.getByRole('textbox', { name: 'Marker name' })).toHaveValue(

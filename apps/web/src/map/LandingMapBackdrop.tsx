@@ -9,7 +9,9 @@ import {
   type TilePyramid,
 } from '@morrowind-map/contracts';
 
-const MAX_PREVIEW_ZOOM = 2;
+const MAX_PREVIEW_ZOOM = 5;
+const PREVIEW_TILE_RADIUS = 1;
+const ORIGINAL_PREVIEW_FOCUS = [-21_879.766, -14_022.853] as const;
 
 interface PreviewTile {
   readonly key: string;
@@ -126,27 +128,62 @@ function buildMosaic(
   }
   const [minX, minY, maxX, maxY] = pyramid.extent;
   const tileWorldSize = pyramid.tileSize * resolution;
-  const columns = Math.ceil((maxX - minX) / tileWorldSize);
-  const rows = Math.ceil((maxY - minY) / tileWorldSize);
-  const tiles = level.columns.flatMap(({ x, yRanges }) =>
+  const pyramidColumns = Math.ceil((maxX - minX) / tileWorldSize);
+  const pyramidRows = Math.ceil((maxY - minY) / tileWorldSize);
+  const coveredTiles = level.columns.flatMap(({ x, yRanges }) =>
     yRanges.flatMap(([startY, endY]) =>
       Array.from({ length: endY - startY + 1 }, (_, offset) => {
         const y = startY + offset;
-        const url = tileUrl(pyramid.urlTemplate, level.z, x, y);
-        return {
-          key: `${level.z}/${x}/${y}`,
-          url,
-          column: x + 1,
-          row: y + 1,
-        } satisfies PreviewTile;
+        return { x, y };
       }),
     ),
   );
-  if (columns < 1 || rows < 1 || tiles.length === 0) {
+  if (pyramidColumns < 1 || pyramidRows < 1 || coveredTiles.length === 0) {
     throw new Error('Landing map preview does not contain renderable tiles');
   }
+
+  const [focusX, focusY] = dataset.mapKey === 'original'
+    ? ORIGINAL_PREVIEW_FOCUS
+    : dataset.map.projection.center;
+  const requestedColumn = Math.floor((focusX - pyramid.origin[0]) / tileWorldSize);
+  const requestedRow = Math.floor((pyramid.origin[1] - focusY) / tileWorldSize);
+  const focusTile = coveredTiles.reduce((nearest, tile) => {
+    const distance = Math.hypot(tile.x - requestedColumn, tile.y - requestedRow);
+    const nearestDistance = Math.hypot(
+      nearest.x - requestedColumn,
+      nearest.y - requestedRow,
+    );
+    return distance < nearestDistance ? tile : nearest;
+  });
+  const windowSize = PREVIEW_TILE_RADIUS * 2 + 1;
+  const columns = Math.min(windowSize, pyramidColumns);
+  const rows = Math.min(windowSize, pyramidRows);
+  const startColumn = Math.min(
+    Math.max(focusTile.x - PREVIEW_TILE_RADIUS, 0),
+    pyramidColumns - columns,
+  );
+  const startRow = Math.min(
+    Math.max(focusTile.y - PREVIEW_TILE_RADIUS, 0),
+    pyramidRows - rows,
+  );
+  const tiles = coveredTiles
+    .filter(({ x, y }) =>
+      x >= startColumn &&
+      x < startColumn + columns &&
+      y >= startRow &&
+      y < startRow + rows
+    )
+    .map(({ x, y }) => ({
+      key: `${level.z}/${x}/${y}`,
+      url: tileUrl(pyramid.urlTemplate, level.z, x, y),
+      column: x - startColumn + 1,
+      row: y - startRow + 1,
+    } satisfies PreviewTile));
+  if (tiles.length === 0) {
+    throw new Error('Landing map preview focus does not contain renderable tiles');
+  }
   return {
-    key: `${dataset.datasetId}\0${dataset.snapshotId}\0${pyramid.id}\0${level.z}`,
+    key: `${dataset.datasetId}\0${dataset.snapshotId}\0${pyramid.id}\0${level.z}\0${startColumn}\0${startRow}`,
     columns,
     rows,
     tiles,

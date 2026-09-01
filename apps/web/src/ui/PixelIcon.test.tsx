@@ -39,4 +39,20 @@ describe('PixelIcon', () => {
     expect(icon).toHaveClass('pixel-icon', 'button-icon');
     expect(icon).toHaveAttribute('aria-hidden', 'true');
   });
+
+  it('distinguishes import and export with a shared transfer tray', () => {
+    const { container } = render(
+      <div>
+        <PixelIcon name="import" />
+        <PixelIcon name="export" />
+      </div>,
+    );
+    const importPaths = container.querySelectorAll('[data-pixel-icon="import"] path');
+    const exportPaths = container.querySelectorAll('[data-pixel-icon="export"] path');
+
+    expect(importPaths).toHaveLength(2);
+    expect(exportPaths).toHaveLength(2);
+    expect(importPaths[0]?.getAttribute('d')).not.toBe(exportPaths[0]?.getAttribute('d'));
+    expect(importPaths[1]?.getAttribute('d')).toBe(exportPaths[1]?.getAttribute('d'));
+  });
 });

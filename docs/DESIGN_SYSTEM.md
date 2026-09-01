@@ -4,7 +4,7 @@
 
 ## Характер
 
-- Главная страница показывает актуальную карту на весь viewport как неподвижную подложку под дымчатой виньеткой.
+- Главная страница показывает Original Morrowind вокруг Balmora на весь viewport как неподвижную подложку под дымчатой виньеткой.
 - Выбор карты — две плоские типографические строки без card container, bevel и декоративной рамы.
 - Основной интерфейс использует тёплый почти чёрный фон, песочно-золотой текст и тонкие латунные разделители.
 - Карточка выбранного места выглядит как отдельный лист игрового журнала: parchment, тёмные чернила, название, progress и personal note.
@@ -57,7 +57,7 @@ IBM Plex Mono не используется для обычной навигац
 
 ## Landing backdrop
 
-Tile mosaic собирается через `.landing-map-backdrop__grid` с `--preview-columns` и `--preview-rows`. Tiles не принимают pointer или keyboard input. Состояния loading/fallback не меняют геометрию контента; fallback остаётся тёмным атмосферным canvas.
+Tile mosaic собирается из проверенного coverage-окна `3×3` на `z5` вокруг Balmora через `.landing-map-backdrop__grid` с `--preview-columns` и `--preview-rows`. Используются только basemap tiles Original без каталожных labels. Tiles не принимают pointer или keyboard input. Состояния loading/fallback не меняют геометрию контента; fallback остаётся тёмным атмосферным canvas.
 
 На hover/focus строка выбора получает только лёгкую тёплую подложку и усиление стрелки. При `prefers-reduced-motion: reduce` переходы отключаются.
 
@@ -67,7 +67,7 @@ Tile mosaic собирается через `.landing-map-backdrop__grid` с `--
 
 Порядок DOM overlays: content `0–3` → controls `4` → legend `5` → ledger `6` → system states `7` → cards `8`. Новый уровень добавляется как именованный token.
 
-Map controls используют простые `+` и `−`. Import/export находятся справа в titlebar как компактные icon controls. Progress markers и personal marker имеют одну square geometry во всех местах: карта, list, legend и editor.
+Map controls используют простые `+` и `−`. Import/export находятся справа в titlebar как компактные tray-and-arrow controls. Entrance и personal markers на canvas — небольшие тонкие пустые квадраты; подписи мест меньше основного UI-текста и рисуются без фоновой плашки или рамки. В list, legend и editor сохраняется та же square semantics с размером, подходящим для чтения и управления.
 
 ## Responsive и доступность
 

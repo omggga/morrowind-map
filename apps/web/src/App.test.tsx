@@ -137,7 +137,7 @@ describe('App dataset workflow', () => {
     expect(screen.getAllByRole('button', { name: /Open map:/ })).toHaveLength(2);
     expect(screen.getByTestId('landing-backdrop')).toHaveAttribute(
       'data-dataset-id',
-      'poison-song',
+      'original-goty-hd',
     );
     expect(screen.getByText('Classic')).toHaveClass('dataset-choice__kind');
     expect(screen.getByText('Tamriel Rebuilt')).toHaveClass('dataset-choice__kind');
