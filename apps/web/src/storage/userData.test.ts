@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DATABASE_NAME, MorrowindMapDatabase, progressKey } from './database';
 import {
   createPortableBackup,
+  createPortableBackupForStoredDataset,
+  DatasetSnapshotConflictError,
   deleteCustomMarker,
   ensureDatasetSnapshot,
   importPortableBackup,
@@ -144,6 +146,9 @@ describe('Dexie user data storage', () => {
     await expect(
       ensureDatasetSnapshot(database, datasetId, 'original:goty:newer'),
     ).rejects.toThrow('explicit migration or archive');
+    await expect(
+      ensureDatasetSnapshot(database, datasetId, 'original:goty:newer'),
+    ).rejects.toBeInstanceOf(DatasetSnapshotConflictError);
 
     await ensureDatasetSnapshot(database, secondDatasetId, secondSnapshotId);
     await expect(
@@ -153,6 +158,51 @@ describe('Dexie user data storage', () => {
       snapshotId: 'tr:poison-song:newer',
       bindingKind: 'fresh',
     });
+  });
+
+  it('exports conflicted records under their stored binding without mutating local data', async () => {
+    await savePlaceProgress(
+      database,
+      datasetId,
+      placeId,
+      { status: 'visited', note: 'Keep this' },
+      at('2026-08-31T12:00:00.000Z'),
+    );
+    await saveCustomMarker(
+      database,
+      { datasetId, label: 'Old snapshot marker', note: '', position: [4, 8] },
+      at('2026-08-31T12:00:01.000Z'),
+      () => 'conflict',
+    );
+    const before = {
+      bindings: await database.datasetSnapshots.toArray(),
+      progress: await database.progress.toArray(),
+      markers: await database.customMarkers.toArray(),
+    };
+
+    await expect(
+      ensureDatasetSnapshot(database, datasetId, 'original:goty:newer'),
+    ).rejects.toBeInstanceOf(DatasetSnapshotConflictError);
+    await expect(
+      createPortableBackup(database, { [datasetId]: 'original:goty:newer' }),
+    ).rejects.toThrow('explicit migration or archive');
+
+    const backup = await createPortableBackupForStoredDataset(
+      database,
+      datasetId,
+      at('2026-08-31T12:05:00.000Z'),
+    );
+
+    expect(backup.datasets).toEqual({ [datasetId]: snapshotId });
+    expect(backup.progress).toEqual([
+      expect.objectContaining({ datasetId, placeId, note: 'Keep this' }),
+    ]);
+    expect(backup.customMarkers).toEqual([
+      expect.objectContaining({ id: `${datasetId}.custom.conflict`, datasetId }),
+    ]);
+    await expect(database.datasetSnapshots.toArray()).resolves.toEqual(before.bindings);
+    await expect(database.progress.toArray()).resolves.toEqual(before.progress);
+    await expect(database.customMarkers.toArray()).resolves.toEqual(before.markers);
   });
 
   it('rejects old backup contracts, incompatible snapshots and unknown places before writing', async () => {

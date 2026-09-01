@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MapUrlState } from './navigation/mapUrlState';
 import { App } from './App';
 
 vi.mock('@morrowind-map/contracts', () => ({
@@ -11,28 +12,28 @@ vi.mock('./map/Tes3Map', () => ({
   Tes3Map: ({
     dataset,
     navigationState,
+    focusMapOnMount,
     onNavigationChange,
     onBack,
   }: {
     dataset: { datasetId: string; title: { en: string } };
-    navigationState: {
-      datasetId: string | null;
-      regionId: string;
-      view: { center: readonly [number, number]; zoom: number } | null;
-      placeId: string | null;
-    };
+    navigationState: MapUrlState;
+    focusMapOnMount?: boolean;
     onNavigationChange: (
-      state: {
-        datasetId: string | null;
-        regionId: string;
-        view: { center: readonly [number, number]; zoom: number } | null;
-        placeId: string | null;
-      },
+      state: MapUrlState,
       mode: 'push' | 'replace',
     ) => void;
     onBack: () => void;
   }) => (
-    <section aria-label="mock map">
+    <section
+      aria-label="mock map"
+      tabIndex={-1}
+      ref={(node) => {
+        if (node && focusMapOnMount) {
+          node.focus();
+        }
+      }}
+    >
       <h1>{dataset.title.en}</h1>
       <output aria-label="mock navigation state">
         {JSON.stringify(navigationState)}
@@ -46,6 +47,8 @@ vi.mock('./map/Tes3Map', () => ({
               regionId: 'vvardenfell',
               view: { center: [1234.4, -5678.6], zoom: 4.126 },
               placeId: 'fixture-place',
+              typeFilters: navigationState.typeFilters,
+              statusFilters: navigationState.statusFilters,
             },
             'replace',
           )
@@ -127,9 +130,13 @@ describe('App dataset workflow', () => {
 
     for (const dataset of datasets) {
       const card = screen.getByRole('button', { name: dataset.card });
+      document.documentElement.scrollTop = 96;
+      document.body.scrollTop = 96;
       fireEvent.click(card);
       expect(screen.getByRole('region', { name: 'mock map' })).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: dataset.heading })).toBeInTheDocument();
+      expect(document.documentElement.scrollTop).toBe(0);
+      expect(document.body.scrollTop).toBe(0);
       expect(window.location.search).toBe(
         `?dataset=${dataset.card.includes('Original') ? 'original-goty-hd' : 'poison-song'}&region=all`,
       );
@@ -144,7 +151,7 @@ describe('App dataset workflow', () => {
     window.history.replaceState(
       null,
       '',
-      '/?dataset=poison-song&region=tr-mainland&x=10&y=-20&z=4.25&place=fixture-place',
+      '/?dataset=poison-song&region=tr-mainland&x=10&y=-20&z=4.25&place=fixture-place&type=guild&type=temple&status=visited&status=active',
     );
 
     render(<App />);
@@ -159,11 +166,17 @@ describe('App dataset workflow', () => {
     expect(screen.getByLabelText('mock navigation state')).toHaveTextContent(
       '"placeId":"fixture-place"',
     );
+    expect(screen.getByLabelText('mock navigation state')).toHaveTextContent(
+      '"typeFilters":["temple","guild"]',
+    );
+    expect(screen.getByLabelText('mock navigation state')).toHaveTextContent(
+      '"statusFilters":["active","visited"]',
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Update map URL' }));
 
     expect(window.location.search).toBe(
-      '?dataset=poison-song&region=vvardenfell&x=1234&y=-5679&z=4.13&place=fixture-place',
+      '?dataset=poison-song&region=vvardenfell&x=1234&y=-5679&z=4.13&place=fixture-place&type=temple&type=guild&status=active&status=visited',
     );
   });
 
@@ -217,7 +230,105 @@ describe('App dataset workflow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(await screen.findByRole('heading', { name: 'Poison Song 26.08' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock map' })).toHaveFocus());
     expect(window.location.search).toBe(canonicalUrl);
+  });
+
+  it('focuses recovered landing content after a fatal catalog retry without changing history', async () => {
+    const responses = [indexFixture, ...manifests];
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockImplementation(() => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(responses.shift()),
+      })));
+    const historyLength = window.history.length;
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+
+    await screen.findByRole('button', { name: 'Open map: Original GOTY HD' });
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Choose a world' })).toHaveFocus());
+    expect(window.location.search).toBe('');
+    expect(window.history.length).toBe(historyLength);
+  });
+
+  it('returns focus to retry when a fatal catalog retry fails again', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: false, status: 502 }));
+    const historyLength = window.history.length;
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+
+    const retry = await screen.findByRole('button', { name: 'Retry' });
+    await waitFor(() => expect(retry).toHaveFocus());
+    expect(screen.getByRole('alert')).toHaveTextContent('HTTP 502');
+    expect(window.location.search).toBe('');
+    expect(window.history.length).toBe(historyLength);
+  });
+
+  it('keeps healthy cards and a failed deep link while retrying one unavailable manifest', async () => {
+    const directUrl = '?dataset=poison-song&region=tr-mainland';
+    window.history.replaceState(null, '', `/${directUrl}`);
+    const ok = (value: unknown) => ({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(value),
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(ok(indexFixture))
+      .mockResolvedValueOnce(ok(manifests[0]))
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce(ok(indexFixture))
+      .mockResolvedValueOnce(ok(manifests[0]))
+      .mockResolvedValueOnce(ok(manifests[1]));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('PARTIAL CATALOG');
+    expect(alert).toHaveTextContent('poison-song');
+    expect(screen.getByRole('button', { name: 'Open map: Original GOTY HD' }))
+      .toBeInTheDocument();
+    expect(window.location.search).toBe(directUrl);
+
+    const retry = screen.getByRole('button', { name: 'Retry unavailable maps' });
+    fireEvent.click(retry);
+    fireEvent.click(retry);
+
+    expect(retry).toBeDisabled();
+    expect(retry).toHaveTextContent('Retrying');
+    expect(await screen.findByRole('heading', { name: 'Poison Song 26.08' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('region', { name: 'mock map' })).toHaveFocus());
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(window.location.search).toBe(directUrl);
+  });
+
+  it('shows a fatal catalog state when every indexed manifest fails', async () => {
+    const ok = (value: unknown) => ({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(value),
+    });
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(ok(indexFixture))
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: false, status: 404 }));
+
+    render(<App />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('DATA ERROR');
+    expect(alert).toHaveTextContent('Could not load any dataset manifests (2 failed)');
+    expect(alert).not.toHaveTextContent('PARTIAL CATALOG');
+    expect(screen.queryByRole('region', { name: 'Available maps' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
   });
 
   it('hydrates popstate and returns focus to the previous dataset card', async () => {

@@ -6,6 +6,8 @@
   "include": [
     "vitest.config.ts",
     "playwright.acceptance.config.ts",
-    "tests/acceptance/**/*.ts"
+    "playwright.ui.config.ts",
+    "tests/acceptance/**/*.ts",
+    "tests/ui/**/*.ts"
   ]
 }

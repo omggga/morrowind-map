@@ -17,6 +17,14 @@ export class DatasetAssetsMissingError extends Error {
   override readonly name = 'DatasetAssetsMissingError';
 }
 
+export class DatasetAssetsInvalidError extends Error {
+  override readonly name = 'DatasetAssetsInvalidError';
+}
+
+function invalidArtifact(message: string): never {
+  throw new DatasetAssetsInvalidError(message);
+}
+
 export interface DatasetBundle {
   readonly locations: LocationCatalog;
   readonly locales: ReadonlyMap<Locale, PlaceLocaleCatalog>;
@@ -52,7 +60,7 @@ function assertIdentity(
   label: string,
 ): void {
   if (artifact.datasetId !== manifest.datasetId || artifact.snapshotId !== manifest.snapshotId) {
-    throw new Error(`${label} belongs to a different dataset snapshot`);
+    invalidArtifact(`${label} belongs to a different dataset snapshot`);
   }
 }
 
@@ -66,7 +74,7 @@ function assertLocaleCoverage(
     structuralIds.size !== localeIds.size ||
     [...structuralIds].some((placeId) => !localeIds.has(placeId))
   ) {
-    throw new Error(`Locale ${localeCatalog.locale} does not cover the complete location catalog`);
+    invalidArtifact(`Locale ${localeCatalog.locale} does not cover the complete location catalog`);
   }
 }
 
@@ -85,20 +93,20 @@ function assertPyramidGrid(manifest: DatasetManifest, pyramid: TilePyramid): voi
   const [minX, minY, maxX, maxY] = pyramid.extent;
 
   if (minX < worldMinX || minY < worldMinY || maxX > worldMaxX || maxY > worldMaxY) {
-    throw new Error(`Tile pyramid ${pyramid.id} extent exceeds the dataset manifest`);
+    invalidArtifact(`Tile pyramid ${pyramid.id} extent exceeds the dataset manifest`);
   }
   if (!arraysEqual(pyramid.origin, grid.origin)) {
-    throw new Error(`Tile pyramid ${pyramid.id} origin does not match the dataset manifest`);
+    invalidArtifact(`Tile pyramid ${pyramid.id} origin does not match the dataset manifest`);
   }
   if (!arraysEqual(pyramid.resolutions, grid.resolutions)) {
-    throw new Error(`Tile pyramid ${pyramid.id} resolutions do not match the dataset manifest`);
+    invalidArtifact(`Tile pyramid ${pyramid.id} resolutions do not match the dataset manifest`);
   }
   if (pyramid.tileSize !== grid.tileSize) {
-    throw new Error(`Tile pyramid ${pyramid.id} tileSize does not match the dataset manifest`);
+    invalidArtifact(`Tile pyramid ${pyramid.id} tileSize does not match the dataset manifest`);
   }
   const unknownRegions = pyramid.regionIds.filter((regionId) => !availableRegions.has(regionId));
   if (unknownRegions.length > 0) {
-    throw new Error(
+    invalidArtifact(
       `Tile pyramid ${pyramid.id} contains unknown regionIds: ${unknownRegions.join(', ')}`,
     );
   }
@@ -182,7 +190,7 @@ function resolveLocaleFallbacks(
 
     if (effectivePlaces.length !== locations.places.length) {
       if (descriptor.locale === manifest.localization.defaultLocale) {
-        throw new Error(
+        invalidArtifact(
           `Locale ${descriptor.locale} and its fallback chain do not cover the complete location catalog`,
         );
       }
@@ -196,7 +204,7 @@ function resolveLocaleFallbacks(
   }
 
   if (!resolved.has(manifest.localization.defaultLocale)) {
-    throw new Error(
+    invalidArtifact(
       `Default locale ${manifest.localization.defaultLocale} cannot be used for the location catalog`,
     );
   }
@@ -259,7 +267,7 @@ export async function loadDataset(
   assertIdentity(manifest, locations, 'Location catalog');
   assertIdentity(manifest, mapAssets, 'Map assets');
   if (mapAssets.projection !== manifest.map.projection.code) {
-    throw new Error('Map assets projection does not match the dataset manifest');
+    invalidArtifact('Map assets projection does not match the dataset manifest');
   }
 
   const [rawLocales, tileCoverages] = await Promise.all([

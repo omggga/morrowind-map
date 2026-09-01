@@ -7,17 +7,20 @@ import {
   type CSSProperties,
   type Ref,
 } from 'react';
-import type {
-  CustomMarkerRecord,
-  DatasetManifest,
-  Locale,
-  ProgressRecord,
-  ProgressStatus,
+import {
+  ContractValidationError,
+  type CustomMarkerRecord,
+  type DatasetManifest,
+  type Locale,
+  type PlaceType,
+  type ProgressRecord,
+  type ProgressStatus,
 } from '@morrowind-map/contracts';
 import Feature from 'ol/Feature.js';
 import Map from 'ol/Map.js';
 import View from 'ol/View.js';
 import Point from 'ol/geom/Point.js';
+import { defaults as defaultInteractions } from 'ol/interaction/defaults.js';
 import ImageLayer from 'ol/layer/Image.js';
 import TileLayer from 'ol/layer/Tile.js';
 import VectorLayer from 'ol/layer/Vector.js';
@@ -27,20 +30,33 @@ import ImageStatic from 'ol/source/ImageStatic.js';
 import VectorSource from 'ol/source/Vector.js';
 import XYZ from 'ol/source/XYZ.js';
 import Fill from 'ol/style/Fill.js';
+import Icon from 'ol/style/Icon.js';
 import RegularShape from 'ol/style/RegularShape.js';
 import Stroke from 'ol/style/Stroke.js';
 import Style from 'ol/style/Style.js';
+import Text from 'ol/style/Text.js';
 import { useTranslation } from 'react-i18next';
 import {
+  DatasetAssetsInvalidError,
   DatasetAssetsMissingError,
   loadDataset,
   type DatasetBundle,
 } from '../data/loadDataset';
+import {
+  PLACE_TYPE_ORDER,
+  PROGRESS_STATUS_ORDER,
+  comparePlaceLabelPriority,
+  getAvailablePlaceTypes,
+  isPlaceVisible,
+  progressStatusFor,
+  type PlaceFilterState,
+} from '../data/placeFilters';
 import { buildPlaceViews, PlaceSearch, type PlaceView } from '../data/placeSearch';
 import type { MapUrlState, MapUrlView } from '../navigation/mapUrlState';
 import { normalizeMapUrlState } from '../navigation/normalizeMapUrlState';
 import { userDatabase } from '../storage/database';
 import {
+  DatasetSnapshotConflictError,
   ensureDatasetSnapshot,
   saveCustomMarker,
 } from '../storage/userData';
@@ -51,6 +67,18 @@ import {
   useDatasetCustomMarkers,
   useDatasetProgress,
 } from '../user-data';
+import { PixelIcon } from '../ui/PixelIcon';
+import { StatusMark } from '../ui/StatusMark';
+import {
+  createFocusReturnController,
+  isKeyboardActivation,
+} from '../ui/focusManagement';
+import {
+  MARKER_KINDS,
+  MARKER_SEMANTICS,
+  type MarkerKind,
+} from '../ui/markerSemantics';
+import { CurrentBasemapLoadWindow } from './currentBasemapLoadWindow';
 import {
   BASEMAP_BRIGHTNESS_FACTOR,
   BASEMAP_CONTRAST_FACTOR,
@@ -58,6 +86,7 @@ import {
   loadOpaqueImageTile,
   requiresRuntimeBasemapAdjustment,
 } from './basemapPresentation';
+import { PlaceFilterControls } from './PlaceFilterControls';
 import {
   SparseTileCoverageIndex,
   createSparseTileUrlFunction,
@@ -77,6 +106,7 @@ interface MapTitlebarProps {
 
 interface DatasetMapProps extends MapTitlebarProps {
   readonly datasetSnapshots: Readonly<Record<string, string>>;
+  readonly focusMapOnMount?: boolean;
   readonly navigationState: MapUrlState;
   readonly navigationRevision: number;
   readonly onNavigationChange: (
@@ -91,12 +121,21 @@ type LoadState =
   | { readonly status: 'loading' }
   | { readonly status: 'ready'; readonly bundle: DatasetBundle }
   | { readonly status: 'missing'; readonly message: string }
+  | { readonly status: 'invalid'; readonly message: string }
+  | { readonly status: 'error'; readonly message: string; readonly retrying: boolean };
+
+type UserDataBindingState =
+  | { readonly status: 'loading' }
+  | { readonly status: 'ready' }
+  | { readonly status: 'conflict'; readonly message: string }
   | { readonly status: 'error'; readonly message: string };
 
 interface BasemapRuntimeState {
   readonly pending: number;
   readonly failures: number;
+  readonly loaded: number;
   readonly missing: boolean;
+  readonly retrying: boolean;
 }
 
 interface CursorReadout {
@@ -104,49 +143,104 @@ interface CursorReadout {
   readonly cell: CellCoordinate;
 }
 
-const PROGRESS_COLORS: Readonly<Record<ProgressStatus, string>> = {
-  unvisited: '#fff19b',
-  active: '#ff80ff',
-  visited: '#ffa040',
-};
-const PLACE_STYLES: Readonly<Record<ProgressStatus, Style>> = {
-  unvisited: createMarkerStyle(PROGRESS_COLORS.unvisited, 5),
-  active: createMarkerStyle(PROGRESS_COLORS.active, 5),
-  visited: createMarkerStyle(PROGRESS_COLORS.visited, 5),
-};
-const SELECTED_PLACE_STYLES: Readonly<Record<ProgressStatus, Style>> = {
-  unvisited: createMarkerStyle(PROGRESS_COLORS.unvisited, 7, true),
-  active: createMarkerStyle(PROGRESS_COLORS.active, 7, true),
-  visited: createMarkerStyle(PROGRESS_COLORS.visited, 7, true),
-};
-const CUSTOM_MARKER_STYLE = createMarkerStyle('#40ff40', 6);
-const SELECTED_CUSTOM_MARKER_STYLE = createMarkerStyle('#40ff40', 8, true);
+type MarkerEmphasis = 'default' | 'hovered' | 'selected';
+
+const MARKER_ICON_SOURCES = new globalThis.Map<MarkerKind, string>(
+  MARKER_KINDS.map((kind) => {
+    const semantic = MARKER_SEMANTICS[kind];
+    const fillRule = semantic.fillRule ? ` fill-rule="${semantic.fillRule}"` : '';
+    const cutout = semantic.cutoutPath
+      ? `<path d="${semantic.cutoutPath}" fill="#171914"/>`
+      : '';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12" shape-rendering="crispEdges"><path d="${semantic.path}" fill="${semantic.color}"${fillRule}/>${cutout}</svg>`;
+    return [kind, `data:image/svg+xml,${encodeURIComponent(svg)}`];
+  }),
+);
+
+function createMarkerStyles(kind: MarkerKind, emphasis: MarkerEmphasis): Style[] {
+  const baseZIndex = emphasis === 'selected' ? 112 : emphasis === 'hovered' ? 102 : 92;
+  const styles: Style[] = [];
+  if (emphasis !== 'default') {
+    styles.push(new Style({
+      image: new RegularShape({
+        points: 4,
+        radius: emphasis === 'selected' ? 9 : 8,
+        angle: Math.PI / 4,
+        fill: new Fill({ color: 'rgba(23, 25, 20, 0.72)' }),
+        stroke: new Stroke({
+          color: emphasis === 'selected' ? '#fff2b2' : '#c8b36d',
+          width: emphasis === 'selected' ? 2 : 1,
+        }),
+      }),
+      zIndex: baseZIndex,
+    }));
+  }
+  styles.push(new Style({
+    image: new Icon({
+      src: MARKER_ICON_SOURCES.get(kind) ?? '',
+      scale: 0.5,
+    }),
+    zIndex: baseZIndex + 1,
+  }));
+  return styles;
+}
+
+function createProgressMarkerStyles(emphasis: MarkerEmphasis): Record<ProgressStatus, Style[]> {
+  return {
+    unvisited: createMarkerStyles('unvisited', emphasis),
+    active: createMarkerStyles('active', emphasis),
+    visited: createMarkerStyles('visited', emphasis),
+  };
+}
+
+const PLACE_STYLES = createProgressMarkerStyles('default');
+const HOVERED_PLACE_STYLES = createProgressMarkerStyles('hovered');
+const SELECTED_PLACE_STYLES = createProgressMarkerStyles('selected');
+const CUSTOM_MARKER_STYLES = createMarkerStyles('custom', 'default');
+const HOVERED_CUSTOM_MARKER_STYLES = createMarkerStyles('custom', 'hovered');
+const SELECTED_CUSTOM_MARKER_STYLES = createMarkerStyles('custom', 'selected');
+const PLACE_LABEL_STYLE_CACHE = new globalThis.Map<string, Style>();
 const BASEMAP_PRESENTATION_STYLE = {
   '--basemap-brightness': String(BASEMAP_BRIGHTNESS_FACTOR),
   '--basemap-contrast': String(BASEMAP_CONTRAST_FACTOR),
 } as CSSProperties;
 
-function createMarkerStyle(color: string, radius: number, selected = false): Style {
-  return new Style({
-    image: new RegularShape({
-      points: 4,
-      radius,
-      angle: Math.PI / 4,
-      fill: new Fill({ color }),
-      stroke: new Stroke({ color: selected ? '#fff2b2' : '#241a0e', width: selected ? 2 : 1 }),
-    }),
-    zIndex: selected ? 100 + radius : radius,
-  });
-}
+function createPlaceLabelStyle(
+  name: string,
+  selected: boolean,
+  searchMatch: boolean,
+): Style {
+  const tone = selected ? 'selected' : searchMatch ? 'match' : 'default';
+  const cacheKey = `${tone}\0${name}`;
+  const cached = PLACE_LABEL_STYLE_CACHE.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
 
-function markerRegion(
-  position: readonly [number, number],
-  bundle: DatasetBundle,
-): string | null {
-  const [x, y] = position;
-  return bundle.mapAssets.rasters.find(({ extent: [minX, minY, maxX, maxY] }) =>
-    x >= minX && x <= maxX && y >= minY && y <= maxY
-  )?.regionId ?? null;
+  const style = new Style({
+    text: new Text({
+      text: name,
+      font: selected
+        ? '500 11px "IBM Plex Mono", monospace'
+        : '400 11px "IBM Plex Mono", monospace',
+      offsetY: -18,
+      padding: [3, 5, 3, 5],
+      fill: new Fill({ color: selected ? '#201d14' : searchMatch ? '#f0dda0' : '#e8dfc2' }),
+      stroke: selected ? undefined : new Stroke({ color: '#17130d', width: 2 }),
+      backgroundFill: new Fill({
+        color: selected ? 'rgba(216, 202, 145, 0.98)' : 'rgba(20, 22, 17, 0.88)',
+      }),
+      backgroundStroke: new Stroke({
+        color: selected ? '#fff2b2' : searchMatch ? '#b09b5f' : '#535847',
+        width: 1,
+      }),
+      declutterMode: 'declutter',
+      overflow: true,
+    }),
+    zIndex: 0,
+  });
+  PLACE_LABEL_STYLE_CACHE.set(cacheKey, style);
+  return style;
 }
 
 function prefersReducedMotion(): boolean {
@@ -200,6 +294,28 @@ function formatCoordinate(value: number): string {
   return Math.round(value).toLocaleString('en-US');
 }
 
+function visibilityZoomFor(
+  thresholds: readonly number[],
+  zoom: number,
+): number {
+  let lower = 0;
+  let upper = thresholds.length - 1;
+  let visibleThreshold = Number.NEGATIVE_INFINITY;
+
+  while (lower <= upper) {
+    const middle = Math.floor((lower + upper) / 2);
+    const threshold = thresholds[middle] ?? Number.POSITIVE_INFINITY;
+    if (threshold <= zoom) {
+      visibleThreshold = threshold;
+      lower = middle + 1;
+    } else {
+      upper = middle - 1;
+    }
+  }
+
+  return visibleThreshold;
+}
+
 function navigationStatesMatch(
   left: MapUrlState,
   right: MapUrlState,
@@ -209,6 +325,10 @@ function navigationStatesMatch(
   return left.datasetId === right.datasetId &&
     left.regionId === right.regionId &&
     left.placeId === right.placeId &&
+    left.typeFilters.length === right.typeFilters.length &&
+    left.typeFilters.every((value, index) => value === right.typeFilters[index]) &&
+    left.statusFilters.length === right.statusFilters.length &&
+    left.statusFilters.every((value, index) => value === right.statusFilters[index]) &&
     (left.view === right.view ||
       (left.view !== null &&
         right.view !== null &&
@@ -220,6 +340,7 @@ function navigationStatesMatch(
 export function DatasetMap({
   dataset,
   datasetSnapshots,
+  focusMapOnMount = false,
   navigationState,
   navigationRevision,
   onNavigationChange,
@@ -228,47 +349,81 @@ export function DatasetMap({
   const { t } = useTranslation();
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loadIsSlow, setLoadIsSlow] = useState(false);
+  const loadInFlightRef = useRef(false);
+  const [focusMapAfterRecovery, setFocusMapAfterRecovery] = useState(focusMapOnMount);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
+    loadInFlightRef.current = true;
+    const slowTimer = window.setTimeout(() => setLoadIsSlow(true), 800);
     void loadDataset(dataset, controller.signal)
-      .then(async (bundle) => {
-        await ensureDatasetSnapshot(
-          userDatabase,
-          dataset.datasetId,
-          dataset.snapshotId,
-        );
+      .then((bundle) => {
         if (controller.signal.aborted) {
           return;
         }
+        loadInFlightRef.current = false;
+        window.clearTimeout(slowTimer);
         setLoadState({ status: 'ready', bundle });
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
+          loadInFlightRef.current = false;
+          window.clearTimeout(slowTimer);
           setLoadState(
             error instanceof DatasetAssetsMissingError
               ? { status: 'missing', message: error.message }
-              : { status: 'error', message: errorMessage(error) },
+              : error instanceof DatasetAssetsInvalidError ||
+                  error instanceof ContractValidationError ||
+                  error instanceof SyntaxError
+                ? { status: 'invalid', message: error.message }
+              : { status: 'error', message: errorMessage(error), retrying: false },
           );
+          window.requestAnimationFrame(() => retryButtonRef.current?.focus());
         }
       });
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      window.clearTimeout(slowTimer);
+      loadInFlightRef.current = false;
+    };
   }, [dataset, loadAttempt]);
+
+  const retryDataset = () => {
+    if (loadInFlightRef.current || loadState.status !== 'error') {
+      return;
+    }
+    loadInFlightRef.current = true;
+    setLoadIsSlow(false);
+    setFocusMapAfterRecovery(true);
+    setLoadState({ ...loadState, retrying: true });
+    setLoadAttempt((attempt) => attempt + 1);
+  };
 
   if (loadState.status !== 'ready') {
     return (
       <main className="map-screen dataset-map-screen" aria-labelledby="map-title">
         <MapTitlebar dataset={dataset} onBack={onBack} />
-        <section className="dataset-load-state" role={loadState.status === 'error' ? 'alert' : 'status'}>
+        <section
+          className="dataset-load-state"
+          role={loadState.status === 'error' || loadState.status === 'invalid' ? 'alert' : 'status'}
+          aria-busy={loadState.status === 'loading' ||
+            (loadState.status === 'error' && loadState.retrying)}
+        >
           {loadState.status === 'loading' ? (
             <>
               <span className="load-indicator" aria-hidden="true" />
-              <p>{t('map.loading')}</p>
+              <p>{loadIsSlow ? t('map.loadingSlow') : t('map.loading')}</p>
             </>
-          ) : loadState.status === 'missing' ? (
+          ) : loadState.status === 'missing' || loadState.status === 'invalid' ? (
             <>
-              <span className="load-state-code">DATA MISSING</span>
-              <h2>{t('map.missingData')}</h2>
+              <span className="load-state-code">
+                {loadState.status === 'missing' ? 'DATA MISSING' : 'DATA INVALID'}
+              </span>
+              <h2>
+                {loadState.status === 'missing' ? t('map.missingData') : t('map.invalidData')}
+              </h2>
               <p>{loadState.message}</p>
               <button type="button" onClick={onBack}>{t('map.versions')}</button>
             </>
@@ -277,14 +432,14 @@ export function DatasetMap({
               <span className="load-state-code">DATA ERROR</span>
               <h2>{t('map.loadError')}</h2>
               <p>{loadState.message}</p>
+              {loadState.retrying && loadIsSlow ? <p>{t('map.retrySlow')}</p> : null}
               <button
+                ref={retryButtonRef}
                 type="button"
-                onClick={() => {
-                  setLoadState({ status: 'loading' });
-                  setLoadAttempt((attempt) => attempt + 1);
-                }}
+                disabled={loadState.retrying}
+                onClick={retryDataset}
               >
-                {t('map.retry')}
+                {loadState.retrying ? t('map.retrying') : t('map.retry')}
               </button>
             </>
           )}
@@ -298,6 +453,7 @@ export function DatasetMap({
       dataset={dataset}
       datasetSnapshots={datasetSnapshots}
       bundle={loadState.bundle}
+      focusMapOnMount={focusMapAfterRecovery}
       navigationState={navigationState}
       navigationRevision={navigationRevision}
       onNavigationChange={onNavigationChange}
@@ -311,7 +467,7 @@ function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
   return (
     <header className="window-titlebar map-titlebar">
       <button className="back-button" type="button" onClick={onBack}>
-        <span aria-hidden="true">←</span>
+        <PixelIcon name="back" />
         {t('map.versions')}
       </button>
       <div className="map-title-copy">
@@ -325,12 +481,14 @@ function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
 
 interface DatasetMapReadyProps extends DatasetMapProps {
   readonly bundle: DatasetBundle;
+  readonly focusMapOnMount: boolean;
 }
 
 function DatasetMapReady({
   dataset,
   datasetSnapshots,
   bundle,
+  focusMapOnMount,
   navigationState,
   navigationRevision,
   onNavigationChange,
@@ -342,17 +500,89 @@ function DatasetMapReady({
   const searchRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<Map | null>(null);
   const failedTilesRef = useRef(new Set<Tile>());
+  const pendingTilesRef = useRef(new Set<Tile>());
+  const currentBasemapLoadWindowRef = useRef(new CurrentBasemapLoadWindow<Tile>());
+  const basemapRetryInFlightRef = useRef(false);
+  const basemapRetryButtonRef = useRef<HTMLButtonElement>(null);
   const markerLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const labelLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const customMarkerLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const visiblePlaceIdsRef = useRef<ReadonlySet<string>>(new Set<string>());
+  const labelPriorityContextRef = useRef<{
+    selectedPlaceId: string | null;
+    searchMatchIds: ReadonlySet<string>;
+    progressByPlaceId: ReadonlyMap<string, ProgressRecord>;
+  }>({
+    selectedPlaceId: null,
+    searchMatchIds: new Set<string>(),
+    progressByPlaceId: new globalThis.Map<string, ProgressRecord>(),
+  });
   const customMarkerButtonRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
   const customMarkerEditorInputRef = useRef<HTMLInputElement>(null);
   const customMarkerHeadingRef = useRef<HTMLHeadingElement>(null);
+  const filterResetRef = useRef<HTMLButtonElement>(null);
+  const userDataRetryButtonRef = useRef<HTMLButtonElement>(null);
+  const placeCardRef = useRef<HTMLElement>(null);
+  const placeCardFocus = useMemo(() => createFocusReturnController(), []);
+  const customMarkerCardFocus = useMemo(() => createFocusReturnController(), []);
   const progressByPlaceIdRef = useRef<ReadonlyMap<string, ProgressRecord>>(
     new globalThis.Map<string, ProgressRecord>(),
   );
   const placingMarkerRef = useRef(false);
+  const markerSaveInFlightRef = useRef(false);
+  const userDataDisabledRef = useRef(true);
+  const userDataRetryInFlightRef = useRef(false);
+  const bindingInFlightRef = useRef(false);
   const progress = useDatasetProgress(dataset.datasetId);
   const customMarkers = useDatasetCustomMarkers(dataset.datasetId);
+  const [bindingAttempt, setBindingAttempt] = useState(0);
+  const [bindingState, setBindingState] = useState<UserDataBindingState>({ status: 'loading' });
+  const [userDataRetrying, setUserDataRetrying] = useState(false);
+  const [userDataRetryMessage, setUserDataRetryMessage] = useState<string | null>(null);
+  const [markerSaving, setMarkerSaving] = useState(false);
+  const [failedMarkerPosition, setFailedMarkerPosition] = useState<WorldCoordinate | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    bindingInFlightRef.current = true;
+    void ensureDatasetSnapshot(
+      userDatabase,
+      dataset.datasetId,
+      dataset.snapshotId,
+    )
+      .then(() => {
+        if (!active) {
+          return;
+        }
+        bindingInFlightRef.current = false;
+        setBindingState({ status: 'ready' });
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        bindingInFlightRef.current = false;
+        setBindingState(
+          error instanceof DatasetSnapshotConflictError
+            ? { status: 'conflict', message: error.message }
+            : { status: 'error', message: errorMessage(error) },
+        );
+      });
+    return () => {
+      active = false;
+      bindingInFlightRef.current = false;
+    };
+  }, [bindingAttempt, dataset.datasetId, dataset.snapshotId]);
+
+  useEffect(() => {
+    if (!focusMapOnMount) {
+      return undefined;
+    }
+    const animationFrame = window.requestAnimationFrame(() => {
+      targetRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [focusMapOnMount]);
   const projectionDescriptor = dataset.map.projection;
   const extent = useMemo<[number, number, number, number]>(() => {
     const [minX, minY, maxX, maxY] = projectionDescriptor.extent;
@@ -386,27 +616,57 @@ function DatasetMapReady({
   );
   const minimumZoom = primaryPyramid?.minZoom ?? 0;
   const maximumZoom = viewResolutions ? viewResolutions.length - 1 : 12;
+  const availableTypes = useMemo(() => getAvailablePlaceTypes(places), [places]);
+  const visibilityZoomThresholds = useMemo(
+    () => [...new Set(places.map(({ place }) => place.minZoom))].sort((left, right) => left - right),
+    [places],
+  );
+  const availablePlaceTypeSet = useMemo(
+    () => new Set<PlaceType>(availableTypes),
+    [availableTypes],
+  );
   const placeRegions = useMemo(
     () => new globalThis.Map(places.map(({ id, place }) => [id, place.regionId])),
     [places],
   );
   const normalizedNavigationState = useMemo(
-    () => normalizeMapUrlState(navigationState, {
-      datasetId: dataset.datasetId,
-      availableRegionIds: new Set(availableRegionIds),
-      placeRegions,
-      extent,
-      minimumZoom,
-      maximumZoom,
-    }),
+    () => {
+      const normalized = normalizeMapUrlState(navigationState, {
+        datasetId: dataset.datasetId,
+        availableRegionIds: new Set(availableRegionIds),
+        availablePlaceTypes: availablePlaceTypeSet,
+        placeRegions,
+        extent,
+        minimumZoom,
+        maximumZoom,
+      });
+      const requestedPlace = normalized.placeId === null
+        ? null
+        : places.find(({ id }) => id === normalized.placeId) ?? null;
+      if (requestedPlace === null) {
+        return normalized;
+      }
+      const matchesStaticFilters = isPlaceVisible(requestedPlace, {
+        filters: {
+          regionId: normalized.regionId,
+          types: new Set(normalized.typeFilters),
+          statuses: new Set(),
+        },
+        zoom: normalized.view?.zoom ?? Number.POSITIVE_INFINITY,
+        progressByPlaceId: new globalThis.Map(),
+      });
+      return matchesStaticFilters ? normalized : { ...normalized, placeId: null };
+    },
     [
       availableRegionIds,
+      availablePlaceTypeSet,
       dataset.datasetId,
       extent,
       maximumZoom,
       minimumZoom,
       navigationState,
       placeRegions,
+      places,
     ],
   );
   const initialNavigationRef = useRef(normalizedNavigationState);
@@ -416,10 +676,17 @@ function DatasetMapReady({
   const hasHandledInitialNavigationRef = useRef(false);
   const selectedIdRef = useRef<string | null>(normalizedNavigationState.placeId);
   const selectedMarkerIdRef = useRef<string | null>(null);
-  const regionRef = useRef<RegionFilter>(normalizedNavigationState.regionId);
+  const hoveredPlaceIdRef = useRef<string | null>(null);
+  const hoveredMarkerIdRef = useRef<string | null>(null);
   const zoomRef = useRef(normalizedNavigationState.view?.zoom ?? 0);
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState<RegionFilter>(normalizedNavigationState.regionId);
+  const [typeFilters, setTypeFilters] = useState<ReadonlySet<PlaceType>>(
+    () => new Set(normalizedNavigationState.typeFilters),
+  );
+  const [statusFilters, setStatusFilters] = useState<ReadonlySet<ProgressStatus>>(
+    () => new Set(normalizedNavigationState.statusFilters),
+  );
   const [selectedId, setSelectedId] = useState<string | null>(
     normalizedNavigationState.placeId,
   );
@@ -432,14 +699,66 @@ function DatasetMapReady({
   const [basemapState, setBasemapState] = useState<BasemapRuntimeState>({
     pending: 0,
     failures: 0,
+    loaded: 0,
     missing: false,
+    retrying: false,
   });
-  const regionPlaces = useMemo(
-    () => places.filter(({ place }) => region === 'all' || place.regionId === region),
-    [places, region],
+  const filterState = useMemo<PlaceFilterState>(
+    () => ({ regionId: region, types: typeFilters, statuses: statusFilters }),
+    [region, statusFilters, typeFilters],
   );
-  const placeSearch = useMemo(() => new PlaceSearch(regionPlaces), [regionPlaces]);
-  const results = useMemo(() => placeSearch.search(query, 80), [placeSearch, query]);
+  const progressReadReady = !progress.loading && progress.error === null;
+  const catalogFiltersReady = progressReadReady || statusFilters.size === 0;
+  const userDataReadError = progress.error ?? customMarkers.error;
+  const userDataLoading = bindingState.status === 'loading' ||
+    progress.loading || customMarkers.loading;
+  const userDataDisabled = bindingState.status !== 'ready' ||
+    userDataReadError !== null || progress.loading || customMarkers.loading;
+  const userDataRuntimeMessage = bindingState.status === 'error'
+    ? bindingState.message
+    : userDataReadError === null
+      ? null
+      : errorMessage(userDataReadError);
+  const displayedUserDataRuntimeMessage = userDataRuntimeMessage ??
+    (userDataRetrying ? userDataRetryMessage : null);
+  const visibilityZoom = visibilityZoomFor(visibilityZoomThresholds, zoom);
+  const visiblePlaces = useMemo(
+    () => catalogFiltersReady
+      ? places.filter((place) => isPlaceVisible(place, {
+          filters: filterState,
+          zoom: visibilityZoom,
+          progressByPlaceId: progress.byPlaceId,
+        }))
+      : [],
+    [catalogFiltersReady, filterState, places, progress.byPlaceId, visibilityZoom],
+  );
+  const visiblePlaceIds = useMemo(
+    () => new Set(visiblePlaces.map(({ id }) => id)),
+    [visiblePlaces],
+  );
+  const placeSearch = useMemo(() => new PlaceSearch(visiblePlaces), [visiblePlaces]);
+  const allResults = useMemo(
+    () => placeSearch.search(query, visiblePlaces.length),
+    [placeSearch, query, visiblePlaces.length],
+  );
+  const results = useMemo(() => allResults.slice(0, 80), [allResults]);
+  const searchMatchIds = useMemo(
+    () => query.trim().length === 0
+      ? new Set<string>()
+      : new Set(allResults.map(({ id }) => id)),
+    [allResults, query],
+  );
+  const labelPriorityOrder = useMemo(
+    () => [...visiblePlaces]
+      .sort((left, right) => comparePlaceLabelPriority(left, right, {
+        selectedPlaceId: selectedId,
+        searchMatchIds,
+        progressByPlaceId: progress.byPlaceId,
+      }))
+      .slice(0, 20)
+      .map(({ id }) => id),
+    [progress.byPlaceId, searchMatchIds, selectedId, visiblePlaces],
+  );
   const selectedPlace = useMemo(
     () => places.find(({ id }) => id === selectedId) ?? null,
     [places, selectedId],
@@ -451,22 +770,120 @@ function DatasetMapReady({
     () => new Set(bundle.locations.places.map(({ id }) => id)),
     [bundle.locations.places],
   );
-  const regionCustomMarkers = useMemo(
-    () =>
-      customMarkers.records.filter(
-        (marker) => {
-          const markerRegionId = markerRegion(marker.position, bundle);
-          return region === 'all' || markerRegionId === null || markerRegionId === region;
-        },
-      ),
-    [bundle, customMarkers.records, region],
-  );
-  const visibleMarkerCount = useMemo(
-    () =>
-      regionPlaces.filter(({ place }) => place.minZoom <= zoom).length +
-      regionCustomMarkers.length,
-    [regionCustomMarkers.length, regionPlaces, zoom],
-  );
+  const typeCounts = useMemo(() => {
+    const counts = new globalThis.Map<PlaceType, number>(
+      availableTypes.map((type) => [type, 0]),
+    );
+    if (!catalogFiltersReady) {
+      return counts;
+    }
+    const filtersWithoutType: PlaceFilterState = {
+      ...filterState,
+      types: new Set<PlaceType>(),
+    };
+    places.forEach((place) => {
+      if (!isPlaceVisible(place, {
+        filters: filtersWithoutType,
+        zoom: visibilityZoom,
+        progressByPlaceId: progress.byPlaceId,
+      })) {
+        return;
+      }
+      counts.set(place.place.type, (counts.get(place.place.type) ?? 0) + 1);
+    });
+    return counts;
+  }, [
+    availableTypes,
+    catalogFiltersReady,
+    filterState,
+    places,
+    progress.byPlaceId,
+    visibilityZoom,
+  ]);
+  const statusCounts = useMemo(() => {
+    const counts = new globalThis.Map<ProgressStatus, number>(
+      PROGRESS_STATUS_ORDER.map((status) => [status, 0]),
+    );
+    if (!catalogFiltersReady) {
+      return counts;
+    }
+    const filtersWithoutStatus: PlaceFilterState = {
+      ...filterState,
+      statuses: new Set<ProgressStatus>(),
+    };
+    places.forEach((place) => {
+      if (!isPlaceVisible(place, {
+        filters: filtersWithoutStatus,
+        zoom: visibilityZoom,
+        progressByPlaceId: progress.byPlaceId,
+      })) {
+        return;
+      }
+      const status = progressStatusFor(place.id, progress.byPlaceId);
+      counts.set(status, (counts.get(status) ?? 0) + 1);
+    });
+    return counts;
+  }, [
+    catalogFiltersReady,
+    filterState,
+    places,
+    progress.byPlaceId,
+    visibilityZoom,
+  ]);
+  const activeFilterAxisCount = Number(region !== 'all') +
+    Number(typeFilters.size > 0) +
+    Number(statusFilters.size > 0);
+  const visibleMarkerCount = visiblePlaces.length;
+
+  const retryUserData = () => {
+    if (
+      userDataRetryInFlightRef.current ||
+      bindingState.status === 'conflict' ||
+      (bindingState.status !== 'error' && userDataReadError === null)
+    ) {
+      return;
+    }
+    userDataRetryInFlightRef.current = true;
+    setUserDataRetryMessage(userDataRuntimeMessage);
+    setUserDataRetrying(true);
+    if (bindingState.status === 'error' && !bindingInFlightRef.current) {
+      setBindingAttempt((attempt) => attempt + 1);
+    }
+    progress.retry();
+    customMarkers.retry();
+    userDatabase.close({ disableAutoOpen: false });
+  };
+
+  useEffect(() => {
+    if (
+      !userDataRetrying ||
+      bindingInFlightRef.current ||
+      bindingState.status === 'loading' ||
+      progress.loading ||
+      customMarkers.loading
+    ) {
+      return;
+    }
+    userDataRetryInFlightRef.current = false;
+    setUserDataRetryMessage(null);
+    setUserDataRetrying(false);
+    const hasError = bindingState.status === 'error' ||
+      progress.error !== null || customMarkers.error !== null;
+    window.requestAnimationFrame(() => {
+      if (hasError) {
+        userDataRetryButtonRef.current?.focus({ preventScroll: true });
+      } else {
+        targetRef.current?.focus({ preventScroll: true });
+      }
+    });
+  }, [
+    bindingState,
+    customMarkers.error,
+    customMarkers.loading,
+    progress.error,
+    progress.loading,
+    userDataRetrying,
+  ]);
 
   useEffect(() => {
     const focusSearch = (event: KeyboardEvent) => {
@@ -494,7 +911,12 @@ function DatasetMapReady({
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
+    labelPriorityContextRef.current = {
+      ...labelPriorityContextRef.current,
+      selectedPlaceId: selectedId,
+    };
     markerLayerRef.current?.changed();
+    labelLayerRef.current?.changed();
   }, [selectedId]);
 
   useEffect(() => {
@@ -511,8 +933,43 @@ function DatasetMapReady({
 
   useEffect(() => {
     progressByPlaceIdRef.current = progress.byPlaceId;
+    labelPriorityContextRef.current = {
+      ...labelPriorityContextRef.current,
+      progressByPlaceId: progress.byPlaceId,
+    };
     markerLayerRef.current?.changed();
+    labelLayerRef.current?.changed();
   }, [progress.byPlaceId]);
+
+  useEffect(() => {
+    if (!document.fonts) {
+      return undefined;
+    }
+    let cancelled = false;
+    void Promise.all([
+      document.fonts.load('400 11px "IBM Plex Mono"'),
+      document.fonts.load('500 11px "IBM Plex Mono"'),
+    ]).then(() => {
+      if (cancelled) {
+        return;
+      }
+      PLACE_LABEL_STYLE_CACHE.clear();
+      labelLayerRef.current?.changed();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    visiblePlaceIdsRef.current = visiblePlaceIds;
+    labelPriorityContextRef.current = {
+      ...labelPriorityContextRef.current,
+      searchMatchIds,
+    };
+    markerLayerRef.current?.changed();
+    labelLayerRef.current?.changed();
+  }, [searchMatchIds, visiblePlaceIds]);
 
   useEffect(() => {
     placingMarkerRef.current = placingMarker;
@@ -520,10 +977,8 @@ function DatasetMapReady({
   }, [placingMarker]);
 
   useEffect(() => {
-    regionRef.current = region;
-    markerLayerRef.current?.changed();
-    customMarkerLayerRef.current?.changed();
-  }, [region]);
+    userDataDisabledRef.current = userDataDisabled;
+  }, [userDataDisabled]);
 
   const commitNavigation = useCallback(
     (nextState: MapUrlState, mode: 'push' | 'replace') => {
@@ -534,11 +989,59 @@ function DatasetMapReady({
     [onNavigationChange],
   );
 
+  useEffect(() => {
+    if (
+      !catalogFiltersReady ||
+      selectedPlace === null ||
+      visiblePlaceIds.has(selectedPlace.id)
+    ) {
+      return;
+    }
+    const shouldReturnFilterFocus =
+      placeCardRef.current?.contains(document.activeElement) ?? false;
+    const hiddenPlaceId = selectedPlace.id;
+    const timeoutId = window.setTimeout(() => {
+      if (selectedIdRef.current !== hiddenPlaceId) {
+        return;
+      }
+      selectedIdRef.current = null;
+      setSelectedId(null);
+      if (navigationStateRef.current.placeId !== null) {
+        commitNavigation(
+          { ...navigationStateRef.current, placeId: null },
+          'replace',
+        );
+      }
+      if (shouldReturnFilterFocus) {
+        window.requestAnimationFrame(() => {
+          const resetButton = filterResetRef.current;
+          if (!resetButton || resetButton.disabled) {
+            targetRef.current?.focus({ preventScroll: true });
+            return;
+          }
+          const drawer = resetButton.closest('details');
+          if (drawer instanceof HTMLDetailsElement) {
+            drawer.open = true;
+          }
+          resetButton?.focus({ preventScroll: true });
+        });
+      }
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [catalogFiltersReady, commitNavigation, selectedPlace, visiblePlaceIds]);
+
   const createMarkerAt = useCallback(
     (position: readonly [number, number]) => {
+      if (markerSaveInFlightRef.current || userDataDisabledRef.current) {
+        return;
+      }
+      markerSaveInFlightRef.current = true;
+      customMarkerCardFocus.remember(targetRef.current);
       placingMarkerRef.current = false;
       setPlacingMarker(false);
       setMarkerError(null);
+      setMarkerSaving(true);
+      setFailedMarkerPosition([position[0], position[1]]);
       void saveCustomMarker(userDatabase, {
         datasetId: dataset.datasetId,
         label: 'Personal marker',
@@ -546,7 +1049,9 @@ function DatasetMapReady({
         position,
         })
         .then((marker) => {
+          setFailedMarkerPosition(null);
           setSelectedId(null);
+          selectedMarkerIdRef.current = marker.id;
           setSelectedMarkerId(marker.id);
           if (navigationStateRef.current.placeId !== null) {
             commitNavigation(
@@ -555,11 +1060,16 @@ function DatasetMapReady({
             );
           }
         })
-        .catch((error: unknown) => setMarkerError(errorMessage(error)));
+        .catch((error: unknown) => setMarkerError(errorMessage(error)))
+        .finally(() => {
+          markerSaveInFlightRef.current = false;
+          setMarkerSaving(false);
+        });
     },
     [
       dataset.datasetId,
       commitNavigation,
+      customMarkerCardFocus,
       setMarkerError,
       setPlacingMarker,
       setSelectedId,
@@ -573,6 +1083,8 @@ function DatasetMapReady({
     }
 
     const failedTiles = failedTilesRef.current;
+    const pendingTiles = pendingTilesRef.current;
+    const currentBasemapLoadWindow = currentBasemapLoadWindowRef.current;
     const projection = configureTes3Projection(extent);
     const rasterLayers = bundle.mapAssets.rasters.map(
       (raster) =>
@@ -613,51 +1125,76 @@ function DatasetMapReady({
     });
     const tileSources = pyramidContexts.map(({ source }) => source);
     failedTiles.clear();
-    setBasemapState({ pending: 0, failures: 0, missing: false });
+    pendingTiles.clear();
+    currentBasemapLoadWindow.reset();
+    basemapRetryInFlightRef.current = false;
+    const publishBasemapState = () => {
+      const pending = pendingTiles.size;
+      const failures = failedTiles.size;
+      const retrying = basemapRetryInFlightRef.current;
+      setBasemapState((current) => ({
+        pending,
+        failures,
+        loaded: currentBasemapLoadWindow.loadedCount,
+        missing: current.missing,
+        retrying,
+      }));
+      if (!retrying || pending > 0) {
+        return;
+      }
+      basemapRetryInFlightRef.current = false;
+      setBasemapState((current) => ({ ...current, retrying: false }));
+      window.requestAnimationFrame(() => {
+        if (failedTiles.size > 0) {
+          basemapRetryButtonRef.current?.focus({ preventScroll: true });
+        } else {
+          targetRef.current?.focus({ preventScroll: true });
+        }
+      });
+    };
+    setBasemapState({ pending: 0, failures: 0, loaded: 0, missing: false, retrying: false });
     const tileEventKeys = tileSources.flatMap((source) => [
-      source.on('tileloadstart', () => {
-        setBasemapState((current) => ({ ...current, pending: current.pending + 1 }));
+      source.on('tileloadstart', (event) => {
+        currentBasemapLoadWindow.start(event.tile);
+        pendingTiles.add(event.tile);
+        publishBasemapState();
       }),
       source.on('tileloadend', (event) => {
+        pendingTiles.delete(event.tile);
         failedTiles.delete(event.tile);
-        setBasemapState((current) => ({
-          ...current,
-          pending: Math.max(0, current.pending - 1),
-        }));
+        currentBasemapLoadWindow.finish(event.tile);
+        publishBasemapState();
       }),
       source.on('tileloaderror', (event) => {
+        pendingTiles.delete(event.tile);
         failedTiles.add(event.tile);
-        setBasemapState((current) => ({
-          ...current,
-          pending: Math.max(0, current.pending - 1),
-          failures: current.failures + 1,
-        }));
+        currentBasemapLoadWindow.fail(event.tile);
+        publishBasemapState();
       }),
     ]);
-    const features = bundle.locations.places.map(
-      (place) =>
+    const orderedPlaces = [...places].sort((left, right) =>
+      left.id < right.id ? -1 : left.id > right.id ? 1 : 0
+    );
+    const markerFeatures = orderedPlaces.map(
+      ({ id, place }) =>
         new Feature({
           geometry: new Point([...place.mapPosition]),
-          placeId: place.id,
-          regionId: place.regionId,
-          minZoom: place.minZoom,
+          placeId: id,
         }),
     );
     const markerLayer = new VectorLayer({
-      source: new VectorSource({ features }),
+      source: new VectorSource({ features: markerFeatures }),
       style: (feature) => {
-        const placeRegion = feature.get('regionId') as string;
-        const minimumZoom = feature.get('minZoom') as number;
         const placeId = feature.get('placeId') as string;
-        if (
-          minimumZoom > zoomRef.current ||
-          (regionRef.current !== 'all' && placeRegion !== regionRef.current)
-        ) {
+        if (!visiblePlaceIdsRef.current.has(placeId)) {
           return undefined;
         }
         const status = progressByPlaceIdRef.current.get(placeId)?.status ?? 'unvisited';
-        return placeId === selectedIdRef.current
-          ? SELECTED_PLACE_STYLES[status]
+        if (placeId === selectedIdRef.current) {
+          return SELECTED_PLACE_STYLES[status];
+        }
+        return placeId === hoveredPlaceIdRef.current
+          ? HOVERED_PLACE_STYLES[status]
           : PLACE_STYLES[status];
       },
       updateWhileAnimating: true,
@@ -665,21 +1202,50 @@ function DatasetMapReady({
     });
     markerLayer.setZIndex(10);
     markerLayerRef.current = markerLayer;
+    const labelFeatures = orderedPlaces.map(
+      (place) =>
+        new Feature({
+          geometry: new Point([...place.place.mapPosition]),
+          placeId: place.id,
+          placeView: place,
+        }),
+    );
+    const labelLayer = new VectorLayer({
+      source: new VectorSource({ features: labelFeatures }),
+      declutter: 'catalog-place-labels',
+      renderBuffer: 180,
+      renderOrder: (left, right) => comparePlaceLabelPriority(
+        left.get('placeView') as PlaceView,
+        right.get('placeView') as PlaceView,
+        labelPriorityContextRef.current,
+      ),
+      style: (feature) => {
+        const placeId = feature.get('placeId') as string;
+        if (!visiblePlaceIdsRef.current.has(placeId)) {
+          return undefined;
+        }
+        const place = feature.get('placeView') as PlaceView;
+        return createPlaceLabelStyle(
+          place.name,
+          placeId === selectedIdRef.current,
+          labelPriorityContextRef.current.searchMatchIds.has(placeId),
+        );
+      },
+      updateWhileAnimating: true,
+      updateWhileInteracting: true,
+    });
+    labelLayer.setZIndex(11);
+    labelLayerRef.current = labelLayer;
     const customMarkerLayer = new VectorLayer({
       source: new VectorSource(),
       style: (feature) => {
-        const featureRegion = feature.get('regionId') as string | null;
-        if (
-          regionRef.current !== 'all' &&
-          featureRegion !== null &&
-          featureRegion !== regionRef.current
-        ) {
-          return undefined;
-        }
         const markerId = feature.get('markerId') as string;
-        return markerId === selectedMarkerIdRef.current
-          ? SELECTED_CUSTOM_MARKER_STYLE
-          : CUSTOM_MARKER_STYLE;
+        if (markerId === selectedMarkerIdRef.current) {
+          return SELECTED_CUSTOM_MARKER_STYLES;
+        }
+        return markerId === hoveredMarkerIdRef.current
+          ? HOVERED_CUSTOM_MARKER_STYLES
+          : CUSTOM_MARKER_STYLES;
       },
       updateWhileAnimating: true,
       updateWhileInteracting: true,
@@ -718,10 +1284,15 @@ function DatasetMapReady({
         ...rasterLayers,
         ...pyramidContexts.map(({ layer }) => layer),
         markerLayer,
+        labelLayer,
         customMarkerLayer,
       ],
       view,
       controls: [],
+      interactions: defaultInteractions({
+        onFocusOnly: false,
+        zoomDuration: prefersReducedMotion() ? 0 : 250,
+      }),
     });
     mapRef.current = map;
     if (initialView === null) {
@@ -742,12 +1313,15 @@ function DatasetMapReady({
     zoomRef.current = view.getZoom() ?? 0;
     setZoom(zoomRef.current);
     markerLayer.changed();
+    labelLayer.changed();
 
     const updateCoverageAtCenter = () => {
       const viewCenter = view.getCenter();
       const resolution = view.getResolution();
       if (!viewCenter || resolution === undefined || pyramidContexts.length === 0) {
-        setBasemapState((current) => ({ ...current, missing: false }));
+        setBasemapState((current) => current.missing
+          ? { ...current, missing: false }
+          : current);
         return;
       }
       const covered = pyramidContexts.some(({ coverageIndex, pyramid, tileGrid }) => {
@@ -757,7 +1331,10 @@ function DatasetMapReady({
         }
         return coverageIndex.has(tileGrid.getTileCoordForCoordAndZ(viewCenter, z));
       });
-      setBasemapState((current) => ({ ...current, missing: !covered }));
+      const missing = !covered;
+      setBasemapState((current) => current.missing === missing
+        ? current
+        : { ...current, missing });
     };
     updateCoverageAtCenter();
 
@@ -768,11 +1345,27 @@ function DatasetMapReady({
       const [x = 0, y = 0] = event.coordinate;
       const world: WorldCoordinate = [x, y];
       setCursor({ world, cell: worldToCell(world, projectionDescriptor.cellSize) });
-      const hit = map.hasFeatureAtPixel(event.pixel, {
+      const feature = map.forEachFeatureAtPixel(event.pixel, (candidate) => candidate, {
         hitTolerance: 5,
-        layerFilter: (layer) => layer === markerLayer || layer === customMarkerLayer,
+        layerFilter: (layer) =>
+          layer === markerLayer || layer === labelLayer || layer === customMarkerLayer,
       });
-      map.getTargetElement().classList.toggle('map-canvas--marker-hover', hit);
+      const nextMarkerId = feature?.get('markerId') as string | undefined;
+      const nextPlaceId = feature?.get('placeId') as string | undefined;
+      const markerId = nextMarkerId ?? null;
+      const placeId = nextPlaceId ?? null;
+      if (hoveredMarkerIdRef.current !== markerId) {
+        hoveredMarkerIdRef.current = markerId;
+        customMarkerLayer.changed();
+      }
+      if (hoveredPlaceIdRef.current !== placeId) {
+        hoveredPlaceIdRef.current = placeId;
+        markerLayer.changed();
+      }
+      map.getTargetElement().classList.toggle(
+        'map-canvas--marker-hover',
+        markerId !== null || placeId !== null,
+      );
     });
     const clickKey = map.on('singleclick', (event) => {
       if (placingMarkerRef.current) {
@@ -782,12 +1375,15 @@ function DatasetMapReady({
       }
       const feature = map.forEachFeatureAtPixel(event.pixel, (candidate) => candidate, {
         hitTolerance: 6,
-        layerFilter: (layer) => layer === markerLayer || layer === customMarkerLayer,
+        layerFilter: (layer) =>
+          layer === markerLayer || layer === labelLayer || layer === customMarkerLayer,
       });
       if (feature) {
         const markerId = feature.get('markerId') as string | undefined;
         if (markerId) {
+          customMarkerCardFocus.remember(targetRef.current);
           setSelectedId(null);
+          selectedMarkerIdRef.current = markerId;
           setSelectedMarkerId(markerId);
           if (navigationStateRef.current.placeId !== null) {
             commitNavigation(
@@ -797,6 +1393,7 @@ function DatasetMapReady({
           }
         } else {
           const placeId = feature.get('placeId') as string;
+          placeCardFocus.remember(targetRef.current);
           setSelectedMarkerId(null);
           setSelectedId(placeId);
           selectedIdRef.current = placeId;
@@ -807,10 +1404,26 @@ function DatasetMapReady({
         }
       }
     });
+    let viewportMovementActive = false;
+    const beginViewportMovement = () => {
+      if (viewportMovementActive) {
+        return;
+      }
+      viewportMovementActive = true;
+      currentBasemapLoadWindow.beginViewport();
+      publishBasemapState();
+    };
+    const centerKey = view.on('change:center', beginViewportMovement);
     const resolutionKey = view.on('change:resolution', () => {
-      zoomRef.current = view.getZoom() ?? 0;
-      setZoom(zoomRef.current);
-      markerLayer.changed();
+      beginViewportMovement();
+      const nextZoom = view.getZoom() ?? 0;
+      zoomRef.current = nextZoom;
+      setZoom((currentZoom) =>
+        visibilityZoomFor(visibilityZoomThresholds, currentZoom) ===
+          visibilityZoomFor(visibilityZoomThresholds, nextZoom)
+          ? currentZoom
+          : nextZoom
+      );
     });
     const updateNavigationFromView = () => {
       const currentCenter = view.getCenter();
@@ -833,15 +1446,31 @@ function DatasetMapReady({
         'replace',
       );
     };
+    let navigationSyncTimer: number | null = null;
+    const scheduleNavigationFromView = () => {
+      if (navigationSyncTimer !== null) {
+        window.clearTimeout(navigationSyncTimer);
+      }
+      navigationSyncTimer = window.setTimeout(() => {
+        navigationSyncTimer = null;
+        updateNavigationFromView();
+      }, 50);
+    };
     const handleMoveEnd = () => {
+      viewportMovementActive = false;
+      setZoom(zoomRef.current);
       updateCoverageAtCenter();
-      updateNavigationFromView();
+      scheduleNavigationFromView();
     };
     const moveEndKey = map.on('moveend', handleMoveEnd);
-    updateNavigationFromView();
+    scheduleNavigationFromView();
     const viewport = map.getViewport();
     const clearCursor = () => {
       setCursor(null);
+      hoveredPlaceIdRef.current = null;
+      hoveredMarkerIdRef.current = null;
+      markerLayer.changed();
+      customMarkerLayer.changed();
       map.getTargetElement().classList.remove('map-canvas--marker-hover');
     };
     viewport.addEventListener('pointerleave', clearCursor);
@@ -849,14 +1478,22 @@ function DatasetMapReady({
     return () => {
       unByKey(pointerMoveKey);
       unByKey(clickKey);
+      unByKey(centerKey);
       unByKey(resolutionKey);
       unByKey(moveEndKey);
       unByKey(tileEventKeys);
+      if (navigationSyncTimer !== null) {
+        window.clearTimeout(navigationSyncTimer);
+      }
       viewport.removeEventListener('pointerleave', clearCursor);
       map.setTarget(undefined);
       mapRef.current = null;
       failedTiles.clear();
+      pendingTiles.clear();
+      currentBasemapLoadWindow.reset();
+      basemapRetryInFlightRef.current = false;
       markerLayerRef.current = null;
+      labelLayerRef.current = null;
       customMarkerLayerRef.current = null;
     };
   }, [
@@ -864,12 +1501,15 @@ function DatasetMapReady({
     center,
     commitNavigation,
     createMarkerAt,
+    customMarkerCardFocus,
     dataset.datasetId,
     extent,
     maximumZoom,
     minimumZoom,
     places,
+    placeCardFocus,
     projectionDescriptor.cellSize,
+    visibilityZoomThresholds,
     viewResolutions,
   ]);
 
@@ -894,9 +1534,10 @@ function DatasetMapReady({
     );
     selfAuthoredNavigationRef.current = null;
     navigationStateRef.current = normalizedNavigationState;
-    regionRef.current = normalizedNavigationState.regionId;
     selectedIdRef.current = normalizedNavigationState.placeId;
     setRegion(normalizedNavigationState.regionId);
+    setTypeFilters(new Set(normalizedNavigationState.typeFilters));
+    setStatusFilters(new Set(normalizedNavigationState.statusFilters));
     setSelectedId(normalizedNavigationState.placeId);
 
     if (
@@ -978,12 +1619,11 @@ function DatasetMapReady({
           new Feature({
             geometry: new Point([...marker.position]),
             markerId: marker.id,
-            regionId: markerRegion(marker.position, bundle),
           }),
       ),
     );
     customMarkerLayerRef.current?.changed();
-  }, [bundle, customMarkers.records]);
+  }, [customMarkers.records]);
 
   const changeZoom = (delta: number) => {
     const view = mapRef.current?.getView();
@@ -1031,7 +1671,6 @@ function DatasetMapReady({
         selectedPlace.place.regionId !== nextRegion
       ? null
       : selectedId;
-    regionRef.current = nextRegion;
     selectedIdRef.current = nextPlaceId;
     setRegion(nextRegion);
     setSelectedId(nextPlaceId);
@@ -1058,7 +1697,95 @@ function DatasetMapReady({
     }
   };
 
-  const selectPlace = (place: PlaceView) => {
+  const toggleTypeFilter = (type: PlaceType) => {
+    const next = new Set(typeFilters);
+    if (next.has(type)) {
+      next.delete(type);
+    } else {
+      next.add(type);
+    }
+    const canonical = next.size === availableTypes.length
+      ? new Set<PlaceType>()
+      : next;
+    setTypeFilters(canonical);
+    commitNavigation(
+      {
+        ...navigationWithCurrentView(),
+        typeFilters: PLACE_TYPE_ORDER.filter((candidate) => canonical.has(candidate)),
+      },
+      'push',
+    );
+  };
+
+  const toggleStatusFilter = (status: ProgressStatus) => {
+    const next = new Set(statusFilters);
+    if (next.has(status)) {
+      next.delete(status);
+    } else {
+      next.add(status);
+    }
+    const canonical = next.size === PROGRESS_STATUS_ORDER.length
+      ? new Set<ProgressStatus>()
+      : next;
+    setStatusFilters(canonical);
+    commitNavigation(
+      {
+        ...navigationWithCurrentView(),
+        statusFilters: PROGRESS_STATUS_ORDER.filter((candidate) => canonical.has(candidate)),
+      },
+      'push',
+    );
+  };
+
+  const clearTypeFilters = () => {
+    if (typeFilters.size === 0) {
+      return;
+    }
+    setTypeFilters(new Set());
+    commitNavigation(
+      { ...navigationWithCurrentView(), typeFilters: [] },
+      'push',
+    );
+  };
+
+  const clearStatusFilters = () => {
+    if (statusFilters.size === 0) {
+      return;
+    }
+    setStatusFilters(new Set());
+    commitNavigation(
+      { ...navigationWithCurrentView(), statusFilters: [] },
+      'push',
+    );
+  };
+
+  const resetFilters = () => {
+    if (activeFilterAxisCount === 0) {
+      return;
+    }
+    setRegion('all');
+    setTypeFilters(new Set());
+    setStatusFilters(new Set());
+    commitNavigation(
+      {
+        ...navigationWithCurrentView(),
+        regionId: 'all',
+        typeFilters: [],
+        statusFilters: [],
+      },
+      'push',
+    );
+    if (region !== 'all') {
+      fitExtent(extent);
+    }
+  };
+
+  const selectPlace = (
+    place: PlaceView,
+    origin: HTMLElement,
+    focusCard: boolean,
+  ) => {
+    placeCardFocus.remember(origin);
     setPlacingMarker(false);
     setSelectedMarkerId(null);
     setSelectedId(place.id);
@@ -1081,11 +1808,16 @@ function DatasetMapReady({
     } else {
       view.animate({ center: [...place.place.mapPosition], zoom: nextZoom, duration: 220 });
     }
+    if (focusCard) {
+      placeCardFocus.focus(() => placeCardRef.current);
+    }
   };
 
-  const selectCustomMarker = (marker: CustomMarkerRecord) => {
+  const selectCustomMarker = (marker: CustomMarkerRecord, origin: HTMLElement) => {
+    customMarkerCardFocus.remember(origin);
     setPlacingMarker(false);
     setSelectedId(null);
+    selectedMarkerIdRef.current = marker.id;
     setSelectedMarkerId(marker.id);
     selectedIdRef.current = null;
     if (navigationStateRef.current.placeId !== null) {
@@ -1094,9 +1826,6 @@ function DatasetMapReady({
         'push',
       );
     }
-    window.requestAnimationFrame(() => {
-      customMarkerEditorInputRef.current?.focus({ preventScroll: true });
-    });
     const view = mapRef.current?.getView();
     if (!view) {
       return;
@@ -1111,7 +1840,11 @@ function DatasetMapReady({
   };
 
   const toggleMarkerPlacement = () => {
+    if (userDataDisabledRef.current || markerSaveInFlightRef.current) {
+      return;
+    }
     setMarkerError(null);
+    setFailedMarkerPosition(null);
     setSelectedId(null);
     setSelectedMarkerId(null);
     selectedIdRef.current = null;
@@ -1131,30 +1864,53 @@ function DatasetMapReady({
       { ...navigationWithCurrentView(), placeId: null },
       'push',
     );
+    placeCardFocus.restore(() => targetRef.current);
   };
 
   const closeSelectedCustomMarker = () => {
     const markerId = selectedMarkerId;
+    selectedMarkerIdRef.current = null;
     setSelectedMarkerId(null);
-    window.requestAnimationFrame(() => {
-      if (markerId) {
-        const returnTarget = customMarkerButtonRefs.current.get(markerId);
-        (returnTarget ?? customMarkerHeadingRef.current)?.focus({ preventScroll: true });
-      }
-    });
+    customMarkerCardFocus.restore(() =>
+      (markerId ? customMarkerButtonRefs.current.get(markerId) : null) ??
+        customMarkerHeadingRef.current,
+    );
   };
 
   const finishCustomMarkerDeletion = () => {
+    selectedMarkerIdRef.current = null;
     setSelectedMarkerId(null);
+    customMarkerCardFocus.clear();
     window.requestAnimationFrame(() => {
       customMarkerHeadingRef.current?.focus({ preventScroll: true });
     });
   };
 
+  useEffect(() => {
+    const closeCardOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || placingMarkerRef.current) {
+        return;
+      }
+      if (selectedMarkerIdRef.current !== null) {
+        closeSelectedCustomMarker();
+      } else if (selectedIdRef.current !== null) {
+        closeSelectedPlace();
+      }
+    };
+    window.addEventListener('keydown', closeCardOnEscape);
+    return () => window.removeEventListener('keydown', closeCardOnEscape);
+  });
+
   const retryBasemap = () => {
-    setBasemapState((current) => ({ ...current, failures: 0, pending: 0 }));
+    if (basemapRetryInFlightRef.current) {
+      return;
+    }
     const failedTiles = [...failedTilesRef.current];
-    failedTilesRef.current.clear();
+    if (failedTiles.length === 0) {
+      return;
+    }
+    basemapRetryInFlightRef.current = true;
+    setBasemapState((current) => ({ ...current, retrying: true }));
     failedTiles.forEach((tile) => tile.load());
   };
 
@@ -1168,6 +1924,37 @@ function DatasetMapReady({
             <span>INDEX / 001–{places.length.toLocaleString('en-US')}</span>
             <span className="locale-badge">EN</span>
           </div>
+
+          {bindingState.status === 'conflict' ? (
+            <div className="user-data-state user-data-state--error" role="alert">
+              <strong>{t('map.localDataConflict')}</strong>
+              <p>{bindingState.message}</p>
+              <p>{t('map.localDataPreserved')}</p>
+              <button type="button" onClick={onBack}>{t('map.versions')}</button>
+            </div>
+          ) : displayedUserDataRuntimeMessage !== null ? (
+            <div
+              className="user-data-state user-data-state--error"
+              role="alert"
+              aria-busy={userDataRetrying}
+            >
+              <strong>{t('map.localDataError')}</strong>
+              <p>{displayedUserDataRuntimeMessage}</p>
+              <p>{t('map.localDataReadOnly')}</p>
+              <button
+                ref={userDataRetryButtonRef}
+                type="button"
+                disabled={userDataRetrying}
+                onClick={retryUserData}
+              >
+                {userDataRetrying ? t('map.retrying') : t('map.retry')}
+              </button>
+            </div>
+          ) : userDataLoading ? (
+            <p className="user-data-state" role="status" aria-busy="true">
+              {t('map.localDataLoading')}
+            </p>
+          ) : null}
 
           <label className="place-search">
             <span>{t('map.searchLabel')}</span>
@@ -1199,6 +1986,23 @@ function DatasetMapReady({
             ))}
           </fieldset>
 
+          <PlaceFilterControls
+            availableTypes={availableTypes}
+            selectedTypes={typeFilters}
+            selectedStatuses={statusFilters}
+            typeCounts={typeCounts}
+            statusCounts={statusCounts}
+            activeAxisCount={activeFilterAxisCount}
+            matchingCount={visiblePlaces.length}
+            statusesDisabled={!progressReadReady}
+            onToggleType={toggleTypeFilter}
+            onToggleStatus={toggleStatusFilter}
+            onClearTypes={clearTypeFilters}
+            onClearStatuses={clearStatusFilters}
+            onReset={resetFilters}
+            resetFocusRef={filterResetRef}
+          />
+
           <details className="ledger-data-tools">
             <summary>{t('map.dataTools')}</summary>
             <DataTools
@@ -1206,12 +2010,19 @@ function DatasetMapReady({
               datasetSnapshots={datasetSnapshots}
               knownPlaceIds={knownPlaceIds}
               locale={locale}
+              mode={bindingState.status === 'conflict' ? 'conflict-export-only' : 'read-write'}
+              disabled={bindingState.status !== 'conflict' && userDataDisabled}
             />
           </details>
 
           <div className="result-summary" aria-live="polite">
-            <span>{t('map.found', { count: regionPlaces.length })}</span>
-            {query ? <strong>{results.length}</strong> : null}
+            <span>{t('map.found', { count: visiblePlaces.length })}</span>
+            {query ? (
+              <strong>{t('map.searchResultCount', {
+                shown: results.length,
+                total: allResults.length,
+              })}</strong>
+            ) : null}
           </div>
 
           <div className="place-results">
@@ -1224,11 +2035,16 @@ function DatasetMapReady({
                 >
                   {t('map.personalMarkers')}
                 </h2>
-                <strong>{regionCustomMarkers.length}</strong>
+                <strong>{customMarkers.records.length}</strong>
               </header>
-              {regionCustomMarkers.length ? (
+              <p className="custom-marker-scope">{t('map.personalMarkersGlobal')}</p>
+              {customMarkers.loading ? (
+                <p role="status">{t('map.personalMarkersLoading')}</p>
+              ) : customMarkers.error !== null ? (
+                <p>{t('map.personalMarkersUnavailable')}</p>
+              ) : customMarkers.records.length ? (
                 <ul>
-                  {regionCustomMarkers.map((marker) => (
+                  {customMarkers.records.map((marker) => (
                     <li key={marker.id}>
                       <button
                         ref={(node) => {
@@ -1245,9 +2061,9 @@ function DatasetMapReady({
                             : 'place-result custom-marker-result'
                         }
                         aria-pressed={selectedMarkerId === marker.id}
-                        onClick={() => selectCustomMarker(marker)}
+                        onClick={(event) => selectCustomMarker(marker, event.currentTarget)}
                       >
-                        <span className="result-marker result-marker--custom" aria-hidden="true" />
+                        <StatusMark kind="custom" className="result-marker" />
                         <span>
                           <strong>{marker.label}</strong>
                           <small>
@@ -1260,7 +2076,21 @@ function DatasetMapReady({
                   ))}
                 </ul>
               ) : (
-                <p>{t('map.noPersonalMarkers')}</p>
+                <div className="empty-state empty-state--compact">
+                  <p>{t('map.noPersonalMarkers')}</p>
+                  <button
+                    type="button"
+                    disabled={userDataDisabled}
+                    onClick={() => {
+                      toggleMarkerPlacement();
+                      window.requestAnimationFrame(() => {
+                        targetRef.current?.focus({ preventScroll: true });
+                      });
+                    }}
+                  >
+                    {t('map.addMarker')}
+                  </button>
+                </div>
               )}
             </section>
             {results.length ? (
@@ -1271,12 +2101,14 @@ function DatasetMapReady({
                     key={place.id}
                     type="button"
                     className={selectedId === place.id ? 'place-result place-result--selected' : 'place-result'}
-                    onClick={() => selectPlace(place)}
+                    aria-current={selectedId === place.id ? 'location' : undefined}
+                    onClick={(event) => selectPlace(
+                      place,
+                      event.currentTarget,
+                      isKeyboardActivation(event.detail),
+                    )}
                   >
-                    <span
-                      className={`result-marker result-marker--${status}`}
-                      aria-hidden="true"
-                    />
+                    <StatusMark kind={status} className="result-marker" />
                     <span>
                       <strong>{place.name}</strong>
                       <small>
@@ -1287,8 +2119,41 @@ function DatasetMapReady({
                   </button>
                 );
               })
+            ) : places.length === 0 ? (
+              <div className="empty-state">
+                <p>{t('map.noExteriorContent')}</p>
+                <button type="button" onClick={onBack}>{t('map.versions')}</button>
+              </div>
+            ) : !catalogFiltersReady ? (
+              <p className="no-results" role="status">{t('map.progressFilterUnavailable')}</p>
+            ) : visiblePlaces.length === 0 && activeFilterAxisCount > 0 ? (
+              <div className="empty-state">
+                <p>{t('map.noFilteredPlaces')}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetFilters();
+                    window.requestAnimationFrame(() => searchRef.current?.focus());
+                  }}
+                >
+                  {t('map.resetFilters')}
+                </button>
+              </div>
+            ) : query.trim().length > 0 ? (
+              <div className="empty-state">
+                <p>{t('map.noResults')}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery('');
+                    window.requestAnimationFrame(() => searchRef.current?.focus());
+                  }}
+                >
+                  {t('map.clearSearch')}
+                </button>
+              </div>
             ) : (
-              <p className="no-results">{t('map.noResults')}</p>
+              <p className="no-results">{t('map.noPlacesAtZoom')}</p>
             )}
           </div>
         </aside>
@@ -1302,8 +2167,15 @@ function DatasetMapReady({
             data-view-x={viewState?.center[0]}
             data-view-y={viewState?.center[1]}
             data-view-z={viewState?.zoom}
+            data-visible-place-count={visiblePlaces.length}
+            data-label-candidate-count={visiblePlaces.length}
+            data-label-priority={labelPriorityOrder.join(',')}
+            aria-busy={!catalogFiltersReady}
+            role="application"
             aria-label={t('map.mapAria')}
-            aria-describedby={placingMarker ? 'marker-placement-hint' : undefined}
+            aria-describedby={placingMarker
+              ? 'map-keyboard-instructions marker-placement-hint'
+              : 'map-keyboard-instructions'}
             onKeyDown={(event) => {
               if (!placingMarker || (event.key !== 'Enter' && event.key !== ' ')) {
                 return;
@@ -1314,38 +2186,59 @@ function DatasetMapReady({
             }}
           />
 
-          <div className="map-tools" aria-label={t('map.zoom')}>
+          <p id="map-keyboard-instructions" className="visually-hidden">
+            Use arrow keys to pan the map and plus or minus to zoom.
+          </p>
+
+          <div className="map-tools" role="group" aria-label={t('map.zoom')}>
             <button type="button" onClick={() => changeZoom(1)} aria-label={t('map.zoomIn')}>
-              +
+              <PixelIcon name="zoom-in" />
             </button>
             <button type="button" onClick={() => selectRegion('all')} aria-label={t('map.showWholeWorld')}>
-              □
+              <PixelIcon name="fit-map" />
             </button>
             <button type="button" onClick={() => changeZoom(-1)} aria-label={t('map.zoomOut')}>
-              −
+              <PixelIcon name="zoom-out" />
             </button>
             <button
               type="button"
               className="add-marker-tool"
+              disabled={userDataDisabled || markerSaving}
               aria-label={placingMarker ? t('map.cancelMarker') : t('map.addMarker')}
               aria-pressed={placingMarker}
               onClick={toggleMarkerPlacement}
             >
-              M+
+              <PixelIcon name="marker-add" />
             </button>
           </div>
 
-          <div className="marker-legend" aria-label="Marker legend">
-            <span><i className="legend-square" />{t('map.unvisited')}</span>
-            <span><i className="legend-square legend-square--active" />{t('map.active')}</span>
-            <span><i className="legend-square legend-square--visited" />{t('map.visited')}</span>
-            <span><i className="legend-square legend-square--custom" />{t('map.personalMarker')}</span>
+          <div className="marker-legend" role="group" aria-label="Marker legend">
+            <span><StatusMark kind="unvisited" />{t('map.unvisited')}</span>
+            <span><StatusMark kind="active" />{t('map.active')}</span>
+            <span><StatusMark kind="visited" />{t('map.visited')}</span>
+            <span><StatusMark kind="custom" />{t('map.personalMarker')}</span>
           </div>
 
           {basemapState.failures > 0 ? (
-            <div className="basemap-state basemap-state--error" role="alert">
-              <span>{t('map.basemapError', { count: basemapState.failures })}</span>
-              <button type="button" onClick={retryBasemap}>{t('map.retry')}</button>
+            <div
+              className={`basemap-state basemap-state--error basemap-state--${basemapState.loaded > 0 ? 'partial' : 'full'}`}
+              role="alert"
+              aria-busy={basemapState.retrying}
+            >
+              <span>
+                {t(
+                  basemapState.loaded > 0 ? 'map.basemapPartialError' : 'map.basemapFullError',
+                  { count: basemapState.failures },
+                )}
+              </span>
+              <button
+                ref={basemapRetryButtonRef}
+                type="button"
+                disabled={basemapState.retrying}
+                onClick={retryBasemap}
+              >
+                {basemapState.retrying ? t('map.retrying') : t('map.retryFailedTiles')}
+              </button>
             </div>
           ) : basemapState.pending > 0 ? (
             <p className="basemap-state" role="status">
@@ -1363,18 +2256,29 @@ function DatasetMapReady({
             </p>
           ) : null}
           {markerError ? (
-            <p className="marker-placement-error" role="alert">
-              {markerError}
-            </p>
+            <div className="marker-placement-error" role="alert" aria-busy={markerSaving}>
+              <span>{markerError}</span>
+              {failedMarkerPosition ? (
+                <button
+                  type="button"
+                  disabled={markerSaving || userDataDisabled}
+                  onClick={() => createMarkerAt(failedMarkerPosition)}
+                >
+                  {markerSaving ? t('map.retrying') : t('map.retryMarker')}
+                </button>
+              ) : null}
+            </div>
           ) : null}
 
-          {selectedPlace ? (
+          {catalogFiltersReady && selectedPlace ? (
             <PlaceCard
+              cardRef={placeCardRef}
               datasetId={dataset.datasetId}
               place={selectedPlace}
               locale={locale}
               regionName={regionTitle(dataset, selectedPlace.place.regionId)}
               progress={progress.byPlaceId.get(selectedPlace.id)}
+              disabled={userDataDisabled}
               onClose={closeSelectedPlace}
             />
           ) : null}
@@ -1383,6 +2287,7 @@ function DatasetMapReady({
               marker={selectedMarker}
               locale={locale}
               inputRef={customMarkerEditorInputRef}
+              disabled={userDataDisabled}
               onClose={closeSelectedCustomMarker}
               onDeleted={finishCustomMarkerDeletion}
             />
@@ -1410,21 +2315,44 @@ function DatasetMapReady({
 }
 
 interface PlaceCardProps {
+  readonly cardRef: Ref<HTMLElement>;
   readonly datasetId: string;
   readonly place: PlaceView;
   readonly locale: Locale;
   readonly regionName: string;
   readonly progress: ProgressRecord | undefined;
+  readonly disabled: boolean;
   readonly onClose: () => void;
 }
 
-function PlaceCard({ datasetId, place, locale, regionName, progress, onClose }: PlaceCardProps) {
+function PlaceCard({
+  cardRef,
+  datasetId,
+  place,
+  locale,
+  regionName,
+  progress,
+  disabled,
+  onClose,
+}: PlaceCardProps) {
   const { t } = useTranslation();
   const plugins = [...new Set(place.place.sources.map(({ plugin }) => plugin))].join(', ');
   return (
-    <article className="place-card" aria-labelledby="selected-place-title">
+    <article
+      ref={cardRef}
+      className="place-card"
+      tabIndex={-1}
+      aria-labelledby="selected-place-title"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+    >
       <button className="place-card-close" type="button" onClick={onClose} aria-label={t('map.closeCard')}>
-        ×
+        <PixelIcon name="close" />
       </button>
       <span className="place-card-index">{t('map.cardIndex')}</span>
       <h2 id="selected-place-title">{place.name}</h2>
@@ -1462,6 +2390,7 @@ function PlaceCard({ datasetId, place, locale, regionName, progress, onClose }: 
         datasetId={datasetId}
         placeId={place.id}
         locale={locale}
+        disabled={disabled}
         {...(progress ? { progress } : {})}
       />
     </article>
@@ -1472,21 +2401,39 @@ interface CustomMarkerCardProps {
   readonly marker: CustomMarkerRecord;
   readonly locale: Locale;
   readonly inputRef: Ref<HTMLInputElement>;
+  readonly disabled: boolean;
   readonly onClose: () => void;
   readonly onDeleted: () => void;
 }
 
-function CustomMarkerCard({ marker, locale, inputRef, onClose, onDeleted }: CustomMarkerCardProps) {
+function CustomMarkerCard({
+  marker,
+  locale,
+  inputRef,
+  disabled,
+  onClose,
+  onDeleted,
+}: CustomMarkerCardProps) {
   const { t } = useTranslation();
   return (
-    <article className="place-card custom-marker-card" aria-labelledby="selected-marker-title">
+    <article
+      className="place-card custom-marker-card"
+      aria-labelledby="selected-marker-title"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+    >
       <button
         className="place-card-close"
         type="button"
         onClick={onClose}
         aria-label={t('map.closeMarker')}
       >
-        ×
+        <PixelIcon name="close" />
       </button>
       <span className="place-card-index">{t('map.personalMarker')}</span>
       <h2 id="selected-marker-title">{marker.label}</h2>
@@ -1499,6 +2446,7 @@ function CustomMarkerCard({ marker, locale, inputRef, onClose, onDeleted }: Cust
         marker={marker}
         locale={locale}
         inputRef={inputRef}
+        disabled={disabled}
         onDeleted={onDeleted}
       />
     </article>

@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { DatasetManifest } from '@morrowind-map/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  DatasetAssetsInvalidError,
   DatasetAssetsMissingError,
   loadDataset,
 } from '../data/loadDataset';
@@ -13,7 +14,12 @@ vi.mock('../data/loadDataset', () => {
     override readonly name = 'DatasetAssetsMissingError';
   }
 
+  class InvalidError extends Error {
+    override readonly name = 'DatasetAssetsInvalidError';
+  }
+
   return {
+    DatasetAssetsInvalidError: InvalidError,
     DatasetAssetsMissingError: MissingError,
     loadDataset: vi.fn(),
   };
@@ -34,6 +40,8 @@ const navigationState = {
   regionId: 'all',
   view: null,
   placeId: null,
+  typeFilters: [],
+  statusFilters: [],
 } as const;
 
 describe('DatasetMap loading states', () => {
@@ -83,6 +91,29 @@ describe('DatasetMap loading states', () => {
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 
+  it('does not offer a futile retry for invalid published artifacts', async () => {
+    vi.mocked(loadDataset).mockRejectedValue(
+      new DatasetAssetsInvalidError('Location catalog belongs to a different dataset snapshot'),
+    );
+
+    render(
+      <DatasetMap
+        dataset={dataset}
+        datasetSnapshots={{}}
+        navigationState={navigationState}
+        navigationRevision={0}
+        onNavigationChange={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('published map data is inconsistent');
+    expect(alert).toHaveTextContent('different dataset snapshot');
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    expect(within(alert).getByRole('button', { name: 'Versions' })).toBeEnabled();
+  });
+
   it('shows runtime errors and retries the complete bundle load', async () => {
     vi.mocked(loadDataset)
       .mockRejectedValueOnce(new Error('HTTP 503'))
@@ -100,9 +131,12 @@ describe('DatasetMap loading states', () => {
     );
 
     expect(await screen.findByRole('alert')).toHaveTextContent('HTTP 503');
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    const retry = screen.getByRole('button', { name: 'Retry' });
+    fireEvent.click(retry);
+    fireEvent.click(retry);
 
     await waitFor(() => expect(loadDataset).toHaveBeenCalledTimes(2));
-    expect(screen.getByRole('status')).toHaveTextContent('Opening the map dataset');
+    expect(screen.getByRole('alert')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('button', { name: 'Retrying…' })).toBeDisabled();
   });
 });

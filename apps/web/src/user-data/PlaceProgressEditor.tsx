@@ -10,6 +10,7 @@ import {
 } from '../storage/database';
 import { savePlaceProgress } from '../storage/userData';
 import { LOCAL_STORAGE_PREFIX } from '../storage/userDataNamespace';
+import { StatusMark } from '../ui/StatusMark';
 import { getUserDataStrings } from './strings';
 
 const STATUSES: readonly ProgressStatus[] = ['unvisited', 'active', 'visited'];
@@ -23,6 +24,11 @@ interface EditorFeedback {
   readonly placeKey: string;
   readonly tone: 'error' | 'status';
   readonly text: string;
+}
+
+interface SaveOperation {
+  readonly kind: 'status' | 'note';
+  readonly revision: string;
 }
 
 export interface PlaceProgressEditorProps {
@@ -88,7 +94,7 @@ export function PlaceProgressEditor({
   });
   const [saving, setSaving] = useState<'status' | 'note' | null>(null);
   const [feedback, setFeedback] = useState<EditorFeedback | null>(null);
-  const noteSaveInFlightRef = useRef<string | null>(null);
+  const activeOperationRef = useRef<SaveOperation | null>(null);
   const noteSaveTimerRef = useRef<number | null>(null);
   const noteFormRef = useRef<HTMLFormElement>(null);
   const recoveredNoteRef = useRef(
@@ -138,12 +144,29 @@ export function PlaceProgressEditor({
     }
   };
 
+  const beginSave = (kind: SaveOperation['kind'], revision: string) => {
+    if (disabled || activeOperationRef.current !== null) {
+      return null;
+    }
+    const operation: SaveOperation = { kind, revision };
+    activeOperationRef.current = operation;
+    setSaving(kind);
+    setFeedback(null);
+    return operation;
+  };
+
+  const finishSave = (operation: SaveOperation) => {
+    if (activeOperationRef.current === operation) {
+      activeOperationRef.current = null;
+      setSaving(null);
+    }
+  };
+
   const saveStatus = async (nextStatus: ProgressStatus) => {
-    if (isDisabled) {
+    const operation = beginSave('status', nextStatus);
+    if (operation === null) {
       return;
     }
-    setSaving('status');
-    setFeedback(null);
     try {
       const saved = await savePlaceProgress(database, datasetId, placeId, {
         status: nextStatus,
@@ -154,24 +177,25 @@ export function PlaceProgressEditor({
       setFeedback({
         placeKey,
         tone: 'error',
-        text: `${strings.operationFailed}: ${errorText(error)}`,
+        text: strings.operationFailed(errorText(error), strings.statuses[nextStatus]),
       });
     } finally {
-      setSaving(null);
+      finishSave(operation);
     }
   };
 
   const persistNote = async (nextNote: string) => {
-    if (isDisabled || noteSaveInFlightRef.current === nextNote) {
+    if (disabled || activeOperationRef.current !== null) {
       return;
     }
     if (nextNote === (progress?.note ?? '')) {
       clearStoredNoteDraft(placeKey, nextNote);
       return;
     }
-    noteSaveInFlightRef.current = nextNote;
-    setSaving('note');
-    setFeedback(null);
+    const operation = beginSave('note', nextNote);
+    if (operation === null) {
+      return;
+    }
     try {
       const saved = await savePlaceProgress(database, datasetId, placeId, { note: nextNote });
       clearStoredNoteDraft(placeKey, nextNote);
@@ -186,13 +210,10 @@ export function PlaceProgressEditor({
       setFeedback({
         placeKey,
         tone: 'error',
-        text: `${strings.operationFailed}: ${errorText(error)}`,
+        text: strings.operationFailed(errorText(error), strings.saveNote),
       });
     } finally {
-      if (noteSaveInFlightRef.current === nextNote) {
-        noteSaveInFlightRef.current = null;
-      }
-      setSaving(null);
+      finishSave(operation);
     }
   };
 
@@ -216,6 +237,7 @@ export function PlaceProgressEditor({
               data-status={nextStatus}
               onClick={() => void saveStatus(nextStatus)}
             >
+              <StatusMark kind={nextStatus} />
               {strings.statuses[nextStatus]}
             </button>
           ))}
@@ -250,7 +272,10 @@ export function PlaceProgressEditor({
       </form>
 
       {currentFeedback ? (
-        <p role={currentFeedback.tone === 'error' ? 'alert' : 'status'} aria-live="polite">
+        <p
+          className={`editor-feedback editor-feedback--${currentFeedback.tone}`}
+          role={currentFeedback.tone === 'error' ? 'alert' : 'status'}
+        >
           {currentFeedback.text}
         </p>
       ) : null}

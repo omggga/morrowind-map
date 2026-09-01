@@ -5,6 +5,7 @@ import { DatasetMap } from './DatasetMap';
 interface Tes3MapProps {
   readonly dataset: DatasetManifest;
   readonly datasetSnapshots: Readonly<Record<string, string>>;
+  readonly focusMapOnMount?: boolean;
   readonly navigationState: MapUrlState;
   readonly navigationRevision: number;
   readonly onNavigationChange: (state: MapUrlState, mode: 'push' | 'replace') => void;
@@ -14,6 +15,7 @@ interface Tes3MapProps {
 export function Tes3Map({
   dataset,
   datasetSnapshots,
+  focusMapOnMount = false,
   navigationState,
   navigationRevision,
   onNavigationChange,
@@ -23,6 +25,7 @@ export function Tes3Map({
     <DatasetMap
       dataset={dataset}
       datasetSnapshots={datasetSnapshots}
+      focusMapOnMount={focusMapOnMount}
       navigationState={navigationState}
       navigationRevision={navigationRevision}
       onNavigationChange={onNavigationChange}

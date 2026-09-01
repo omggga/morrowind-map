@@ -1,3 +1,6 @@
+import type { PlaceType, ProgressStatus } from '@morrowind-map/contracts';
+import { PLACE_TYPE_ORDER, PROGRESS_STATUS_ORDER } from '../data/placeFilters';
+
 export interface MapUrlView {
   readonly center: readonly [number, number];
   readonly zoom: number;
@@ -8,9 +11,20 @@ export interface MapUrlState {
   readonly regionId: string;
   readonly view: MapUrlView | null;
   readonly placeId: string | null;
+  readonly typeFilters: readonly PlaceType[];
+  readonly statusFilters: readonly ProgressStatus[];
 }
 
-const OWNED_PARAMETERS = ['dataset', 'region', 'x', 'y', 'z', 'place'] as const;
+const OWNED_PARAMETERS = [
+  'dataset',
+  'region',
+  'x',
+  'y',
+  'z',
+  'place',
+  'type',
+  'status',
+] as const;
 
 function landingState(): MapUrlState {
   return {
@@ -18,7 +32,23 @@ function landingState(): MapUrlState {
     regionId: 'all',
     view: null,
     placeId: null,
+    typeFilters: [],
+    statusFilters: [],
   };
+}
+
+function canonicalFilterValues<Value extends string>(
+  values: readonly unknown[] | undefined,
+  order: readonly Value[],
+): Value[] {
+  const allowed = new Set<string>(order);
+  const selected = new Set(
+    (values ?? []).filter(
+      (value): value is string =>
+        typeof value === 'string' && value.length > 0 && allowed.has(value),
+    ),
+  );
+  return order.filter((value) => selected.has(value));
 }
 
 function nonEmptyParameter(parameters: URLSearchParams, name: string): string | null {
@@ -77,6 +107,11 @@ export function readMapUrl(url: URL): MapUrlState {
     regionId: nonEmptyParameter(url.searchParams, 'region') ?? 'all',
     view: readView(url.searchParams),
     placeId: nonEmptyParameter(url.searchParams, 'place'),
+    typeFilters: canonicalFilterValues(url.searchParams.getAll('type'), PLACE_TYPE_ORDER),
+    statusFilters: canonicalFilterValues(
+      url.searchParams.getAll('status'),
+      PROGRESS_STATUS_ORDER,
+    ),
   };
 }
 
@@ -101,6 +136,13 @@ export function writeMapUrl(baseUrl: URL, state: MapUrlState): URL {
 
   if (state.placeId !== null && state.placeId.length > 0) {
     url.searchParams.append('place', state.placeId);
+  }
+
+  for (const type of canonicalFilterValues(state.typeFilters, PLACE_TYPE_ORDER)) {
+    url.searchParams.append('type', type);
+  }
+  for (const status of canonicalFilterValues(state.statusFilters, PROGRESS_STATUS_ORDER)) {
+    url.searchParams.append('status', status);
   }
 
   return url;

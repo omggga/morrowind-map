@@ -1,18 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DatasetManifest } from '@morrowind-map/contracts';
 import { presentDataset } from './data/datasetPresentation';
-import { loadDatasets } from './data/loadDatasets';
+import {
+  loadDatasets,
+  type DatasetLoadIssue,
+} from './data/loadDatasets';
 import { Tes3Map } from './map/Tes3Map';
 import {
   readMapUrl,
   writeMapUrl,
   type MapUrlState,
 } from './navigation/mapUrlState';
+import { PixelIcon } from './ui/PixelIcon';
 
 type LoadState =
   | { readonly status: 'loading' }
-  | { readonly status: 'ready'; readonly datasets: readonly DatasetManifest[] }
-  | { readonly status: 'error'; readonly message: string };
+  | {
+      readonly status: 'ready';
+      readonly datasets: readonly DatasetManifest[];
+      readonly issues: readonly DatasetLoadIssue[];
+      readonly retrying: boolean;
+    }
+  | { readonly status: 'error'; readonly message: string; readonly retrying: boolean };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown loading error';
@@ -23,6 +32,8 @@ const LANDING_URL_STATE: MapUrlState = {
   regionId: 'all',
   view: null,
   placeId: null,
+  typeFilters: [],
+  statusFilters: [],
 };
 
 type NavigationMode = 'push' | 'replace';
@@ -31,6 +42,10 @@ function mapUrlStatesEqual(left: MapUrlState, right: MapUrlState): boolean {
   return left.datasetId === right.datasetId &&
     left.regionId === right.regionId &&
     left.placeId === right.placeId &&
+    left.typeFilters.length === right.typeFilters.length &&
+    left.typeFilters.every((value, index) => value === right.typeFilters[index]) &&
+    left.statusFilters.length === right.statusFilters.length &&
+    left.statusFilters.every((value, index) => value === right.statusFilters[index]) &&
     (left.view === right.view ||
       (left.view !== null &&
         right.view !== null &&
@@ -46,8 +61,24 @@ export function App() {
   );
   const [navigationRevision, setNavigationRevision] = useState(0);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loadIsSlow, setLoadIsSlow] = useState(false);
+  const [focusRecoveredContent, setFocusRecoveredContent] = useState(false);
+  const loadInFlightRef = useRef(false);
+  const retryRequestedRef = useRef(false);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const landingHeadingRef = useRef<HTMLHeadingElement>(null);
   const returnFocusIdRef = useRef<string | null>(null);
   const shouldReturnFocusRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (navigationState.datasetId === null) {
+      return;
+    }
+    document.documentElement.scrollLeft = 0;
+    document.documentElement.scrollTop = 0;
+    document.body.scrollLeft = 0;
+    document.body.scrollTop = 0;
+  }, [navigationState.datasetId]);
 
   const commitNavigationState = useCallback((nextState: MapUrlState, mode: NavigationMode) => {
     const currentUrl = new URL(window.location.href);
@@ -69,22 +100,63 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
+    loadInFlightRef.current = true;
+    const slowTimer = window.setTimeout(() => setLoadIsSlow(true), 800);
 
     void loadDatasets(controller.signal)
-      .then((datasets) => {
+      .then(({ datasets, issues }) => {
         if (controller.signal.aborted) {
           return;
         }
-        setLoadState({ status: 'ready', datasets });
+        loadInFlightRef.current = false;
+        window.clearTimeout(slowTimer);
+        setLoadState({ status: 'ready', datasets, issues, retrying: false });
+        const shouldFocusRecoveredContent = retryRequestedRef.current && issues.length === 0;
+        retryRequestedRef.current = false;
+        if (shouldFocusRecoveredContent) {
+          setFocusRecoveredContent(true);
+        }
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
-          setLoadState({ status: 'error', message: errorMessage(error) });
+          loadInFlightRef.current = false;
+          window.clearTimeout(slowTimer);
+          retryRequestedRef.current = false;
+          setLoadState({ status: 'error', message: errorMessage(error), retrying: false });
         }
       });
 
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      window.clearTimeout(slowTimer);
+      loadInFlightRef.current = false;
+    };
   }, [loadAttempt]);
+
+  useEffect(() => {
+    const shouldFocusRetry = loadState.status !== 'loading' &&
+      !loadState.retrying &&
+      (loadState.status === 'error' || loadState.issues.length > 0);
+    if (!shouldFocusRetry) {
+      return undefined;
+    }
+    const animationFrame = window.requestAnimationFrame(() => {
+      retryButtonRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [loadState]);
+
+  const retryDatasets = () => {
+    if (loadInFlightRef.current || loadState.status === 'loading') {
+      return;
+    }
+    loadInFlightRef.current = true;
+    retryRequestedRef.current = true;
+    setLoadIsSlow(false);
+    setFocusRecoveredContent(false);
+    setLoadState({ ...loadState, retrying: true });
+    setLoadAttempt((attempt) => attempt + 1);
+  };
 
   useEffect(() => {
     const handlePopState = () => {
@@ -107,6 +179,24 @@ export function App() {
     : null;
 
   useEffect(() => {
+    if (
+      !focusRecoveredContent ||
+      loadState.status !== 'ready' ||
+      loadState.issues.length > 0 ||
+      (navigationState.datasetId !== null && selectedDataset === null)
+    ) {
+      return undefined;
+    }
+    const animationFrame = window.requestAnimationFrame(() => {
+      if (navigationState.datasetId === null) {
+        landingHeadingRef.current?.focus({ preventScroll: true });
+      }
+      setFocusRecoveredContent(false);
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [focusRecoveredContent, loadState, navigationState.datasetId, selectedDataset]);
+
+  useEffect(() => {
     const currentUrl = new URL(window.location.href);
     const parserCanonicalState = navigationState.datasetId === null
       ? LANDING_URL_STATE
@@ -116,7 +206,8 @@ export function App() {
     const datasetIsUnknown =
       loadState.status === 'ready' &&
       navigationState.datasetId !== null &&
-      selectedDataset === null;
+      selectedDataset === null &&
+      !loadState.issues.some(({ datasetId }) => datasetId === navigationState.datasetId);
     if (parserNeedsCanonicalization || datasetIsUnknown) {
       const timeoutId = window.setTimeout(() => {
         commitNavigationState(
@@ -129,7 +220,7 @@ export function App() {
     return undefined;
   }, [
     commitNavigationState,
-    loadState.status,
+    loadState,
     navigationRevision,
     navigationState,
     selectedDataset,
@@ -144,6 +235,7 @@ export function App() {
         key={selectedDataset.datasetId}
         dataset={selectedDataset}
         datasetSnapshots={datasetSnapshots}
+        focusMapOnMount={focusRecoveredContent}
         navigationState={navigationState}
         navigationRevision={navigationRevision}
         onNavigationChange={commitNavigationState}
@@ -160,7 +252,7 @@ export function App() {
     <main className="archive-shell">
       <header className="window-titlebar archive-titlebar">
         <div className="application-mark" aria-hidden="true">
-          M
+          <PixelIcon name="archive" />
         </div>
         <div>
           <span className="titlebar-kicker">LOCAL CARTOGRAPHIC LOG</span>
@@ -171,7 +263,7 @@ export function App() {
 
       <section className="archive-intro" aria-labelledby="archive-heading">
         <p className="section-index">MAP ARCHIVE / 01</p>
-        <h2 id="archive-heading">Choose a world</h2>
+        <h2 id="archive-heading" ref={landingHeadingRef} tabIndex={-1}>Choose a world</h2>
         <p>
           Two isolated English datasets: the original Morrowind, Tribunal and Bloodmoon world,
           and the current Tamriel Rebuilt Poison Song release. Each map keeps its own places and
@@ -182,29 +274,61 @@ export function App() {
       {loadState.status === 'loading' ? (
         <div className="load-panel" role="status">
           <span className="load-indicator" aria-hidden="true" />
-          Reading manifests…
+          {loadIsSlow ? 'Reading manifests… This is taking longer than usual.' : 'Reading manifests…'}
         </div>
       ) : null}
 
       {loadState.status === 'error' ? (
-        <div className="error-panel" role="alert">
+        <div className="error-panel" role="alert" aria-busy={loadState.retrying}>
           <span>DATA ERROR</span>
           <p>{loadState.message}</p>
           <button
+            ref={retryButtonRef}
             type="button"
-            onClick={() => {
-              setLoadState({ status: 'loading' });
-              setLoadAttempt((attempt) => attempt + 1);
-            }}
+            disabled={loadState.retrying}
+            onClick={retryDatasets}
           >
-            Retry
+            {loadState.retrying ? 'Retrying…' : 'Retry'}
           </button>
         </div>
       ) : null}
 
       {loadState.status === 'ready' ? (
-        <section className="dataset-grid" aria-label="Available maps">
-          {loadState.datasets.map((dataset) => {
+        <>
+          {loadState.issues.length > 0 ? (
+            <div
+              className="error-panel error-panel--partial"
+              role="alert"
+              aria-busy={loadState.retrying}
+            >
+              <span>PARTIAL CATALOG</span>
+              <p>
+                {loadState.issues.length === 1
+                  ? 'One map manifest is unavailable. The available map remains usable.'
+                  : `${loadState.issues.length} map manifests are unavailable. Available maps remain usable.`}
+              </p>
+              {loadState.retrying && loadIsSlow ? (
+                <p>The manifest retry is still in progress.</p>
+              ) : null}
+              <ul>
+                {loadState.issues.map((issue) => (
+                  <li key={`${issue.datasetId}\0${issue.manifestUrl}`}>
+                    <strong>{issue.datasetId}</strong>: {issue.message}
+                  </li>
+                ))}
+              </ul>
+              <button
+                ref={retryButtonRef}
+                type="button"
+                disabled={loadState.retrying}
+                onClick={retryDatasets}
+              >
+                {loadState.retrying ? 'Retrying…' : 'Retry unavailable maps'}
+              </button>
+            </div>
+          ) : null}
+          <section className="dataset-grid" aria-label="Available maps">
+            {loadState.datasets.map((dataset) => {
             const presentation = presentDataset(dataset);
 
             return (
@@ -227,7 +351,14 @@ export function App() {
                   const datasetId = event.currentTarget.dataset.datasetId ?? dataset.datasetId;
                   returnFocusIdRef.current = datasetId;
                   commitNavigationState(
-                    { datasetId, regionId: 'all', view: null, placeId: null },
+                    {
+                      datasetId,
+                      regionId: 'all',
+                      view: null,
+                      placeId: null,
+                      typeFilters: [],
+                      statusFilters: [],
+                    },
                     'push',
                   );
                 }}
@@ -259,12 +390,13 @@ export function App() {
                   </span>
                 </span>
                 <span className="open-cue" aria-hidden="true">
-                  OPEN ↗
+                  OPEN <PixelIcon name="open" />
                 </span>
               </button>
             );
-          })}
-        </section>
+            })}
+          </section>
+        </>
       ) : null}
 
       <footer className="archive-footer">

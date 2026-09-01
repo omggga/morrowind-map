@@ -17,6 +17,8 @@ describe('map URL state', () => {
       regionId: 'tr-mainland',
       view: { center: [90_112, -98_304], zoom: 5.25 },
       placeId: 'poison.place-1',
+      typeFilters: [],
+      statusFilters: [],
     });
   });
 
@@ -26,11 +28,15 @@ describe('map URL state', () => {
       regionId: 'all',
       view: null,
       placeId: null,
+      typeFilters: [],
+      statusFilters: [],
     };
 
     expect(
       readMapUrl(
-        new URL('https://maps.test/?region=vvardenfell&x=1&y=2&z=3&place=ignored'),
+        new URL(
+          'https://maps.test/?region=vvardenfell&x=1&y=2&z=3&place=ignored&type=guild&status=active',
+        ),
       ),
     ).toEqual(landing);
     expect(readMapUrl(new URL('https://maps.test/?dataset=&region=vvardenfell'))).toEqual(landing);
@@ -70,6 +76,8 @@ describe('map URL state', () => {
       regionId: 'TR Mainland',
       view: null,
       placeId: 'tomb & mine',
+      typeFilters: [],
+      statusFilters: [],
     });
 
     expect(readMapUrl(new URL('https://maps.test/?dataset=original-goty-hd'))).toEqual({
@@ -77,7 +85,18 @@ describe('map URL state', () => {
       regionId: 'all',
       view: null,
       placeId: null,
+      typeFilters: [],
+      statusFilters: [],
     });
+  });
+
+  it('reads repeated filters, removes empty, unknown and duplicate values, and sorts them', () => {
+    const state = readMapUrl(new URL(
+      'https://maps.test/?dataset=original-goty-hd&type=shop&type=&type=unknown&type=guild&type=shop&status=visited&status=unknown&status=active&status=visited',
+    ));
+
+    expect(state.typeFilters).toEqual(['guild', 'shop']);
+    expect(state.statusFilters).toEqual(['active', 'visited']);
   });
 
   it('writes owned parameters in canonical order and precision', () => {
@@ -87,16 +106,20 @@ describe('map URL state', () => {
       regionId: 'TR Mainland',
       view,
       placeId: 'tomb & mine',
+      typeFilters: ['shop', 'guild', 'shop'],
+      statusFilters: ['visited', 'active', 'visited'],
     };
 
     const result = writeMapUrl(new URL('https://maps.test/archive'), state);
 
     expect(result.search).toBe(
-      '?dataset=Poison+Song%2F26.08&region=TR+Mainland&x=1235&y=-988&z=6.24&place=tomb+%26+mine',
+      '?dataset=Poison+Song%2F26.08&region=TR+Mainland&x=1235&y=-988&z=6.24&place=tomb+%26+mine&type=guild&type=shop&status=active&status=visited',
     );
     expect(readMapUrl(result)).toEqual({
       ...state,
       view: { center: [1_235, -988], zoom: 6.24 },
+      typeFilters: ['guild', 'shop'],
+      statusFilters: ['active', 'visited'],
     });
   });
 
@@ -109,6 +132,8 @@ describe('map URL state', () => {
       regionId: 'all',
       view: null,
       placeId: null,
+      typeFilters: [],
+      statusFilters: [],
     };
 
     const result = writeMapUrl(baseUrl, state);
@@ -122,9 +147,16 @@ describe('map URL state', () => {
   it('removes all owned parameters for the landing state', () => {
     const result = writeMapUrl(
       new URL(
-        'https://maps.test/?dataset=old&region=old&x=1&y=2&z=3&place=old&theme=sepia#map',
+        'https://maps.test/?dataset=old&region=old&x=1&y=2&z=3&place=old&type=guild&status=active&theme=sepia#map',
       ),
-      { datasetId: null, regionId: 'all', view: null, placeId: null },
+      {
+        datasetId: null,
+        regionId: 'all',
+        view: null,
+        placeId: null,
+        typeFilters: [],
+        statusFilters: [],
+      },
     );
 
     expect(result.href).toBe('https://maps.test/?theme=sepia#map');
@@ -136,6 +168,8 @@ describe('map URL state', () => {
       regionId: 'all',
       view: { center: [Number.NaN, 2], zoom: 3 },
       placeId: null,
+      typeFilters: [],
+      statusFilters: [],
     });
 
     expect(result.search).toBe('?dataset=original-goty-hd&region=all');
@@ -147,6 +181,8 @@ describe('map URL state', () => {
       regionId: 'tr-mainland',
       view: { center: [1.4, -2.6], zoom: 4.567 },
       placeId: 'poison.place-1',
+      typeFilters: ['landmark', 'cave'],
+      statusFilters: ['visited', 'active'],
     };
     const once = writeMapUrl(new URL('https://maps.test/?theme=sepia#map'), state);
     const twice = writeMapUrl(once, readMapUrl(once));
@@ -164,5 +200,23 @@ describe('map URL state', () => {
     expect(canonical.searchParams.getAll('region')).toEqual(['vvardenfell']);
     expect(canonical.searchParams.getAll('x')).toEqual(['10']);
     expect(canonical.searchParams.getAll('place')).toEqual(['first']);
+  });
+
+  it('robustly canonicalizes invalid filter arrays from an untyped caller', () => {
+    const state = {
+      datasetId: 'original-goty-hd',
+      regionId: 'all',
+      view: null,
+      placeId: null,
+      typeFilters: ['shop', 'unknown', 'guild', 'shop'],
+      statusFilters: ['visited', 'unknown', 'active', 'visited'],
+    } as unknown as MapUrlState;
+
+    const result = writeMapUrl(new URL('https://maps.test/'), state);
+
+    expect(result.search).toBe(
+      '?dataset=original-goty-hd&region=all&type=guild&type=shop&status=active&status=visited',
+    );
+    expect(writeMapUrl(result, readMapUrl(result)).href).toBe(result.href);
   });
 });

@@ -31,6 +31,12 @@ interface MarkerFeedback {
   readonly text: string;
 }
 
+type MarkerOperation =
+  | { readonly kind: 'save'; readonly revision: string }
+  | { readonly kind: 'delete' };
+
+type SaveTrigger = 'auto' | 'manual';
+
 export interface CustomMarkerEditorProps {
   readonly marker: CustomMarkerRecord;
   readonly locale: Locale;
@@ -107,13 +113,15 @@ export function CustomMarkerEditor({
   const strings = getUserDataStrings(locale);
   const labelId = useId();
   const noteId = useId();
+  const deleteConfirmationId = useId();
   const [draft, setDraft] = useState<MarkerDraft | null>(() => readStoredMarkerDraft(marker.id));
   const [busy, setBusy] = useState<'save' | 'delete' | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<MarkerFeedback | null>(null);
-  const saveInFlightRef = useRef<string | null>(null);
+  const activeOperationRef = useRef<MarkerOperation | null>(null);
+  const blockedAutosaveRevisionRef = useRef<string | null>(null);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
-  const confirmDeleteButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const activeDraft = draft?.markerId === marker.id ? draft : null;
   const label = activeDraft?.label ?? marker.label;
   const note = activeDraft?.note ?? marker.note;
@@ -121,20 +129,29 @@ export function CustomMarkerEditor({
   const confirmingDelete = confirmingDeleteId === marker.id;
   const isDisabled = disabled || busy !== null;
 
-  const persist = useCallback(async (nextLabel: string, nextNote: string) => {
+  const persist = useCallback(async (
+    nextLabel: string,
+    nextNote: string,
+    trigger: SaveTrigger,
+  ) => {
     const revision = `${nextLabel}\0${nextNote}`;
     if (
-      isDisabled ||
-      saveInFlightRef.current === revision ||
+      disabled ||
+      activeOperationRef.current !== null ||
       nextLabel.trim().length === 0
     ) {
       return;
     }
     if (nextLabel.trim() === marker.label && nextNote === marker.note) {
       clearStoredMarkerDraft({ markerId: marker.id, label: nextLabel, note: nextNote });
+      blockedAutosaveRevisionRef.current = null;
       return;
     }
-    saveInFlightRef.current = revision;
+    if (trigger === 'auto' && blockedAutosaveRevisionRef.current === revision) {
+      return;
+    }
+    const operation: MarkerOperation = { kind: 'save', revision };
+    activeOperationRef.current = operation;
     setBusy('save');
     setFeedback(null);
     try {
@@ -158,37 +175,41 @@ export function CustomMarkerEditor({
       setFeedback({
         markerId: marker.id,
         tone: 'error',
-        text: `${strings.operationFailed}: ${errorText(error)}`,
+        text: strings.operationFailed(errorText(error), strings.saveMarker),
       });
     } finally {
-      if (saveInFlightRef.current === revision) {
-        saveInFlightRef.current = null;
+      blockedAutosaveRevisionRef.current = revision;
+      if (activeOperationRef.current === operation) {
+        activeOperationRef.current = null;
+        setBusy(null);
       }
-      setBusy(null);
     }
-  }, [database, isDisabled, marker, onSaved, strings]);
+  }, [database, disabled, marker, onSaved, strings]);
 
   useEffect(() => {
     if (
       isDisabled ||
       label.trim().length === 0 ||
-      (label.trim() === marker.label && note === marker.note)
+      (label.trim() === marker.label && note === marker.note) ||
+      blockedAutosaveRevisionRef.current === `${label}\0${note}`
     ) {
       return undefined;
     }
-    const timeoutId = window.setTimeout(() => void persist(label, note), 350);
+    const timeoutId = window.setTimeout(() => void persist(label, note, 'auto'), 350);
     return () => window.clearTimeout(timeoutId);
   }, [isDisabled, label, marker.label, marker.note, note, persist]);
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void persist(label, note);
+    void persist(label, note, 'manual');
   };
 
   const remove = async () => {
-    if (isDisabled) {
+    if (disabled || activeOperationRef.current !== null) {
       return;
     }
+    const operation: MarkerOperation = { kind: 'delete' };
+    activeOperationRef.current = operation;
     setBusy('delete');
     setFeedback(null);
     try {
@@ -201,11 +222,19 @@ export function CustomMarkerEditor({
       setFeedback({
         markerId: marker.id,
         tone: 'error',
-        text: `${strings.operationFailed}: ${errorText(error)}`,
+        text: strings.operationFailed(errorText(error), strings.confirmDeleteAction),
       });
     } finally {
-      setBusy(null);
+      if (activeOperationRef.current === operation) {
+        activeOperationRef.current = null;
+        setBusy(null);
+      }
     }
+  };
+
+  const cancelDeleteConfirmation = () => {
+    setConfirmingDeleteId(null);
+    window.requestAnimationFrame(() => deleteButtonRef.current?.focus());
   };
 
   return (
@@ -221,7 +250,7 @@ export function CustomMarkerEditor({
           ) {
             return;
           }
-          void persist(label, note);
+          void persist(label, note, 'auto');
         }}
       >
         <label htmlFor={labelId}>{strings.label}</label>
@@ -234,6 +263,7 @@ export function CustomMarkerEditor({
           value={label}
           disabled={isDisabled}
           onChange={(event) => {
+            blockedAutosaveRevisionRef.current = null;
             const nextDraft = { markerId: marker.id, label: event.currentTarget.value, note };
             setDraft(nextDraft);
             writeStoredMarkerDraft(nextDraft);
@@ -247,6 +277,7 @@ export function CustomMarkerEditor({
           value={note}
           disabled={isDisabled}
           onChange={(event) => {
+            blockedAutosaveRevisionRef.current = null;
             const nextDraft = { markerId: marker.id, label, note: event.currentTarget.value };
             setDraft(nextDraft);
             writeStoredMarkerDraft(nextDraft);
@@ -266,16 +297,26 @@ export function CustomMarkerEditor({
           disabled={isDisabled}
           onClick={() => {
             setConfirmingDeleteId(marker.id);
-            window.requestAnimationFrame(() => confirmDeleteButtonRef.current?.focus());
+            window.requestAnimationFrame(() => cancelDeleteButtonRef.current?.focus());
           }}
         >
           {strings.deleteMarker}
         </button>
       ) : (
-        <div className="custom-marker-editor__delete-confirmation" role="alert">
-          <p>{strings.confirmDelete}</p>
+        <div
+          className="custom-marker-editor__delete-confirmation"
+          role="group"
+          aria-labelledby={deleteConfirmationId}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              event.stopPropagation();
+              cancelDeleteConfirmation();
+            }
+          }}
+        >
+          <p id={deleteConfirmationId}>{strings.confirmDelete}</p>
           <button
-            ref={confirmDeleteButtonRef}
             type="button"
             disabled={isDisabled}
             onClick={() => void remove()}
@@ -283,12 +324,10 @@ export function CustomMarkerEditor({
             {busy === 'delete' ? strings.deleting : strings.confirmDeleteAction}
           </button>
           <button
+            ref={cancelDeleteButtonRef}
             type="button"
             disabled={isDisabled}
-            onClick={() => {
-              setConfirmingDeleteId(null);
-              window.requestAnimationFrame(() => deleteButtonRef.current?.focus());
-            }}
+            onClick={cancelDeleteConfirmation}
           >
             {strings.cancel}
           </button>
@@ -296,7 +335,10 @@ export function CustomMarkerEditor({
       )}
 
       {currentFeedback ? (
-        <p role={currentFeedback.tone === 'error' ? 'alert' : 'status'} aria-live="polite">
+        <p
+          className={`editor-feedback editor-feedback--${currentFeedback.tone}`}
+          role={currentFeedback.tone === 'error' ? 'alert' : 'status'}
+        >
           {currentFeedback.text}
         </p>
       ) : null}

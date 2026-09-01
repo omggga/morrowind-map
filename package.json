@@ -66,10 +66,13 @@
     "test:original-renderer": "python3 -m unittest discover -s tools/original_renderer/tests -t . -v",
     "test:acceptance": "playwright test -c playwright.acceptance.config.ts",
     "test:acceptance:prepared": "MORROWIND_ACCEPTANCE_PREPARED=1 playwright test -c playwright.acceptance.config.ts --grep @prepared",
+    "test:ui": "playwright test -c playwright.ui.config.ts",
+    "test:ui:update": "playwright test -c playwright.ui.config.ts --update-snapshots",
     "test:watch": "vitest",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:acceptance && pnpm build"
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:acceptance && pnpm test:ui && pnpm build"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.62.1",
     "@testing-library/jest-dom": "7.0.1",

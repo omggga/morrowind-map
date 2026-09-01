@@ -1,8 +1,11 @@
+import type { PlaceType, ProgressStatus } from '@morrowind-map/contracts';
+import { PLACE_TYPE_ORDER, PROGRESS_STATUS_ORDER } from '../data/placeFilters';
 import type { MapUrlState, MapUrlView } from './mapUrlState';
 
 export interface MapUrlConstraints {
   readonly datasetId: string;
   readonly availableRegionIds: ReadonlySet<string>;
+  readonly availablePlaceTypes: ReadonlySet<PlaceType>;
   readonly placeRegions: ReadonlyMap<string, string>;
   readonly extent: readonly [number, number, number, number];
   readonly minimumZoom: number;
@@ -11,6 +14,20 @@ export interface MapUrlConstraints {
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function normalizeFilterValues<Value extends string>(
+  values: readonly Value[],
+  order: readonly Value[],
+  availableValues: ReadonlySet<Value>,
+): Value[] {
+  const selectedValues = new Set(values);
+  const normalized = order.filter(
+    (value) => availableValues.has(value) && selectedValues.has(value),
+  );
+  return normalized.length === 0 || normalized.length === availableValues.size
+    ? []
+    : normalized;
 }
 
 export function normalizeMapUrlState(
@@ -39,11 +56,23 @@ export function normalizeMapUrlState(
         ],
         zoom: clamp(state.view.zoom, constraints.minimumZoom, constraints.maximumZoom),
       } satisfies MapUrlView;
+  const typeFilters = normalizeFilterValues(
+    state.typeFilters,
+    PLACE_TYPE_ORDER,
+    constraints.availablePlaceTypes,
+  );
+  const statusFilters = normalizeFilterValues(
+    state.statusFilters,
+    PROGRESS_STATUS_ORDER,
+    new Set<ProgressStatus>(PROGRESS_STATUS_ORDER),
+  );
 
   return {
     datasetId: constraints.datasetId,
     regionId: constraints.availableRegionIds.has(regionId) ? regionId : 'all',
     view,
     placeId,
+    typeFilters,
+    statusFilters,
   };
 }

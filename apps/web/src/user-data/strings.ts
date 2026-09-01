@@ -10,7 +10,7 @@ interface UserDataStrings {
   readonly exporting: string;
   readonly backupExported: string;
   readonly fileTooLarge: string;
-  readonly operationFailed: string;
+  readonly operationFailed: (detail: string, retryLabel: string) => string;
   readonly placeProgress: string;
   readonly status: string;
   readonly note: string;
@@ -37,8 +37,9 @@ const EN: UserDataStrings = {
   importing: 'Importing…',
   exporting: 'Preparing backup…',
   backupExported: 'JSON backup downloaded.',
-  fileTooLarge: 'The selected file is larger than 10 MB.',
-  operationFailed: 'The operation failed',
+  fileTooLarge: 'The selected file is larger than 10 MB. Choose a smaller JSON file and try again.',
+  operationFailed: (detail, retryLabel) =>
+    `The operation failed: ${detail}. Select “${retryLabel}” to try again.`,
   placeProgress: 'Place progress',
   status: 'Status',
   note: 'Personal note',

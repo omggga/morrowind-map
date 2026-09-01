@@ -1,6 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MorrowindMapDatabase, progressKey } from '../storage/database';
+import { LOCAL_STORAGE_PREFIX } from '../storage/userDataNamespace';
+import * as userData from '../storage/userData';
 import {
   ensureDatasetSnapshot,
   saveCustomMarker,
@@ -11,6 +13,23 @@ import { PlaceProgressEditor } from './PlaceProgressEditor';
 const datasetId = 'original-goty';
 const snapshotId = 'original:goty:drafts';
 const placeId = 'original-goty.vvardenfell.mim-0000';
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, reject, resolve };
+}
+
+function clickTwiceBeforeRender(button: HTMLElement): void {
+  act(() => {
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+}
 
 describe('editor crash-recovery drafts', () => {
   let database: MorrowindMapDatabase;
@@ -24,6 +43,7 @@ describe('editor crash-recovery drafts', () => {
   afterEach(async () => {
     cleanup();
     window.localStorage.clear();
+    vi.restoreAllMocks();
     database.close();
     await database.delete();
   });
@@ -122,7 +142,7 @@ describe('editor crash-recovery drafts', () => {
     expect(screen.getByRole('textbox', { name: 'Marker name' })).toHaveValue('Current marker');
   });
 
-  it('moves focus into marker deletion confirmation and returns it on cancel', async () => {
+  it('focuses the safe delete action and returns focus when Escape cancels', async () => {
     const marker = await saveCustomMarker(
       database,
       { datasetId, label: 'Focus marker', note: '', position: [10, 20] },
@@ -133,11 +153,125 @@ describe('editor crash-recovery drafts', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete marker' }));
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Yes, delete' })).toHaveFocus(),
+      expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus(),
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('button', { name: 'Yes, delete' })).not.toHaveFocus();
+
+    fireEvent.keyDown(screen.getByRole('group', { name: /Delete this marker/ }), { key: 'Escape' });
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Delete marker' })).toHaveFocus(),
     );
+  });
+
+  it('blocks duplicate progress writes before disabled state renders and allows retry', async () => {
+    const operation = deferred<Awaited<ReturnType<typeof userData.savePlaceProgress>>>();
+    const saveProgress = vi
+      .spyOn(userData, 'savePlaceProgress')
+      .mockReturnValue(operation.promise);
+    render(
+      <PlaceProgressEditor
+        datasetId={datasetId}
+        placeId={placeId}
+        locale="en"
+        database={database}
+      />,
+    );
+
+    const activeButton = screen.getByRole('button', { name: 'Active' });
+    clickTwiceBeforeRender(activeButton);
+    expect(saveProgress).toHaveBeenCalledTimes(1);
+
+    operation.reject(new Error('Quota exceeded'));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Select “Active” to try again.');
+    expect(alert).not.toHaveAttribute('aria-live');
+    expect(await database.progress.get(progressKey(datasetId, placeId))).toBeUndefined();
+
+    saveProgress.mockRejectedValueOnce(new Error('Still full'));
+    fireEvent.click(activeButton);
+    await waitFor(() => expect(saveProgress).toHaveBeenCalledTimes(2));
+  });
+
+  it('stops a failed marker autosave until manual retry or a new edit', async () => {
+    const marker = await saveCustomMarker(
+      database,
+      { datasetId, label: 'Original label', note: '', position: [10, 20] },
+      undefined,
+      () => 'failed-autosave-marker',
+    );
+    const saveMarker = vi
+      .spyOn(userData, 'saveCustomMarker')
+      .mockRejectedValue(new Error('Quota exceeded'));
+    render(<CustomMarkerEditor marker={marker} locale="en" database={database} />);
+    const labelInput = screen.getByRole('textbox', { name: 'Marker name' });
+    fireEvent.change(labelInput, { target: { value: 'Unsaved marker' } });
+
+    await waitFor(() => expect(saveMarker).toHaveBeenCalledTimes(1));
+    expect(labelInput).toHaveValue('Unsaved marker');
+    expect(window.localStorage.getItem(
+      `${LOCAL_STORAGE_PREFIX}:draft:custom-marker:${encodeURIComponent(marker.id)}`,
+    )).toContain('Unsaved marker');
+
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    expect(saveMarker).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save marker' }));
+    await waitFor(() => expect(saveMarker).toHaveBeenCalledTimes(2));
+
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    expect(saveMarker).toHaveBeenCalledTimes(2);
+
+    fireEvent.change(labelInput, { target: { value: 'Edited again' } });
+    await waitFor(() => expect(saveMarker).toHaveBeenCalledTimes(3));
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Select “Save marker” to try again.');
+    expect(alert).not.toHaveAttribute('aria-live');
+    expect(await database.customMarkers.get(marker.id)).toMatchObject({
+      label: 'Original label',
+    });
+  });
+
+  it('blocks duplicate marker deletion and keeps the record available for retry', async () => {
+    const marker = await saveCustomMarker(
+      database,
+      { datasetId, label: 'Keep marker', note: '', position: [10, 20] },
+      undefined,
+      () => 'failed-delete-marker',
+    );
+    const operation = deferred<void>();
+    const deleteMarker = vi
+      .spyOn(userData, 'deleteCustomMarker')
+      .mockReturnValue(operation.promise);
+    render(<CustomMarkerEditor marker={marker} locale="en" database={database} />);
+
+    const labelInput = screen.getByRole('textbox', { name: 'Marker name' });
+    fireEvent.change(labelInput, { target: { value: 'Keep this draft' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete marker' }));
+    const confirmButton = screen.getByRole('button', { name: 'Yes, delete' });
+    expect(screen.getByRole('group', { name: /Delete this marker/ })).toBeInTheDocument();
+    clickTwiceBeforeRender(confirmButton);
+    expect(deleteMarker).toHaveBeenCalledTimes(1);
+
+    operation.reject(new Error('Storage unavailable'));
+    const feedback = await screen.findByText(/Select “Yes, delete” to try again\./);
+    expect(feedback).toHaveAttribute('role', 'alert');
+    expect(feedback).not.toHaveAttribute('aria-live');
+    expect(screen.getAllByRole('alert')).toEqual([feedback]);
+    expect(screen.getByRole('group', { name: /Delete this marker/ })).toBeInTheDocument();
+    expect(confirmButton).toBeEnabled();
+    expect(labelInput).toHaveValue('Keep this draft');
+    expect(window.localStorage.getItem(
+      `${LOCAL_STORAGE_PREFIX}:draft:custom-marker:${encodeURIComponent(marker.id)}`,
+    )).toContain('Keep this draft');
+    expect(await database.customMarkers.get(marker.id)).toMatchObject({
+      label: 'Keep marker',
+      deletedAt: null,
+    });
+
+    deleteMarker.mockRejectedValueOnce(new Error('Still unavailable'));
+    fireEvent.click(confirmButton);
+    await waitFor(() => expect(deleteMarker).toHaveBeenCalledTimes(2));
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
 });

@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DatasetManifest } from '@morrowind-map/contracts';
-import { DatasetAssetsMissingError, loadDataset } from './loadDataset';
+import {
+  ContractValidationError,
+  type DatasetManifest,
+} from '@morrowind-map/contracts';
+import {
+  DatasetAssetsInvalidError,
+  DatasetAssetsMissingError,
+  loadDataset,
+} from './loadDataset';
 
 const originalSnapshotId = 'original:goty-hd:fixture';
 const originalPlaceId = 'original-goty-hd.place-balmora';
@@ -212,6 +219,26 @@ function poisonCoverage() {
   };
 }
 
+function poisonResponses(): Record<string, unknown> {
+  return {
+    '/poison-locations.json': {
+      schemaVersion: 1,
+      datasetId: 'poison-song-26.08',
+      snapshotId: poisonSnapshotId,
+      places: [poisonPlace],
+    },
+    '/poison-en.json': {
+      schemaVersion: 1,
+      datasetId: 'poison-song-26.08',
+      snapshotId: poisonSnapshotId,
+      locale: 'en',
+      places: [{ placeId: poisonPlaceId, name: 'Balmora', aliases: [] }],
+    },
+    '/poison-map-assets.json': poisonMapAssets(),
+    '/datasets/poison-coverage.json': poisonCoverage(),
+  };
+}
+
 function jsonResponse(value: unknown) {
   return Promise.resolve({
     ok: true,
@@ -275,11 +302,178 @@ describe('loadDataset', () => {
       '/datasets/poison-coverage.json': poisonCoverage(),
     });
 
-    const bundle = await loadDataset(poisonManifest(), new AbortController().signal);
+    const controller = new AbortController();
+    const bundle = await loadDataset(poisonManifest(), controller.signal);
 
     expect([...bundle.locales.keys()]).toEqual(['en']);
     expect(bundle.mapAssets.tilePyramids?.[0]?.mediaType).toBe('image/webp');
     expect(bundle.tileCoverages.get('poison-song-26.08.basemap')?.tileCount).toBe(2);
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(4);
+    expect(
+      vi.mocked(fetch).mock.calls.every(([, options]) => options?.signal === controller.signal),
+    ).toBe(true);
+  });
+
+  it('propagates abort to in-flight fetches and does not continue to dependent resources', async () => {
+    const controller = new AbortController();
+    const abortError = new DOMException('Fixture request cancelled', 'AbortError');
+    const fetchMock = vi.fn((_url: string, options?: RequestInit) =>
+      new Promise<never>((_resolve, reject) => {
+        const signal = options?.signal;
+        expect(signal).toBe(controller.signal);
+        if (signal?.aborted) {
+          reject(abortError);
+          return;
+        }
+        signal?.addEventListener('abort', () => reject(abortError), { once: true });
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const loading = loadDataset(poisonManifest(), controller.signal);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    controller.abort(abortError);
+
+    await expect(loading).rejects.toBe(abortError);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['location catalog', '/poison-locations.json'],
+    ['locale catalog', '/poison-en.json'],
+    ['map-assets manifest', '/poison-map-assets.json'],
+  ])('propagates malformed %s JSON without reclassifying it', async (label, failingUrl) => {
+    const responses = poisonResponses();
+    const syntaxError = new SyntaxError(`Malformed ${label}`);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url === failingUrl
+          ? Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.reject(syntaxError),
+            })
+          : jsonResponse(responses[url])),
+    );
+
+    await expect(
+      loadDataset(poisonManifest(), new AbortController().signal),
+    ).rejects.toBe(syntaxError);
+  });
+
+  it.each([
+    ['locations', '/poison-locations.json', 'location catalog'],
+    ['locale', '/poison-en.json', 'place locale catalog'],
+    ['map assets', '/poison-map-assets.json', 'map assets manifest'],
+  ] as const)(
+    'rejects malformed %s schema through the contract parser',
+    async (_label, failingUrl, contract) => {
+      const responses = poisonResponses();
+      responses[failingUrl] = { schemaVersion: 1 };
+      stubJson(responses);
+
+      const error = await loadDataset(
+        poisonManifest(),
+        new AbortController().signal,
+      ).catch((reason: unknown) => reason);
+
+      expect(error).toBeInstanceOf(ContractValidationError);
+      expect(error).toMatchObject({ contract });
+    },
+  );
+
+  it.each([
+    {
+      label: 'location catalog dataset',
+      url: '/poison-locations.json',
+      replacement: () => ({
+        schemaVersion: 1,
+        datasetId: 'other-dataset',
+        snapshotId: poisonSnapshotId,
+        places: [{ ...poisonPlace, id: 'other-dataset.place-0001' }],
+      }),
+      message: 'Location catalog belongs to a different dataset snapshot',
+    },
+    {
+      label: 'locale catalog snapshot',
+      url: '/poison-en.json',
+      replacement: () => ({
+        schemaVersion: 1,
+        datasetId: 'poison-song-26.08',
+        snapshotId: 'tr:poison-song-26.08:other',
+        locale: 'en',
+        places: [{ placeId: poisonPlaceId, name: 'Balmora', aliases: [] }],
+      }),
+      message: 'EN locale catalog belongs to a different dataset snapshot',
+    },
+    {
+      label: 'map-assets snapshot',
+      url: '/poison-map-assets.json',
+      replacement: () => ({
+        ...poisonMapAssets(),
+        snapshotId: 'tr:poison-song-26.08:other',
+      }),
+      message: 'Map assets belongs to a different dataset snapshot',
+    },
+  ])('rejects a valid $label mismatch against the manifest', async ({
+    url,
+    replacement,
+    message,
+  }) => {
+    const responses = poisonResponses();
+    responses[url] = replacement();
+    stubJson(responses);
+
+    const error = await loadDataset(
+      poisonManifest(),
+      new AbortController().signal,
+    ).catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(DatasetAssetsInvalidError);
+    expect(error).toMatchObject({ message });
+  });
+
+  it('rejects coverage inventory count that differs from map-assets integrity', async () => {
+    const responses = poisonResponses();
+    const mapAssets = poisonMapAssets();
+    mapAssets.tilePyramids[0]!.integrity.tileCount = 3;
+    responses['/poison-map-assets.json'] = mapAssets;
+    stubJson(responses);
+
+    await expect(
+      loadDataset(poisonManifest(), new AbortController().signal),
+    ).rejects.toThrow('must match tile pyramid integrity.tileCount');
+  });
+
+  it.each([
+    ['map-assets manifest', '/poison-map-assets.json'],
+    ['tile coverage', '/datasets/poison-coverage.json'],
+  ])('keeps an HTTP 503 for the declared %s as a recoverable runtime error', async (
+    _label,
+    failingUrl,
+  ) => {
+    const responses = poisonResponses();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url === failingUrl
+          ? Promise.resolve({
+              ok: false,
+              status: 503,
+              json: () => Promise.resolve({}),
+            })
+          : jsonResponse(responses[url])),
+    );
+
+    const error = await loadDataset(poisonManifest(), new AbortController().signal).catch(
+      (reason: unknown) => reason,
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(DatasetAssetsMissingError);
+    expect(error).toMatchObject({
+      message: `Could not load ${failingUrl} (HTTP 503)`,
+    });
   });
 
   it('rejects an available locale that does not cover the structural catalog', async () => {

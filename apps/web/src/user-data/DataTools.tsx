@@ -6,6 +6,7 @@ import {
 } from '../storage/database';
 import {
   createPortableBackup,
+  createPortableBackupForStoredDataset,
   importPortableBackup,
   type BackupImportResult,
 } from '../storage/userData';
@@ -16,7 +17,7 @@ const MAX_BACKUP_FILE_BYTES = 10 * 1024 * 1024;
 type BusyOperation = 'export' | 'backup' | null;
 
 type Feedback =
-  | { readonly tone: 'error'; readonly detail: string }
+  | { readonly tone: 'error'; readonly text: string }
   | { readonly tone: 'status'; readonly kind: 'backup-exported' }
   | { readonly tone: 'status'; readonly kind: 'backup-result'; readonly result: BackupImportResult };
 
@@ -28,6 +29,8 @@ export interface DataToolsProps {
   readonly database?: MorrowindMapDatabase;
   readonly className?: string;
   readonly onBackupImport?: (result: BackupImportResult) => void;
+  readonly disabled?: boolean;
+  readonly mode?: 'read-write' | 'conflict-export-only';
 }
 
 function errorDetail(error: unknown): string {
@@ -54,61 +57,87 @@ export function DataTools({
   database = userDatabase,
   className,
   onBackupImport,
+  disabled = false,
+  mode = 'read-write',
 }: DataToolsProps) {
   const strings = getUserDataStrings(locale);
   const headingId = useId();
   const backupInputId = useId();
   const backupHintId = useId();
   const latestOperationRef = useRef(0);
+  const activeOperationRef = useRef<number | null>(null);
   const [busy, setBusy] = useState<BusyOperation>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const isDisabled = disabled || busy !== null;
+  const importDisabled = isDisabled || mode === 'conflict-export-only';
 
   const beginOperation = (operation: Exclude<BusyOperation, null>) => {
+    if (disabled || activeOperationRef.current !== null) {
+      return null;
+    }
     const operationId = latestOperationRef.current + 1;
     latestOperationRef.current = operationId;
+    activeOperationRef.current = operationId;
     setBusy(operation);
     setFeedback(null);
     return operationId;
   };
 
   const finishOperation = (operationId: number, nextFeedback: Feedback) => {
-    if (latestOperationRef.current === operationId) {
+    if (
+      latestOperationRef.current === operationId &&
+      activeOperationRef.current === operationId
+    ) {
+      activeOperationRef.current = null;
       setBusy(null);
       setFeedback(nextFeedback);
     }
   };
 
-  const failOperation = (operationId: number, error: unknown) => {
-    finishOperation(operationId, { tone: 'error', detail: errorDetail(error) });
+  const failOperation = (operationId: number, error: unknown, retryLabel: string) => {
+    finishOperation(operationId, {
+      tone: 'error',
+      text: strings.operationFailed(errorDetail(error), retryLabel),
+    });
   };
 
   const exportJson = async () => {
-    if (busy !== null) {
+    const operationId = beginOperation('export');
+    if (operationId === null) {
       return;
     }
 
-    const operationId = beginOperation('export');
     try {
-      const backup = await createPortableBackup(database, datasetSnapshots);
+      const backup = mode === 'conflict-export-only'
+        ? await createPortableBackupForStoredDataset(database, datasetId)
+        : await createPortableBackup(database, datasetSnapshots);
       downloadBackup(`${JSON.stringify(backup, null, 2)}\n`, backup.exportedAt);
       finishOperation(operationId, { tone: 'status', kind: 'backup-exported' });
     } catch (error: unknown) {
-      failOperation(operationId, error);
+      failOperation(operationId, error, strings.exportJson);
     }
   };
 
   const importJsonFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
-    if (!file || busy !== null) {
+    if (
+      !file ||
+      disabled ||
+      mode === 'conflict-export-only' ||
+      activeOperationRef.current !== null
+    ) {
       return;
     }
     if (file.size > MAX_BACKUP_FILE_BYTES) {
-      setFeedback({ tone: 'error', detail: strings.fileTooLarge });
+      setFeedback({ tone: 'error', text: strings.fileTooLarge });
       return;
     }
 
     const operationId = beginOperation('backup');
+    if (operationId === null) {
+      return;
+    }
     try {
       const input: unknown = JSON.parse(await file.text());
       const result = await importPortableBackup(database, input, {
@@ -118,15 +147,13 @@ export function DataTools({
       onBackupImport?.(result);
       finishOperation(operationId, { tone: 'status', kind: 'backup-result', result });
     } catch (error: unknown) {
-      failOperation(operationId, error);
+      failOperation(operationId, error, strings.importJson);
     }
   };
 
   let feedbackText: string | null = null;
   if (feedback?.tone === 'error') {
-    feedbackText = feedback.detail === strings.fileTooLarge
-      ? feedback.detail
-      : `${strings.operationFailed}: ${feedback.detail}`;
+    feedbackText = feedback.text;
   } else if (feedback?.kind === 'backup-exported') {
     feedbackText = strings.backupExported;
   } else if (feedback?.kind === 'backup-result') {
@@ -141,7 +168,7 @@ export function DataTools({
     >
       <h2 id={headingId}>{strings.dataToolsTitle}</h2>
       <div className="user-data-tools__actions">
-        <button type="button" disabled={busy !== null} onClick={() => void exportJson()}>
+        <button type="button" disabled={isDisabled} onClick={() => void exportJson()}>
           {busy === 'export' ? strings.exporting : strings.exportJson}
         </button>
 
@@ -151,7 +178,7 @@ export function DataTools({
           type="file"
           accept="application/json,.json"
           aria-describedby={backupHintId}
-          disabled={busy !== null}
+          disabled={importDisabled}
           onChange={(event) => void importJsonFile(event)}
         />
         <small id={backupHintId}>{busy === 'backup' ? strings.importing : strings.importJsonHint}</small>
@@ -161,7 +188,6 @@ export function DataTools({
         <p
           className={`user-data-tools__feedback user-data-tools__feedback--${feedback?.tone ?? 'status'}`}
           role={feedback?.tone === 'error' ? 'alert' : 'status'}
-          aria-live="polite"
         >
           {feedbackText}
         </p>

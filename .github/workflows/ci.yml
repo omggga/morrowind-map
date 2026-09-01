@@ -10,9 +10,9 @@ permissions:
 
 jobs:
   verify:
-    name: Install, typecheck, lint, unit, browser acceptance, build
+    name: Install, typecheck, lint, unit, browser acceptance, UI, build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -46,6 +46,9 @@ jobs:
 
       - name: Browser acceptance
         run: pnpm test:acceptance
+
+      - name: Visual and accessibility UI
+        run: pnpm test:ui
 
       - name: Build
         run: pnpm build

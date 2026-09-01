@@ -45,6 +45,10 @@ export interface DatasetSnapshotReadiness {
   readonly kind: 'ready';
 }
 
+export class DatasetSnapshotConflictError extends Error {
+  override readonly name = 'DatasetSnapshotConflictError';
+}
+
 function nowIso(now: () => Date): string {
   return now().toISOString();
 }
@@ -158,10 +162,14 @@ export async function ensureDatasetSnapshot(
           return { kind: 'ready' };
         }
         if ((await countDatasetRecords(database, datasetId)) > 0) {
-          throw new Error(snapshotMismatchMessage(datasetId, snapshotId, existing.snapshotId));
+          throw new DatasetSnapshotConflictError(
+            snapshotMismatchMessage(datasetId, snapshotId, existing.snapshotId),
+          );
         }
       } else if ((await countDatasetRecords(database, datasetId)) > 0) {
-        throw new Error(`Local data for ${datasetId} is missing its snapshot binding.`);
+        throw new DatasetSnapshotConflictError(
+          `Local data for ${datasetId} is missing its snapshot binding.`,
+        );
       }
       await database.datasetSnapshots.put({
         datasetId,
@@ -319,6 +327,22 @@ export async function createPortableBackup(
       ),
     customMarkers: customMarkers.sort((left, right) => left.id.localeCompare(right.id)),
   });
+}
+
+export async function createPortableBackupForStoredDataset(
+  database: MorrowindMapDatabase,
+  datasetId: string,
+  now: () => Date = () => new Date(),
+): Promise<PortableBackup> {
+  const binding = await database.transaction(
+    'r',
+    database.datasetSnapshots,
+    async () => database.datasetSnapshots.get(datasetId),
+  );
+  if (!binding) {
+    throw new Error(`Local data for ${datasetId} is not bound to a dataset snapshot.`);
+  }
+  return createPortableBackup(database, { [datasetId]: binding.snapshotId }, now);
 }
 
 export async function importPortableBackup(

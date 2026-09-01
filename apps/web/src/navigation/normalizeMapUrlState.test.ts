@@ -5,6 +5,7 @@ import { normalizeMapUrlState, type MapUrlConstraints } from './normalizeMapUrlS
 const constraints: MapUrlConstraints = {
   datasetId: 'original-goty-hd',
   availableRegionIds: new Set(['vvardenfell', 'solstheim']),
+  availablePlaceTypes: new Set(['settlement', 'guild']),
   placeRegions: new Map([
     ['original.place-balmora', 'vvardenfell'],
     ['original.place-raven-rock', 'solstheim'],
@@ -20,6 +21,8 @@ function state(overrides: Partial<MapUrlState> = {}): MapUrlState {
     regionId: 'all',
     view: null,
     placeId: null,
+    typeFilters: [],
+    statusFilters: [],
     ...overrides,
   };
 }
@@ -69,5 +72,25 @@ describe('dataset map URL normalization', () => {
       placeId: 'original.place-balmora',
       view: { center: [250, 350], zoom: 4.25 },
     }));
+  });
+
+  it('removes unavailable filters, deduplicates them and keeps contract order', () => {
+    expect(normalizeMapUrlState(state({
+      typeFilters: ['shop', 'guild', 'guild'],
+      statusFilters: ['visited', 'active', 'active'],
+    }), constraints)).toEqual(state({
+      typeFilters: ['guild'],
+      statusFilters: ['active', 'visited'],
+    }));
+  });
+
+  it('canonicalizes zero and all available filter values to All', () => {
+    expect(normalizeMapUrlState(state({
+      typeFilters: ['guild', 'settlement'],
+      statusFilters: ['visited', 'unvisited', 'active'],
+    }), constraints)).toEqual(state());
+    expect(normalizeMapUrlState(state({
+      typeFilters: ['shop'],
+    }), constraints)).toEqual(state());
   });
 });

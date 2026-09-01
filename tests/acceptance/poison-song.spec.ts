@@ -8,6 +8,12 @@ const V4_INVENTORY =
   '93758a5e645013821d99a7989d69f3e4aa39373e2c5cb4b97873da421c5052b2';
 const PLACE_ID = 'poison-song-26.08.place-014cd9c0ca05af58dc14';
 const PLACE_NAME = 'Pneuma Grove';
+const POISON_CAVE_ID = 'poison-song-26.08.place-ashfall-cavern';
+const POISON_CAVE_NAME = 'Ashfall Cavern';
+const POISON_GUILD_ID = 'poison-song-26.08.place-andothren-guildhall';
+const POISON_GUILD_NAME = 'Andothren Guildhall';
+const POISON_SHOP_ID = 'poison-song-26.08.place-vvardenfell-tradehouse';
+const POISON_SHOP_NAME = 'Vvardenfell Tradehouse';
 const POISON_CARD_NAME = 'Open map: Tamriel Rebuilt 26.08 — Poison Song';
 const ORIGINAL_CARD_NAME = 'Open map: Morrowind Game of the Year — HD';
 const ORIGINAL_DATASET_ID = 'original-goty-hd';
@@ -18,6 +24,12 @@ const ORIGINAL_CATALOG_INVENTORY =
 const ORIGINAL_SNAPSHOT_ID = 'original:goty:8b2690c0ce1c954e';
 const ORIGINAL_PLACE_ID = 'original-goty-hd.place-18680400d24ed6f70770';
 const ORIGINAL_PLACE_NAME = 'Balmora, Guild of Mages';
+const ORIGINAL_SETTLEMENT_ID = 'original-goty-hd.place-seyda-neen-fixture';
+const ORIGINAL_SETTLEMENT_NAME = 'Seyda Neen';
+const ORIGINAL_TEMPLE_ID = 'original-goty-hd.place-balmora-temple-fixture';
+const ORIGINAL_TEMPLE_NAME = 'Balmora Temple';
+const ORIGINAL_CAVE_ID = 'original-goty-hd.place-solstheim-ice-cave';
+const ORIGINAL_CAVE_NAME = 'Solstheim Ice Cave';
 const SYNTHETIC_TILE = Buffer.from(
   'UklGRh4AAABXRUJQVlA4TBEAAAAvB8ABAAfQvK5Vqv+BiOh/AAA=',
   'base64',
@@ -35,13 +47,67 @@ const locationsFixture = {
       mapPosition: [12_288, -217_088],
       exteriorCell: [1, -27],
       mimCategory: null,
-      minZoom: 2,
+      minZoom: 0,
       entrances: [],
       sources: [
         {
           kind: 'esm',
           plugin: 'TR_Mainland.esm',
           recordId: 'CELL exterior 1,-27',
+          mimIndex: null,
+        },
+      ],
+    },
+    {
+      id: POISON_CAVE_ID,
+      regionId: 'tr-mainland',
+      type: 'cave',
+      mapPosition: [12_500, -217_000],
+      exteriorCell: [1, -27],
+      mimCategory: null,
+      minZoom: 0,
+      entrances: [],
+      sources: [
+        {
+          kind: 'esm',
+          plugin: 'TR_Mainland.esm',
+          recordId: POISON_CAVE_NAME,
+          mimIndex: null,
+        },
+      ],
+    },
+    {
+      id: POISON_GUILD_ID,
+      regionId: 'tr-mainland',
+      type: 'guild',
+      mapPosition: [13_000, -216_500],
+      exteriorCell: [1, -27],
+      mimCategory: null,
+      minZoom: 4,
+      entrances: [],
+      sources: [
+        {
+          kind: 'esm',
+          plugin: 'TR_Mainland.esm',
+          recordId: POISON_GUILD_NAME,
+          mimIndex: null,
+        },
+      ],
+    },
+    {
+      id: POISON_SHOP_ID,
+      regionId: 'vvardenfell',
+      type: 'shop',
+      mapPosition: [-22_000, -14_000],
+      exteriorCell: [-3, -2],
+      mimCategory: null,
+      minZoom: 2,
+      entrances: [],
+      sources: [
+        {
+          kind: 'esm',
+          plugin: 'Morrowind.esm',
+          recordId: POISON_SHOP_NAME,
           mimIndex: null,
         },
       ],
@@ -54,7 +120,12 @@ const localeFixture = {
   datasetId: DATASET_ID,
   snapshotId: SNAPSHOT_ID,
   locale: 'en',
-  places: [{ placeId: PLACE_ID, name: PLACE_NAME, aliases: [] }],
+  places: [
+    { placeId: PLACE_ID, name: PLACE_NAME, aliases: [] },
+    { placeId: POISON_CAVE_ID, name: POISON_CAVE_NAME, aliases: ['Ashfall'] },
+    { placeId: POISON_GUILD_ID, name: POISON_GUILD_NAME, aliases: [] },
+    { placeId: POISON_SHOP_ID, name: POISON_SHOP_NAME, aliases: [] },
+  ],
 };
 
 const originalLocationsFixture = {
@@ -69,13 +140,67 @@ const originalLocationsFixture = {
       mapPosition: [-21_879.766, -14_022.853],
       exteriorCell: [-3, -2],
       mimCategory: null,
-      minZoom: 4,
+      minZoom: 0,
       entrances: [],
       sources: [
         {
           kind: 'esm',
           plugin: 'Morrowind.esm',
           recordId: ORIGINAL_PLACE_NAME,
+          mimIndex: null,
+        },
+      ],
+    },
+    {
+      id: ORIGINAL_SETTLEMENT_ID,
+      regionId: 'vvardenfell',
+      type: 'settlement',
+      mapPosition: [-23_000, -16_000],
+      exteriorCell: [-3, -2],
+      mimCategory: null,
+      minZoom: 0,
+      entrances: [],
+      sources: [
+        {
+          kind: 'esm',
+          plugin: 'Morrowind.esm',
+          recordId: ORIGINAL_SETTLEMENT_NAME,
+          mimIndex: null,
+        },
+      ],
+    },
+    {
+      id: ORIGINAL_TEMPLE_ID,
+      regionId: 'vvardenfell',
+      type: 'temple',
+      mapPosition: [-21_000, -14_500],
+      exteriorCell: [-3, -2],
+      mimCategory: null,
+      minZoom: 2,
+      entrances: [],
+      sources: [
+        {
+          kind: 'esm',
+          plugin: 'Morrowind.esm',
+          recordId: ORIGINAL_TEMPLE_NAME,
+          mimIndex: null,
+        },
+      ],
+    },
+    {
+      id: ORIGINAL_CAVE_ID,
+      regionId: 'solstheim',
+      type: 'cave',
+      mapPosition: [-165_000, 140_000],
+      exteriorCell: [-21, 17],
+      mimCategory: null,
+      minZoom: 3,
+      entrances: [],
+      sources: [
+        {
+          kind: 'esm',
+          plugin: 'Bloodmoon.esm',
+          recordId: ORIGINAL_CAVE_NAME,
           mimIndex: null,
         },
       ],
@@ -88,7 +213,12 @@ const originalLocaleFixture = {
   datasetId: ORIGINAL_DATASET_ID,
   snapshotId: ORIGINAL_SNAPSHOT_ID,
   locale: 'en',
-  places: [{ placeId: ORIGINAL_PLACE_ID, name: ORIGINAL_PLACE_NAME, aliases: [] }],
+  places: [
+    { placeId: ORIGINAL_PLACE_ID, name: ORIGINAL_PLACE_NAME, aliases: [] },
+    { placeId: ORIGINAL_SETTLEMENT_ID, name: ORIGINAL_SETTLEMENT_NAME, aliases: [] },
+    { placeId: ORIGINAL_TEMPLE_ID, name: ORIGINAL_TEMPLE_NAME, aliases: [] },
+    { placeId: ORIGINAL_CAVE_ID, name: ORIGINAL_CAVE_NAME, aliases: [] },
+  ],
 };
 
 interface DirectUrlFixture {
@@ -118,6 +248,52 @@ const directUrlFixtures: readonly DirectUrlFixture[] = [
     regionName: 'Vvardenfell',
     placeName: ORIGINAL_PLACE_NAME,
     view: [-20_000, -15_000, 5.25],
+  },
+];
+
+interface FilterAcceptanceFixture {
+  readonly label: string;
+  readonly url: string;
+  readonly heading: string;
+  readonly primaryPlaceId: string;
+  readonly primaryPlaceName: string;
+  readonly queryPlaceId: string;
+  readonly queryPlaceName: string;
+  readonly availableTypes: readonly string[];
+  readonly clickedTypes: readonly [first: string, second: string];
+  readonly canonicalTypes: readonly string[];
+  readonly unavailableType: string;
+  readonly facetRegionName: string;
+}
+
+const filterAcceptanceFixtures: readonly FilterAcceptanceFixture[] = [
+  {
+    label: 'Poison Song',
+    url: `/?dataset=${DATASET_ID}&region=all&x=12288&y=-217088&z=6`,
+    heading: 'Tamriel Rebuilt 26.08 — Poison Song',
+    primaryPlaceId: PLACE_ID,
+    primaryPlaceName: PLACE_NAME,
+    queryPlaceId: POISON_CAVE_ID,
+    queryPlaceName: POISON_CAVE_NAME,
+    availableTypes: ['Landmark', 'Cave', 'Guild', 'Shop'],
+    clickedTypes: ['Shop', 'Landmark'],
+    canonicalTypes: ['landmark', 'shop'],
+    unavailableType: 'Mine',
+    facetRegionName: 'TR Mainland',
+  },
+  {
+    label: 'Original GOTY HD',
+    url: `/?dataset=${ORIGINAL_DATASET_ID}&region=all&x=-22000&y=-15000&z=6`,
+    heading: 'Morrowind Game of the Year — HD',
+    primaryPlaceId: ORIGINAL_PLACE_ID,
+    primaryPlaceName: ORIGINAL_PLACE_NAME,
+    queryPlaceId: ORIGINAL_PLACE_ID,
+    queryPlaceName: ORIGINAL_PLACE_NAME,
+    availableTypes: ['Settlement', 'Temple', 'Cave', 'Guild'],
+    clickedTypes: ['Guild', 'Settlement'],
+    canonicalTypes: ['settlement', 'guild'],
+    unavailableType: 'Shop',
+    facetRegionName: 'Vvardenfell',
   },
 ];
 
@@ -297,13 +473,6 @@ async function openPoisonSong(page: Page): Promise<void> {
   await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
 }
 
-async function openOriginal(page: Page): Promise<void> {
-  await page.goto('/');
-  await page.getByRole('button', { name: ORIGINAL_CARD_NAME }).click();
-  await expect(page.getByRole('heading', { name: 'Morrowind Game of the Year — HD' })).toBeVisible();
-  await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
-}
-
 async function searchAndOpenPlace(page: Page): Promise<void> {
   await page.getByRole('searchbox', { name: 'Find a place' }).fill(PLACE_NAME);
   await page.getByRole('button', { name: new RegExp(`^${PLACE_NAME}`) }).click();
@@ -395,6 +564,48 @@ async function expectDirectUrlState(page: Page, fixture: DirectUrlFixture): Prom
   await expectRelativeUrl(page, fixture.url);
 }
 
+function mapCanvas(page: Page) {
+  return page.getByLabel('Interactive map in TES3 world coordinates');
+}
+
+async function openFilterDrawer(page: Page): Promise<void> {
+  const drawer = page.locator('details.place-filter-drawer');
+  if (!(await drawer.evaluate((element) => (element as HTMLDetailsElement).open))) {
+    await drawer.locator('summary').click();
+  }
+}
+
+function typeFilterButton(page: Page, label: string) {
+  return page
+    .locator('fieldset.place-filter-axis--types')
+    .getByRole('button', { name: new RegExp(`^${label}(?:\\s|$)`) });
+}
+
+function statusFilterButton(page: Page, label: string) {
+  return page
+    .locator('fieldset.place-filter-axis--statuses')
+    .getByRole('button', { name: new RegExp(`^${label}(?:\\s|$)`) });
+}
+
+async function expectUrlFilters(
+  page: Page,
+  types: readonly string[],
+  statuses: readonly string[],
+): Promise<void> {
+  await expect.poll(() => {
+    const url = new URL(page.url());
+    return {
+      types: url.searchParams.getAll('type'),
+      statuses: url.searchParams.getAll('status'),
+    };
+  }).toEqual({ types: [...types], statuses: [...statuses] });
+}
+
+async function labelPriority(page: Page): Promise<string[]> {
+  const value = await mapCanvas(page).getAttribute('data-label-priority');
+  return value ? value.split(',').filter(Boolean) : [];
+}
+
 for (const fixture of directUrlFixtures) {
   test(`opens and reloads a canonical direct URL for ${fixture.label}`, async ({ page }) => {
     const probe = await installOfflineRoutes(page);
@@ -405,6 +616,216 @@ for (const fixture of directUrlFixtures) {
     await page.reload();
     await expectDirectUrlState(page, fixture);
 
+    expect(probe.externalRequests).toEqual([]);
+    expect(probe.localFailures).toEqual([]);
+  });
+}
+
+test('keeps the open filter drawer in mobile ledger flow', async ({ page }) => {
+  const probe = await installOfflineRoutes(page);
+  const fixture = filterAcceptanceFixtures[0];
+  if (!fixture) {
+    throw new Error('Missing filter acceptance fixture');
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(fixture.url);
+  await expect(page.getByRole('heading', { name: fixture.heading })).toBeVisible();
+  await openFilterDrawer(page);
+
+  const geometry = await page.evaluate(() => {
+    const body = document.querySelector<HTMLElement>('.place-filter-drawer__body');
+    const followingRow = document.querySelector<HTMLElement>('.ledger-data-tools');
+    if (!body || !followingRow) {
+      return null;
+    }
+    const bodyRect = body.getBoundingClientRect();
+    const followingRect = followingRow.getBoundingClientRect();
+    return { bodyBottom: bodyRect.bottom, followingTop: followingRect.top };
+  });
+  expect(geometry).not.toBeNull();
+  expect(geometry?.bodyBottom ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(
+    (geometry?.followingTop ?? Number.NEGATIVE_INFINITY) + 1,
+  );
+  expect(probe.externalRequests).toEqual([]);
+  expect(probe.localFailures).toEqual([]);
+});
+
+test('loads the Stage 7.3 visual system entirely from local assets', async ({ page }) => {
+  const probe = await installOfflineRoutes(page);
+  const fixture = filterAcceptanceFixtures[0];
+  if (!fixture) {
+    throw new Error('Missing visual-system acceptance fixture');
+  }
+  await page.goto(fixture.url);
+  await expect(page.getByRole('heading', { name: fixture.heading })).toBeVisible();
+  await expect(mapCanvas(page)).toBeVisible();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+
+  const visualSystem = await page.evaluate(() => ({
+    fonts: {
+      ui: document.fonts.check('400 13px "Atkinson Hyperlegible Next Variable"'),
+      display: document.fonts.check('600 20px "Alegreya Variable"'),
+      data: document.fonts.check('400 11px "IBM Plex Mono"'),
+    },
+    fontResources: performance
+      .getEntriesByType('resource')
+      .map(({ name }) => new URL(name))
+      .filter(({ pathname }) => pathname.endsWith('.woff2'))
+      .map(({ origin, pathname }) => ({ origin, pathname })),
+    icons: [...document.querySelectorAll<SVGElement>('[data-pixel-icon]')].map((icon) => ({
+      hidden: icon.getAttribute('aria-hidden'),
+      focusable: icon.getAttribute('focusable'),
+      width: getComputedStyle(icon).width,
+      height: getComputedStyle(icon).height,
+    })),
+    markerShapes: [...new Set(
+      [...document.querySelectorAll<SVGElement>('.marker-legend [data-marker-shape]')]
+        .map((marker) => marker.dataset.markerShape),
+    )],
+  }));
+
+  expect(visualSystem.fonts).toEqual({ ui: true, display: true, data: true });
+  expect(visualSystem.fontResources.length).toBeGreaterThanOrEqual(3);
+  expect(visualSystem.fontResources.every(({ origin }) => origin === new URL(page.url()).origin))
+    .toBe(true);
+  expect(visualSystem.icons.length).toBeGreaterThanOrEqual(5);
+  expect(visualSystem.icons.every(({ hidden, focusable }) =>
+    hidden === 'true' && focusable === 'false'
+  )).toBe(true);
+  expect(visualSystem.icons.every(({ width, height }) => width === height)).toBe(true);
+  expect(visualSystem.markerShapes).toHaveLength(4);
+  expect(probe.externalRequests).toEqual([]);
+  expect(probe.localFailures).toEqual([]);
+});
+
+for (const fixture of filterAcceptanceFixtures) {
+  test(`${fixture.label} exposes data-driven filters and deterministic label priority`, async ({ page }) => {
+    const probe = await installOfflineRoutes(page);
+    await page.goto(fixture.url);
+
+    await expect(page.getByRole('heading', { name: fixture.heading })).toBeVisible();
+    await openFilterDrawer(page);
+    for (const type of fixture.availableTypes) {
+      await expect(typeFilterButton(page, type)).toHaveCount(1);
+      await expect(typeFilterButton(page, type)).toContainText('1');
+    }
+    await expect(typeFilterButton(page, fixture.unavailableType)).toHaveCount(0);
+    await expect(typeFilterButton(page, 'Any type')).toContainText('4');
+    await expect(statusFilterButton(page, 'Unvisited')).toContainText('4');
+    await expect(statusFilterButton(page, 'Active')).toContainText('0');
+    await expect(statusFilterButton(page, 'Visited')).toContainText('0');
+
+    const map = mapCanvas(page);
+    await expect(map).toHaveAttribute('data-visible-place-count', '4');
+    await expect(map).toHaveAttribute('data-label-candidate-count', '4');
+    await expect.poll(async () => (await labelPriority(page))[0]).toBeTruthy();
+
+    await page.getByRole('button', { name: fixture.facetRegionName, exact: true }).click();
+    await expect(map).toHaveAttribute('data-visible-place-count', '3');
+    await expect(typeFilterButton(page, 'Any type')).toContainText('3');
+    await expect(statusFilterButton(page, 'Any status')).toContainText('3');
+
+    const search = page.getByRole('searchbox', { name: 'Find a place' });
+    await search.fill(fixture.queryPlaceName);
+    const catalogResults = page.locator('.place-results > button.place-result');
+    await expect(catalogResults).toHaveCount(1);
+    await expect(catalogResults).toContainText(fixture.queryPlaceName);
+    await expect(map).toHaveAttribute('data-visible-place-count', '3');
+    await expect.poll(async () => (await labelPriority(page))[0]).toBe(
+      fixture.queryPlaceId,
+    );
+
+    await catalogResults.click();
+    await expect(
+      page.getByRole('heading', { name: fixture.queryPlaceName, exact: true }),
+    ).toBeVisible();
+    await expect.poll(async () => (await labelPriority(page))[0]).toBe(
+      fixture.queryPlaceId,
+    );
+    await search.fill('');
+    const selectedPriority = await map.getAttribute('data-label-priority');
+    expect(selectedPriority?.split(',')[0]).toBe(fixture.queryPlaceId);
+
+    await page.reload();
+    await expect(
+      page.getByRole('heading', { name: fixture.queryPlaceName, exact: true }),
+    ).toBeVisible();
+    await expect(map).toHaveAttribute('data-label-priority', selectedPriority ?? '');
+    expect(probe.externalRequests).toEqual([]);
+    expect(probe.localFailures).toEqual([]);
+  });
+
+  test(`${fixture.label} filter URL survives reload and Back/Forward canonically`, async ({ page }) => {
+    const probe = await installOfflineRoutes(page);
+    await page.goto(fixture.url);
+    await expect(page.getByRole('heading', { name: fixture.heading })).toBeVisible();
+    await openFilterDrawer(page);
+
+    await typeFilterButton(page, fixture.clickedTypes[0]).click();
+    await typeFilterButton(page, fixture.clickedTypes[1]).click();
+    await statusFilterButton(page, 'Visited').click();
+    await statusFilterButton(page, 'Active').click();
+    await expectUrlFilters(page, fixture.canonicalTypes, ['active', 'visited']);
+    const finalUrl = relativePageUrl(page);
+
+    await page.reload();
+    await openFilterDrawer(page);
+    for (const type of fixture.clickedTypes) {
+      await expect(typeFilterButton(page, type)).toHaveAttribute('aria-pressed', 'true');
+    }
+    await expect(statusFilterButton(page, 'Active')).toHaveAttribute('aria-pressed', 'true');
+    await expect(statusFilterButton(page, 'Visited')).toHaveAttribute('aria-pressed', 'true');
+    await expectRelativeUrl(page, finalUrl);
+
+    await page.goBack();
+    await expectUrlFilters(page, fixture.canonicalTypes, ['visited']);
+    await expect(statusFilterButton(page, 'Active')).toHaveAttribute('aria-pressed', 'false');
+    await expect(statusFilterButton(page, 'Visited')).toHaveAttribute('aria-pressed', 'true');
+
+    await page.goForward();
+    await expectUrlFilters(page, fixture.canonicalTypes, ['active', 'visited']);
+    await expect(statusFilterButton(page, 'Active')).toHaveAttribute('aria-pressed', 'true');
+    await expectRelativeUrl(page, finalUrl);
+    expect(probe.externalRequests).toEqual([]);
+    expect(probe.localFailures).toEqual([]);
+  });
+
+  test(`${fixture.label} treats missing progress as unvisited and reacts to status changes`, async ({ page }) => {
+    const probe = await installOfflineRoutes(page);
+    await page.goto(fixture.url);
+    await expect(page.getByRole('heading', { name: fixture.heading })).toBeVisible();
+    const search = page.getByRole('searchbox', { name: 'Find a place' });
+    await search.fill(fixture.primaryPlaceName);
+    await page
+      .getByRole('button', { name: new RegExp(`^${fixture.primaryPlaceName}`) })
+      .click();
+
+    const progress = page.getByLabel('Place progress');
+    await expect(
+      progress.getByRole('button', { name: 'Unvisited', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await progress.getByRole('button', { name: 'Active', exact: true }).click();
+    await expect(
+      progress.getByRole('button', { name: 'Active', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+
+    await openFilterDrawer(page);
+    await statusFilterButton(page, 'Active').click();
+    await expectUrlFilters(page, [], ['active']);
+    expect(new URL(page.url()).searchParams.get('place')).toBe(fixture.primaryPlaceId);
+    await expect(
+      page.getByRole('heading', { name: fixture.primaryPlaceName, exact: true }),
+    ).toBeVisible();
+
+    await progress.getByRole('button', { name: 'Visited', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: fixture.primaryPlaceName, exact: true }),
+    ).toHaveCount(0);
+    await expect(mapCanvas(page)).toHaveAttribute('data-visible-place-count', '0');
+    await expectUrlFilters(page, [], ['active']);
+    expect(new URL(page.url()).searchParams.has('place')).toBe(false);
     expect(probe.externalRequests).toEqual([]);
     expect(probe.localFailures).toEqual([]);
   });
@@ -436,15 +857,22 @@ test('canonicalizes invalid region, view and cross-dataset place without crashin
   );
   await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
   await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toHaveCount(0);
+  await expect.poll(() => {
+    const currentUrl = new URL(page.url());
+    return ['x', 'y', 'z'].every((parameter) => {
+      const value = currentUrl.searchParams.get(parameter);
+      return value !== null && value.length > 0 && Number.isFinite(Number(value));
+    });
+  }).toBe(true);
   const canonicalUrl = new URL(page.url());
   expect(canonicalUrl.searchParams.get('theme')).toBe('sepia');
   expect(canonicalUrl.searchParams.get('dataset')).toBe(ORIGINAL_DATASET_ID);
   expect(canonicalUrl.searchParams.get('region')).toBe('all');
   expect(canonicalUrl.searchParams.has('place')).toBe(false);
   expect(canonicalUrl.searchParams.get('x')).not.toBe('123');
-  expect(Number.isFinite(Number(canonicalUrl.searchParams.get('x')))).toBe(true);
-  expect(Number.isFinite(Number(canonicalUrl.searchParams.get('y')))).toBe(true);
-  expect(Number.isFinite(Number(canonicalUrl.searchParams.get('z')))).toBe(true);
+  expect(canonicalUrl.searchParams.get('x')).not.toBeNull();
+  expect(canonicalUrl.searchParams.get('y')).not.toBeNull();
+  expect(canonicalUrl.searchParams.get('z')).not.toBeNull();
   const canonicalPath = relativePageUrl(page);
   await page.reload();
   await expectRelativeUrl(page, canonicalPath);
@@ -567,7 +995,7 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   await map.press('ArrowRight');
   await expect.poll(() => cursorCoordinatesAtMapCenter(page)).not.toBe(coordinatesBeforePan);
 
-  await page.getByRole('button', { name: 'Add personal marker' }).click();
+  await page.locator('button.add-marker-tool').click();
   await map.focus();
   await map.press('Enter');
   const markerEditor = page.getByLabel('Custom marker');
@@ -580,6 +1008,19 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
       name: /^Field note pin/,
     }),
   ).toBeVisible();
+  await page.getByRole('button', { name: 'Vvardenfell', exact: true }).click();
+  await openFilterDrawer(page);
+  await typeFilterButton(page, 'Cave').click();
+  await statusFilterButton(page, 'Visited').click();
+  await expect(
+    page.getByRole('region', { name: 'Personal markers' }).getByRole('button', {
+      name: /^Field note pin/,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Personal markers ignore catalog filters and map section selection.'),
+  ).toBeVisible();
+  await page.locator('button.place-filter-reset').click();
 
   await page.reload();
   await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
@@ -637,7 +1078,7 @@ test('reports a tile failure and refreshes the source through Retry', async ({ p
   await expect(tileAlert).toBeVisible();
   const failedRequestCount = probe.tileRequests.length;
   probe.restoreTiles();
-  await tileAlert.getByRole('button', { name: 'Retry' }).click();
+  await tileAlert.getByRole('button', { name: 'Retry failed tiles' }).click();
   await expect(tileAlert).toBeHidden();
   await expect.poll(() => probe.tileRequests.length).toBeGreaterThan(failedRequestCount);
   await expect.poll(() => hasPaintedBasemap(page)).toBe(true);
@@ -658,6 +1099,53 @@ test('shows a non-retryable missing state for an unpublished dataset', async ({ 
   expect(probe.externalRequests).toEqual([]);
 });
 
+for (const fixture of directUrlFixtures) {
+  test(`@prepared recovers the real ${fixture.label} bundle without losing its URL`, async ({ page }) => {
+    test.skip(
+      process.env.MORROWIND_ACCEPTANCE_PREPARED !== '1',
+      'Run pnpm test:acceptance:prepared when both prepared payloads are available.',
+    );
+    const probe = await installOfflineRoutes(page, {
+      syntheticPayloads: false,
+      failMapAssets: true,
+    });
+    await page.goto(fixture.url);
+    const alert = page.locator('.dataset-load-state[role="alert"]');
+    await expect(alert).toContainText('could not be opened');
+    await expectRelativeUrl(page, fixture.url);
+
+    probe.restoreMapAssets();
+    await alert.getByRole('button', { name: 'Retry' }).click();
+    await expectDirectUrlState(page, fixture);
+    await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeFocused();
+    expect(probe.externalRequests).toEqual([]);
+  });
+
+  test(`@prepared retries only failed real ${fixture.label} tiles in place`, async ({ page }) => {
+    test.skip(
+      process.env.MORROWIND_ACCEPTANCE_PREPARED !== '1',
+      'Run pnpm test:acceptance:prepared when both prepared payloads are available.',
+    );
+    const probe = await installOfflineRoutes(page, {
+      syntheticPayloads: false,
+      failTiles: true,
+    });
+    await page.goto(fixture.url);
+    const tileAlert = page.locator('.basemap-state--error[role="alert"]');
+    await expect(tileAlert).toBeVisible();
+    const failedRequestCount = probe.tileRequests.length;
+    const historyLengthBeforeRetry = await historyLength(page);
+
+    probe.restoreTiles();
+    await tileAlert.getByRole('button', { name: 'Retry failed tiles' }).click();
+    await expect(tileAlert).toBeHidden();
+    await expect.poll(() => probe.tileRequests.length).toBeGreaterThan(failedRequestCount);
+    await expectRelativeUrl(page, fixture.url);
+    expect(await historyLength(page)).toBe(historyLengthBeforeRetry);
+    expect(probe.externalRequests).toEqual([]);
+  });
+}
+
 test('@prepared renders the complete local V4 catalog and tile pyramid', async ({ page }) => {
   test.skip(
     process.env.MORROWIND_ACCEPTANCE_PREPARED !== '1',
@@ -672,8 +1160,15 @@ test('@prepared renders the complete local V4 catalog and tile pyramid', async (
   expect(existsSync(join(preparedRoot, 'tiles'))).toBe(true);
 
   const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
-  await openPoisonSong(page);
-  await expect(page.getByText('4085 places')).toBeVisible();
+  const fixture = directUrlFixtures[0]!;
+  await page.goto(fixture.url);
+  await expectDirectUrlState(page, fixture);
+  await openFilterDrawer(page);
+  // Facet counts remain contextual to the deep-linked region and current zoom.
+  await expect(typeFilterButton(page, 'Any type')).toContainText('3,052');
+  await expect.poll(async () =>
+    Number(await mapCanvas(page).getAttribute('data-label-candidate-count')),
+  ).toBeGreaterThan(0);
   await page.getByRole('searchbox', { name: 'Find a place' }).fill(PLACE_NAME);
   await expect(page.getByRole('button', { name: new RegExp(`^${PLACE_NAME}`) })).toBeVisible();
   await expect.poll(() => probe.tileRequests.length).toBeGreaterThan(0);
@@ -706,8 +1201,15 @@ test('@prepared renders and searches the complete local Original HD dataset', as
   ).toBe(true);
 
   const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
-  await openOriginal(page);
-  await expect(page.getByText('1036 places')).toBeVisible();
+  const fixture = directUrlFixtures[1]!;
+  await page.goto(fixture.url);
+  await expectDirectUrlState(page, fixture);
+  await openFilterDrawer(page);
+  // Facet counts remain contextual to the deep-linked region and current zoom.
+  await expect(typeFilterButton(page, 'Any type')).toContainText('944');
+  await expect.poll(async () =>
+    Number(await mapCanvas(page).getAttribute('data-label-candidate-count')),
+  ).toBeGreaterThan(0);
   await page.getByRole('searchbox', { name: 'Find a place' }).fill(ORIGINAL_PLACE_NAME);
   await page.getByRole('button', { name: new RegExp(`^${ORIGINAL_PLACE_NAME}`) }).click();
   await expect(page.getByRole('heading', { name: ORIGINAL_PLACE_NAME })).toBeVisible();
@@ -734,7 +1236,7 @@ test('@prepared renders and searches the complete local Original HD dataset', as
   await map.press('ArrowRight');
   await expect.poll(() => cursorCoordinatesAtMapCenter(page)).not.toBe(coordinatesBeforePan);
 
-  await page.getByRole('button', { name: 'Add personal marker' }).click();
+  await page.locator('button.add-marker-tool').click();
   await map.focus();
   await map.press('Enter');
   const markerEditor = page.getByLabel('Custom marker');
