@@ -17,9 +17,6 @@ export function StatusMark({ kind, className = '' }: StatusMarkProps) {
       viewBox="0 0 12 12"
     >
       <path d={semantic.path} fillRule={semantic.fillRule} />
-      {semantic.cutoutPath ? (
-        <path className="status-mark__cutout" d={semantic.cutoutPath} />
-      ) : null}
     </svg>
   );
 }

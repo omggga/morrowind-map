@@ -80,6 +80,29 @@ describe('editor crash-recovery drafts', () => {
     });
   });
 
+  it('autosaves a place note on blur without exposing a redundant save button', async () => {
+    render(
+      <PlaceProgressEditor
+        datasetId={datasetId}
+        placeId={placeId}
+        locale="en"
+        database={database}
+      />,
+    );
+    const note = screen.getByRole('textbox', { name: 'Personal note' });
+
+    fireEvent.change(note, { target: { value: 'Saved on focus out' } });
+    expect(screen.queryByRole('button', { name: 'Save note' })).not.toBeInTheDocument();
+    fireEvent.blur(note);
+
+    await waitFor(async () => {
+      expect(await database.progress.get(progressKey(datasetId, placeId))).toMatchObject({
+        note: 'Saved on focus out',
+      });
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Saved.');
+  });
+
   it('ignores a place-note draft from the retired user-data epoch', async () => {
     const placeKey = `${datasetId}\0${placeId}`;
     window.localStorage.setItem(

@@ -47,10 +47,20 @@ const navigationState = {
 describe('MapTitlebar', () => {
   afterEach(cleanup);
 
-  it('uses the stable compact TR family label', () => {
-    render(<MapTitlebar dataset={dataset} onBack={vi.fn()} />);
+  it('shows only navigation, the dataset title and optional header tools', () => {
+    render(
+      <MapTitlebar
+        dataset={dataset}
+        onBack={vi.fn()}
+        tools={<span>Data actions</span>}
+      />,
+    );
 
-    expect(screen.getByText('TR / TES3:WORLD')).toHaveClass('titlebar-kicker');
+    expect(screen.getByRole('button', { name: 'Back to maps' })).toBeEnabled();
+    expect(screen.getByRole('heading', { name: 'Poison Song 26.08' })).toBeVisible();
+    expect(screen.getByText('Data actions')).toBeVisible();
+    expect(screen.queryByText('TR / TES3:WORLD')).not.toBeInTheDocument();
+    expect(screen.queryByText('LOCAL')).not.toBeInTheDocument();
   });
 });
 
@@ -121,7 +131,7 @@ describe('DatasetMap loading states', () => {
     expect(alert).toHaveTextContent('published map data is inconsistent');
     expect(alert).toHaveTextContent('different dataset snapshot');
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
-    expect(within(alert).getByRole('button', { name: 'Versions' })).toBeEnabled();
+    expect(within(alert).getByRole('button', { name: 'Back to maps' })).toBeEnabled();
   });
 
   it('shows runtime errors and retries the complete bundle load', async () => {

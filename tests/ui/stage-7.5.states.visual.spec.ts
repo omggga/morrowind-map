@@ -11,6 +11,7 @@ import {
   expectNoViewportOverflow,
   installOfflineRoutes,
   openDataset,
+  waitForLandingReady,
   waitForVisualReady,
 } from './support';
 
@@ -229,14 +230,13 @@ test('provides focused actions for query, filter, marker, and empty-catalog stat
   await openDataset(page, POISON_CARD_NAME, POISON_HEADING);
   await waitForVisualReady(page);
 
-  const map = page.getByLabel('Interactive map in TES3 world coordinates');
-  const personalMarkers = page.locator('.custom-marker-results');
-  await expect(personalMarkers).toContainText('No personal markers in this dataset.');
-  await personalMarkers.getByRole('button', { name: 'Add personal marker' }).click();
-  await expect(map).toBeFocused();
-  await expect(page.locator('button.add-marker-tool')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.custom-marker-results')).toHaveCount(0);
+  const addMarker = page.locator('button.add-marker-tool');
+  await expect(addMarker).toBeEnabled();
+  await addMarker.click();
+  await expect(addMarker).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Escape');
-  await expect(page.locator('button.add-marker-tool')).toHaveAttribute('aria-pressed', 'false');
+  await expect(addMarker).toHaveAttribute('aria-pressed', 'false');
 
   const search = page.getByRole('searchbox', { name: 'Find a place' });
   const catalogEmpty = page.locator('.place-results > .empty-state');
@@ -268,7 +268,7 @@ test('provides focused actions for query, filter, marker, and empty-catalog stat
   await expect(noExterior).toContainText(
     'This dataset contains no exterior places to display. Choose another version.',
   );
-  await noExterior.getByRole('button', { name: 'Versions' }).click();
+  await noExterior.getByRole('button', { name: 'Back to maps' }).click();
   await expect(page.getByRole('heading', { name: 'Choose a world' })).toBeVisible();
 });
 
@@ -347,6 +347,7 @@ test('pins the stable partial-manifest landing state', async ({ page }, testInfo
 
   await page.goto('/');
   await expect(page.locator('.error-panel--partial[role="alert"]')).toBeVisible();
+  await waitForLandingReady(page);
   await screenshot(page, 'partial-manifest-landing.png');
 });
 

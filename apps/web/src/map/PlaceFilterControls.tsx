@@ -12,7 +12,6 @@ export interface PlaceFilterControlsProps {
   readonly typeCounts: ReadonlyMap<PlaceType, number>;
   readonly statusCounts: ReadonlyMap<ProgressStatus, number>;
   readonly activeAxisCount: number;
-  readonly matchingCount: number;
   readonly statusesDisabled?: boolean;
   readonly onToggleType: (type: PlaceType) => void;
   readonly onToggleStatus: (status: ProgressStatus) => void;
@@ -79,7 +78,6 @@ export function PlaceFilterControls({
   typeCounts,
   statusCounts,
   activeAxisCount,
-  matchingCount,
   statusesDisabled = false,
   onToggleType,
   onToggleStatus,
@@ -94,12 +92,14 @@ export function PlaceFilterControls({
     <details className="place-filter-drawer">
       <summary className="place-filter-drawer__summary">
         <span>{t('map.filters')}</span>
-        <span className="place-filter-drawer__summary-state">
-          {t(
-            activeAxisCount === 1 ? 'map.filterSummaryOne' : 'map.filterSummaryMany',
-            { active: activeAxisCount, count: matchingCount },
-          )}
-        </span>
+        {activeAxisCount > 0 ? (
+          <span className="place-filter-drawer__summary-state">
+            {t(
+              activeAxisCount === 1 ? 'map.filterSummaryOne' : 'map.filterSummaryMany',
+              { active: activeAxisCount },
+            )}
+          </span>
+        ) : null}
       </summary>
 
       <div className="place-filter-drawer__body">

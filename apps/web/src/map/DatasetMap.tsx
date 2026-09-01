@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type Ref,
+  type ReactNode,
 } from 'react';
 import {
   ContractValidationError,
@@ -31,7 +32,6 @@ import VectorSource from 'ol/source/Vector.js';
 import XYZ from 'ol/source/XYZ.js';
 import Fill from 'ol/style/Fill.js';
 import Icon from 'ol/style/Icon.js';
-import RegularShape from 'ol/style/RegularShape.js';
 import Stroke from 'ol/style/Stroke.js';
 import Style from 'ol/style/Style.js';
 import Text from 'ol/style/Text.js';
@@ -94,14 +94,13 @@ import {
 } from './sparseTiles';
 import {
   configureTes3Projection,
-  worldToCell,
-  type CellCoordinate,
   type WorldCoordinate,
 } from './tes3Projection';
 
 interface MapTitlebarProps {
   readonly dataset: DatasetManifest;
   readonly onBack: () => void;
+  readonly tools?: ReactNode;
 }
 
 interface DatasetMapProps extends MapTitlebarProps {
@@ -113,15 +112,6 @@ interface DatasetMapProps extends MapTitlebarProps {
     state: MapUrlState,
     mode: 'push' | 'replace',
   ) => void;
-}
-
-const MAP_TITLEBAR_FAMILY_LABELS: Record<DatasetManifest['mapKey'], string> = {
-  original: 'ORIGINAL',
-  'tamriel-rebuilt': 'TR',
-};
-
-function formatMapTitlebarKicker(mapKey: DatasetManifest['mapKey']): string {
-  return `${MAP_TITLEBAR_FAMILY_LABELS[mapKey]} / TES3:WORLD`;
 }
 
 type RegionFilter = string;
@@ -147,51 +137,26 @@ interface BasemapRuntimeState {
   readonly retrying: boolean;
 }
 
-interface CursorReadout {
-  readonly world: WorldCoordinate;
-  readonly cell: CellCoordinate;
-}
-
 type MarkerEmphasis = 'default' | 'hovered' | 'selected';
 
 const MARKER_ICON_SOURCES = new globalThis.Map<MarkerKind, string>(
   MARKER_KINDS.map((kind) => {
     const semantic = MARKER_SEMANTICS[kind];
-    const fillRule = semantic.fillRule ? ` fill-rule="${semantic.fillRule}"` : '';
-    const cutout = semantic.cutoutPath
-      ? `<path d="${semantic.cutoutPath}" fill="#171914"/>`
-      : '';
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12" shape-rendering="crispEdges"><path d="${semantic.path}" fill="${semantic.color}"${fillRule}/>${cutout}</svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12" shape-rendering="crispEdges"><path d="${semantic.path}" fill="${semantic.color}" fill-rule="${semantic.fillRule}"/></svg>`;
     return [kind, `data:image/svg+xml,${encodeURIComponent(svg)}`];
   }),
 );
 
 function createMarkerStyles(kind: MarkerKind, emphasis: MarkerEmphasis): Style[] {
   const baseZIndex = emphasis === 'selected' ? 112 : emphasis === 'hovered' ? 102 : 92;
-  const styles: Style[] = [];
-  if (emphasis !== 'default') {
-    styles.push(new Style({
-      image: new RegularShape({
-        points: 4,
-        radius: emphasis === 'selected' ? 9 : 8,
-        angle: Math.PI / 4,
-        fill: new Fill({ color: 'rgba(23, 25, 20, 0.72)' }),
-        stroke: new Stroke({
-          color: emphasis === 'selected' ? '#fff2b2' : '#c8b36d',
-          width: emphasis === 'selected' ? 2 : 1,
-        }),
-      }),
-      zIndex: baseZIndex,
-    }));
-  }
-  styles.push(new Style({
+  const scale = emphasis === 'selected' ? 0.66 : emphasis === 'hovered' ? 0.58 : 0.5;
+  return [new Style({
     image: new Icon({
       src: MARKER_ICON_SOURCES.get(kind) ?? '',
-      scale: 0.5,
+      scale,
     }),
-    zIndex: baseZIndex + 1,
-  }));
-  return styles;
+    zIndex: baseZIndex,
+  })];
 }
 
 function createProgressMarkerStyles(emphasis: MarkerEmphasis): Record<ProgressStatus, Style[]> {
@@ -230,8 +195,8 @@ function createPlaceLabelStyle(
     text: new Text({
       text: name,
       font: selected
-        ? '500 11px "IBM Plex Mono", monospace'
-        : '400 11px "IBM Plex Mono", monospace',
+        ? '600 12px "Atkinson Hyperlegible Next Variable", Arial, sans-serif'
+        : '500 12px "Atkinson Hyperlegible Next Variable", Arial, sans-serif',
       offsetY: -18,
       padding: [3, 5, 3, 5],
       fill: new Fill({ color: selected ? '#201d14' : searchMatch ? '#f0dda0' : '#e8dfc2' }),
@@ -471,7 +436,7 @@ export function DatasetMap({
   );
 }
 
-export function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
+export function MapTitlebar({ dataset, onBack, tools }: MapTitlebarProps) {
   const { t } = useTranslation();
   return (
     <header className="window-titlebar map-titlebar">
@@ -480,10 +445,9 @@ export function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
         {t('map.versions')}
       </button>
       <div className="map-title-copy">
-        <span className="titlebar-kicker">{formatMapTitlebarKicker(dataset.mapKey)}</span>
         <h1 id="map-title">{dataset.title.en}</h1>
       </div>
-      <span className="titlebar-state">{t('map.local')}</span>
+      {tools ? <div className="map-titlebar-tools">{tools}</div> : null}
     </header>
   );
 }
@@ -526,9 +490,7 @@ function DatasetMapReady({
     searchMatchIds: new Set<string>(),
     progressByPlaceId: new globalThis.Map<string, ProgressRecord>(),
   });
-  const customMarkerButtonRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
   const customMarkerEditorInputRef = useRef<HTMLInputElement>(null);
-  const customMarkerHeadingRef = useRef<HTMLHeadingElement>(null);
   const filterResetRef = useRef<HTMLButtonElement>(null);
   const userDataRetryButtonRef = useRef<HTMLButtonElement>(null);
   const placeCardRef = useRef<HTMLElement>(null);
@@ -685,6 +647,7 @@ function DatasetMapReady({
   const hasHandledInitialNavigationRef = useRef(false);
   const selectedIdRef = useRef<string | null>(normalizedNavigationState.placeId);
   const selectedMarkerIdRef = useRef<string | null>(null);
+  const keyboardMarkerCursorRef = useRef(0);
   const hoveredPlaceIdRef = useRef<string | null>(null);
   const hoveredMarkerIdRef = useRef<string | null>(null);
   const zoomRef = useRef(normalizedNavigationState.view?.zoom ?? 0);
@@ -702,7 +665,6 @@ function DatasetMapReady({
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
   const [placingMarker, setPlacingMarker] = useState(false);
   const [markerError, setMarkerError] = useState<string | null>(null);
-  const [cursor, setCursor] = useState<CursorReadout | null>(null);
   const [viewState, setViewState] = useState<MapUrlView | null>(normalizedNavigationState.view);
   const [zoom, setZoom] = useState(normalizedNavigationState.view?.zoom ?? 0);
   const [basemapState, setBasemapState] = useState<BasemapRuntimeState>({
@@ -842,8 +804,6 @@ function DatasetMapReady({
   const activeFilterAxisCount = Number(region !== 'all') +
     Number(typeFilters.size > 0) +
     Number(statusFilters.size > 0);
-  const visibleMarkerCount = visiblePlaces.length;
-
   const retryUserData = () => {
     if (
       userDataRetryInFlightRef.current ||
@@ -956,8 +916,8 @@ function DatasetMapReady({
     }
     let cancelled = false;
     void Promise.all([
-      document.fonts.load('400 11px "IBM Plex Mono"'),
-      document.fonts.load('500 11px "IBM Plex Mono"'),
+      document.fonts.load('500 12px "Atkinson Hyperlegible Next Variable"'),
+      document.fonts.load('600 12px "Atkinson Hyperlegible Next Variable"'),
     ]).then(() => {
       if (cancelled) {
         return;
@@ -1351,9 +1311,6 @@ function DatasetMapReady({
       if (event.dragging) {
         return;
       }
-      const [x = 0, y = 0] = event.coordinate;
-      const world: WorldCoordinate = [x, y];
-      setCursor({ world, cell: worldToCell(world, projectionDescriptor.cellSize) });
       const feature = map.forEachFeatureAtPixel(event.pixel, (candidate) => candidate, {
         hitTolerance: 5,
         layerFilter: (layer) =>
@@ -1475,7 +1432,6 @@ function DatasetMapReady({
     scheduleNavigationFromView();
     const viewport = map.getViewport();
     const clearCursor = () => {
-      setCursor(null);
       hoveredPlaceIdRef.current = null;
       hoveredMarkerIdRef.current = null;
       markerLayer.changed();
@@ -1674,6 +1630,39 @@ function DatasetMapReady({
     };
   };
 
+  const openNextCustomMarker = () => {
+    if (customMarkers.records.length === 0) {
+      return false;
+    }
+    const markerIndex = keyboardMarkerCursorRef.current % customMarkers.records.length;
+    const marker = customMarkers.records[markerIndex];
+    if (marker === undefined) {
+      return false;
+    }
+    keyboardMarkerCursorRef.current = (markerIndex + 1) % customMarkers.records.length;
+    customMarkerCardFocus.remember(targetRef.current);
+    setPlacingMarker(false);
+    setSelectedId(null);
+    selectedIdRef.current = null;
+    selectedMarkerIdRef.current = marker.id;
+    setSelectedMarkerId(marker.id);
+    if (navigationStateRef.current.placeId !== null) {
+      commitNavigation(
+        { ...navigationWithCurrentView(), placeId: null },
+        'push',
+      );
+    }
+    const view = mapRef.current?.getView();
+    if (view) {
+      if (prefersReducedMotion()) {
+        view.setCenter([...marker.position]);
+      } else {
+        view.animate({ center: [...marker.position], duration: 180 });
+      }
+    }
+    return true;
+  };
+
   const selectRegion = (nextRegion: RegionFilter) => {
     const nextPlaceId = selectedPlace !== null &&
         nextRegion !== 'all' &&
@@ -1822,32 +1811,6 @@ function DatasetMapReady({
     }
   };
 
-  const selectCustomMarker = (marker: CustomMarkerRecord, origin: HTMLElement) => {
-    customMarkerCardFocus.remember(origin);
-    setPlacingMarker(false);
-    setSelectedId(null);
-    selectedMarkerIdRef.current = marker.id;
-    setSelectedMarkerId(marker.id);
-    selectedIdRef.current = null;
-    if (navigationStateRef.current.placeId !== null) {
-      commitNavigation(
-        { ...navigationWithCurrentView(), placeId: null },
-        'push',
-      );
-    }
-    const view = mapRef.current?.getView();
-    if (!view) {
-      return;
-    }
-    const nextZoom = Math.min(view.getMaxZoom(), Math.max(view.getZoom() ?? 0, 5));
-    if (prefersReducedMotion()) {
-      view.setCenter([...marker.position]);
-      view.setZoom(nextZoom);
-    } else {
-      view.animate({ center: [...marker.position], zoom: nextZoom, duration: 220 });
-    }
-  };
-
   const toggleMarkerPlacement = () => {
     if (userDataDisabledRef.current || markerSaveInFlightRef.current) {
       return;
@@ -1877,13 +1840,9 @@ function DatasetMapReady({
   };
 
   const closeSelectedCustomMarker = () => {
-    const markerId = selectedMarkerId;
     selectedMarkerIdRef.current = null;
     setSelectedMarkerId(null);
-    customMarkerCardFocus.restore(() =>
-      (markerId ? customMarkerButtonRefs.current.get(markerId) : null) ??
-        customMarkerHeadingRef.current,
-    );
+    customMarkerCardFocus.restore(() => targetRef.current);
   };
 
   const finishCustomMarkerDeletion = () => {
@@ -1891,7 +1850,7 @@ function DatasetMapReady({
     setSelectedMarkerId(null);
     customMarkerCardFocus.clear();
     window.requestAnimationFrame(() => {
-      customMarkerHeadingRef.current?.focus({ preventScroll: true });
+      targetRef.current?.focus({ preventScroll: true });
     });
   };
 
@@ -1925,15 +1884,24 @@ function DatasetMapReady({
 
   return (
     <main className="map-screen dataset-map-screen" aria-labelledby="map-title">
-      <MapTitlebar dataset={dataset} onBack={onBack} />
+      <MapTitlebar
+        dataset={dataset}
+        onBack={onBack}
+        tools={(
+          <DataTools
+            datasetId={dataset.datasetId}
+            datasetSnapshots={datasetSnapshots}
+            knownPlaceIds={knownPlaceIds}
+            locale={locale}
+            mode={bindingState.status === 'conflict' ? 'conflict-export-only' : 'read-write'}
+            disabled={bindingState.status !== 'conflict' && userDataDisabled}
+            variant="compact"
+          />
+        )}
+      />
 
       <section className="dataset-workspace">
         <aside className="map-ledger" aria-label={t('map.searchLabel')}>
-          <div className="ledger-heading">
-            <span>INDEX / 001–{places.length.toLocaleString('en-US')}</span>
-            <span className="locale-badge">EN</span>
-          </div>
-
           {bindingState.status === 'conflict' ? (
             <div className="user-data-state user-data-state--error" role="alert">
               <strong>{t('map.localDataConflict')}</strong>
@@ -2002,7 +1970,6 @@ function DatasetMapReady({
             typeCounts={typeCounts}
             statusCounts={statusCounts}
             activeAxisCount={activeFilterAxisCount}
-            matchingCount={visiblePlaces.length}
             statusesDisabled={!progressReadReady}
             onToggleType={toggleTypeFilter}
             onToggleStatus={toggleStatusFilter}
@@ -2012,96 +1979,7 @@ function DatasetMapReady({
             resetFocusRef={filterResetRef}
           />
 
-          <details className="ledger-data-tools">
-            <summary>{t('map.dataTools')}</summary>
-            <DataTools
-              datasetId={dataset.datasetId}
-              datasetSnapshots={datasetSnapshots}
-              knownPlaceIds={knownPlaceIds}
-              locale={locale}
-              mode={bindingState.status === 'conflict' ? 'conflict-export-only' : 'read-write'}
-              disabled={bindingState.status !== 'conflict' && userDataDisabled}
-            />
-          </details>
-
-          <div className="result-summary" aria-live="polite">
-            <span>{t('map.found', { count: visiblePlaces.length })}</span>
-            {query ? (
-              <strong>{t('map.searchResultCount', {
-                shown: results.length,
-                total: allResults.length,
-              })}</strong>
-            ) : null}
-          </div>
-
           <div className="place-results">
-            <section className="custom-marker-results" aria-labelledby="custom-marker-results-title">
-              <header>
-                <h2
-                  id="custom-marker-results-title"
-                  ref={customMarkerHeadingRef}
-                  tabIndex={-1}
-                >
-                  {t('map.personalMarkers')}
-                </h2>
-                <strong>{customMarkers.records.length}</strong>
-              </header>
-              <p className="custom-marker-scope">{t('map.personalMarkersGlobal')}</p>
-              {customMarkers.loading ? (
-                <p role="status">{t('map.personalMarkersLoading')}</p>
-              ) : customMarkers.error !== null ? (
-                <p>{t('map.personalMarkersUnavailable')}</p>
-              ) : customMarkers.records.length ? (
-                <ul>
-                  {customMarkers.records.map((marker) => (
-                    <li key={marker.id}>
-                      <button
-                        ref={(node) => {
-                          if (node) {
-                            customMarkerButtonRefs.current.set(marker.id, node);
-                          } else {
-                            customMarkerButtonRefs.current.delete(marker.id);
-                          }
-                        }}
-                        type="button"
-                        className={
-                          selectedMarkerId === marker.id
-                            ? 'place-result custom-marker-result place-result--selected'
-                            : 'place-result custom-marker-result'
-                        }
-                        aria-pressed={selectedMarkerId === marker.id}
-                        onClick={(event) => selectCustomMarker(marker, event.currentTarget)}
-                      >
-                        <StatusMark kind="custom" className="result-marker" />
-                        <span>
-                          <strong>{marker.label}</strong>
-                          <small>
-                            X {formatCoordinate(marker.position[0])} · Y{' '}
-                            {formatCoordinate(marker.position[1])}
-                          </small>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="empty-state empty-state--compact">
-                  <p>{t('map.noPersonalMarkers')}</p>
-                  <button
-                    type="button"
-                    disabled={userDataDisabled}
-                    onClick={() => {
-                      toggleMarkerPlacement();
-                      window.requestAnimationFrame(() => {
-                        targetRef.current?.focus({ preventScroll: true });
-                      });
-                    }}
-                  >
-                    {t('map.addMarker')}
-                  </button>
-                </div>
-              )}
-            </section>
             {results.length ? (
               results.map((place) => {
                 const status = progress.byPlaceId.get(place.id)?.status ?? 'unvisited';
@@ -2176,6 +2054,7 @@ function DatasetMapReady({
             data-view-x={viewState?.center[0]}
             data-view-y={viewState?.center[1]}
             data-view-z={viewState?.zoom}
+            data-custom-marker-count={customMarkers.records.length}
             data-visible-place-count={visiblePlaces.length}
             data-label-candidate-count={visiblePlaces.length}
             data-label-priority={labelPriorityOrder.join(',')}
@@ -2186,6 +2065,18 @@ function DatasetMapReady({
               ? 'map-keyboard-instructions marker-placement-hint'
               : 'map-keyboard-instructions'}
             onKeyDown={(event) => {
+              if (
+                !placingMarker &&
+                event.key.toLowerCase() === 'm' &&
+                !event.metaKey &&
+                !event.ctrlKey &&
+                !event.altKey
+              ) {
+                if (openNextCustomMarker()) {
+                  event.preventDefault();
+                }
+                return;
+              }
               if (!placingMarker || (event.key !== 'Enter' && event.key !== ' ')) {
                 return;
               }
@@ -2196,18 +2087,15 @@ function DatasetMapReady({
           />
 
           <p id="map-keyboard-instructions" className="visually-hidden">
-            Use arrow keys to pan the map and plus or minus to zoom.
+            Use arrow keys to pan the map and plus or minus to zoom. Press M to open the next personal marker.
           </p>
 
-          <div className="map-tools" role="group" aria-label={t('map.zoom')}>
+          <div className="map-tools" role="group" aria-label={t('map.controls')}>
             <button type="button" onClick={() => changeZoom(1)} aria-label={t('map.zoomIn')}>
-              <PixelIcon name="zoom-in" />
-            </button>
-            <button type="button" onClick={() => selectRegion('all')} aria-label={t('map.showWholeWorld')}>
-              <PixelIcon name="fit-map" />
+              <span className="map-tool-symbol" aria-hidden="true">+</span>
             </button>
             <button type="button" onClick={() => changeZoom(-1)} aria-label={t('map.zoomOut')}>
-              <PixelIcon name="zoom-out" />
+              <span className="map-tool-symbol" aria-hidden="true">−</span>
             </button>
             <button
               type="button"
@@ -2217,7 +2105,7 @@ function DatasetMapReady({
               aria-pressed={placingMarker}
               onClick={toggleMarkerPlacement}
             >
-              <PixelIcon name="marker-add" />
+              <StatusMark kind="custom" />
             </button>
           </div>
 
@@ -2285,7 +2173,6 @@ function DatasetMapReady({
               datasetId={dataset.datasetId}
               place={selectedPlace}
               locale={locale}
-              regionName={regionTitle(dataset, selectedPlace.place.regionId)}
               progress={progress.byPlaceId.get(selectedPlace.id)}
               disabled={userDataDisabled}
               onClose={closeSelectedPlace}
@@ -2303,22 +2190,6 @@ function DatasetMapReady({
           ) : null}
         </div>
       </section>
-
-      <footer className="map-statusbar" aria-label="Map status">
-        <span>
-          X&nbsp;<strong>{cursor ? formatCoordinate(cursor.world[0]) : '—'}</strong>
-        </span>
-        <span>
-          Y&nbsp;<strong>{cursor ? formatCoordinate(cursor.world[1]) : '—'}</strong>
-        </span>
-        <span>
-          CELL&nbsp;<strong>{cursor ? `${cursor.cell[0]}, ${cursor.cell[1]}` : '—, —'}</strong>
-        </span>
-        <span>{t('map.placesVisible', { count: visibleMarkerCount })}</span>
-        <span className="statusbar-zoom">
-          {t('map.zoom')}&nbsp;<strong>{zoom.toFixed(2)}</strong>
-        </span>
-      </footer>
     </main>
   );
 }
@@ -2328,7 +2199,6 @@ interface PlaceCardProps {
   readonly datasetId: string;
   readonly place: PlaceView;
   readonly locale: Locale;
-  readonly regionName: string;
   readonly progress: ProgressRecord | undefined;
   readonly disabled: boolean;
   readonly onClose: () => void;
@@ -2339,13 +2209,11 @@ function PlaceCard({
   datasetId,
   place,
   locale,
-  regionName,
   progress,
   disabled,
   onClose,
 }: PlaceCardProps) {
   const { t } = useTranslation();
-  const plugins = [...new Set(place.place.sources.map(({ plugin }) => plugin))].join(', ');
   return (
     <article
       ref={cardRef}
@@ -2363,37 +2231,7 @@ function PlaceCard({
       <button className="place-card-close" type="button" onClick={onClose} aria-label={t('map.closeCard')}>
         <PixelIcon name="close" />
       </button>
-      <span className="place-card-index">{t('map.cardIndex')}</span>
       <h2 id="selected-place-title">{place.name}</h2>
-      <dl>
-        <div>
-          <dt>{t('map.type')}</dt>
-          <dd>{t(`placeType.${place.place.type}`)}</dd>
-        </div>
-        <div>
-          <dt>{t('map.region')}</dt>
-          <dd>{regionName}</dd>
-        </div>
-        <div>
-          <dt>{t('map.cell')}</dt>
-          <dd>{place.place.exteriorCell.join(', ')}</dd>
-        </div>
-        <div>
-          <dt>{t('map.coordinates')}</dt>
-          <dd>
-            {formatCoordinate(place.place.mapPosition[0])} :{' '}
-            {formatCoordinate(place.place.mapPosition[1])}
-          </dd>
-        </div>
-        <div>
-          <dt>{t('map.entrances')}</dt>
-          <dd>{place.place.entrances.length}</dd>
-        </div>
-        <div>
-          <dt>{t('map.source')}</dt>
-          <dd>{plugins}</dd>
-        </div>
-      </dl>
       <PlaceProgressEditor
         key={`${datasetId}\0${place.id}`}
         datasetId={datasetId}

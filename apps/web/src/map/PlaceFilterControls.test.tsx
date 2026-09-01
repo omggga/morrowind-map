@@ -27,7 +27,6 @@ function renderControls(
     typeCounts: TYPE_COUNTS,
     statusCounts: STATUS_COUNTS,
     activeAxisCount: 0,
-    matchingCount: 11,
     onToggleType: vi.fn(),
     onToggleStatus: vi.fn(),
     onClearTypes: vi.fn(),
@@ -49,8 +48,8 @@ beforeAll(() => {
   i18n.addResourceBundle('en', 'translation', {
     map: {
       filters: 'Filters',
-      filterSummaryOne: '1 filter · {{count}} places',
-      filterSummaryMany: '{{active}} filters · {{count}} places',
+      filterSummaryOne: '1 active',
+      filterSummaryMany: '{{active}} active',
       typeFilters: 'Place types',
       statusFilters: 'Progress status',
       resetFilters: 'Reset filters',
@@ -67,7 +66,8 @@ describe('PlaceFilterControls', () => {
   it('renders only available place types with native filter groups and counts', () => {
     renderControls({ availableTypes: ['settlement', 'cave'] });
 
-    expect(screen.getByText('0 filters · 11 places')).toBeInTheDocument();
+    expect(screen.getByText('Filters')).toBeInTheDocument();
+    expect(screen.queryByText(/places/)).not.toBeInTheDocument();
     openDrawer();
 
     const typeGroup = screen.getByRole('group', { name: 'Place types' });
@@ -139,9 +139,9 @@ describe('PlaceFilterControls', () => {
 
     rerender(<PlaceFilterControls {...props} activeAxisCount={1} />);
     expect(reset).toBeEnabled();
-    expect(screen.getByText('1 filter · 11 places')).toBeInTheDocument();
+    expect(screen.getByText('1 active')).toBeInTheDocument();
     rerender(<PlaceFilterControls {...props} activeAxisCount={2} />);
-    expect(screen.getByText('2 filters · 11 places')).toBeInTheDocument();
+    expect(screen.getByText('2 active')).toBeInTheDocument();
     fireEvent.click(reset);
     expect(onReset).toHaveBeenCalledOnce();
   });

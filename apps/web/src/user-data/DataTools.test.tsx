@@ -59,6 +59,23 @@ describe('DataTools', () => {
     expect(screen.queryByText(/MIM/i)).not.toBeInTheDocument();
   });
 
+  it('renders compact header actions as icon-only controls with stable accessible names', () => {
+    const { container } = render(<DataTools {...props} variant="compact" />);
+
+    expect(screen.getByRole('heading', { name: 'Data and backups' })).toHaveClass(
+      'visually-hidden',
+    );
+    const exportButton = screen.getByRole('button', { name: 'Download JSON backup' });
+    expect(exportButton).toHaveAttribute('title', 'Download JSON backup');
+    expect(exportButton).toHaveTextContent('');
+    expect(exportButton.querySelector('[data-pixel-icon="export"]')).not.toBeNull();
+
+    const importInput = screen.getByLabelText('Import JSON backup');
+    const importLabel = container.querySelector(`label[for="${importInput.id}"]`);
+    expect(importLabel).toHaveAttribute('title', 'Import JSON backup');
+    expect(importLabel?.querySelector('[data-pixel-icon="import"]')).not.toBeNull();
+  });
+
   it('blocks duplicate export before the busy render and exposes an actionable retry', async () => {
     const operation = deferred<Awaited<ReturnType<typeof createPortableBackup>>>();
     vi.mocked(createPortableBackup).mockReturnValue(operation.promise);
@@ -83,12 +100,16 @@ describe('DataTools', () => {
   });
 
   it('disables and guards both backup actions when the parent is unavailable', () => {
-    render(<DataTools {...props} disabled />);
+    const { container } = render(<DataTools {...props} disabled />);
 
     const exportButton = screen.getByRole('button', { name: 'Download JSON backup' });
     const importInput = screen.getByLabelText('Import JSON backup');
     expect(exportButton).toBeDisabled();
     expect(importInput).toBeDisabled();
+    expect(container.querySelector(`label[for="${importInput.id}"]`)).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
 
     exportButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     fireEvent.change(importInput, {

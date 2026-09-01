@@ -1,11 +1,7 @@
 export const PIXEL_ICON_NAMES = [
-  'archive',
   'back',
-  'open',
-  'zoom-in',
-  'zoom-out',
-  'fit-map',
-  'marker-add',
+  'import',
+  'export',
   'close',
 ] as const;
 

@@ -10,6 +10,7 @@ import {
   expectNoViewportOverflow,
   installOfflineRoutes,
   openDataset,
+  waitForLandingReady,
   waitForVisualReady,
 } from './support';
 
@@ -63,6 +64,7 @@ test('pins landing and map layout across the viewport matrix', async ({ page }) 
   const probe = await installOfflineRoutes(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Choose a world' })).toBeVisible();
+  await waitForLandingReady(page);
   await expectNoViewportOverflow(page);
   await screenshot(page, 'landing.png');
 
@@ -81,10 +83,13 @@ test('pins both themes and the interactive state matrix', async ({ page }, testI
   await openDataset(page, ORIGINAL_CARD_NAME, ORIGINAL_HEADING);
   await waitForVisualReady(page);
   await screenshot(page, 'original-map.png');
-  await page.getByRole('button', { name: 'Versions' }).click();
+  await page.getByRole('button', { name: 'Back to maps' }).click();
 
   await page.getByRole('button', { name: POISON_CARD_NAME }).click();
   await waitForVisualReady(page);
+  await expect(page.locator('.marker-legend [data-marker-shape="hollow-square"]')).toHaveCount(4);
+  await expect(page.getByRole('button', { name: 'Zoom in' })).toHaveText('+');
+  await expect(page.getByRole('button', { name: 'Zoom out' })).toHaveText('−');
   const filters = page.locator('details.place-filter-drawer');
   await filters.locator('summary').click();
   await filters.getByRole('button', { name: /^Guild(?:\s|$)/ }).click();
@@ -102,10 +107,15 @@ test('pins both themes and the interactive state matrix', async ({ page }, testI
   await screenshot(page, 'selected-place.png');
 
   const progress = page.getByLabel('Place progress');
-  await progress.getByRole('button', { name: 'Active', exact: true }).click();
-  await progress.getByRole('textbox', { name: 'Personal note' }).fill('Return after sunset.');
-  await progress.getByRole('button', { name: 'Save note' }).click();
+  const personalNote = progress.getByRole('textbox', { name: 'Personal note' });
+  await personalNote.fill('Return after sunset.');
+  await personalNote.blur();
   await expect(progress.getByRole('status')).toHaveText('Saved.');
+  await progress.getByRole('button', { name: 'Active', exact: true }).click();
+  await expect(progress.getByRole('button', { name: 'Active', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await screenshot(page, 'selected-place-progress.png');
   await page.getByRole('button', { name: 'Close place card' }).click();
 
@@ -124,8 +134,9 @@ test('pins both themes and the interactive state matrix', async ({ page }, testI
   await markerEditor.getByRole('button', { name: 'Cancel' }).click();
   await page.getByRole('button', { name: 'Close personal marker card' }).click();
 
-  const dataTools = page.locator('details.ledger-data-tools');
-  await dataTools.locator('summary').click();
+  const dataTools = page.locator('.user-data-tools--compact');
+  await expect(dataTools.getByRole('button', { name: 'Download JSON backup' })).toBeVisible();
+  await expect(dataTools.getByTitle('Import JSON backup')).toBeVisible();
   await screenshot(page, 'data-tools.png');
 });
 
@@ -165,7 +176,7 @@ test('pins dataset-load failure, retry, and unpublished state', async ({ page },
   await waitForVisualReady(page);
   await screenshot(page, 'dataset-retried.png');
 
-  await page.getByRole('button', { name: 'Versions' }).click();
+  await page.getByRole('button', { name: 'Back to maps' }).click();
   await page.unrouteAll({ behavior: 'wait' });
   await installOfflineRoutes(page, { blockOriginalManifest: true });
   await page.reload();
@@ -198,16 +209,15 @@ test('supports a real keyboard-only primary workflow and focus return', async ({
   await tabTo(page, result);
   await page.keyboard.press('Enter');
   await expect(page.locator('article.place-card')).toBeFocused();
-  const activeStatus = page.getByLabel('Place progress').getByRole('button', { name: 'Active', exact: true });
-  await tabTo(page, activeStatus);
-  await page.keyboard.press('Space');
-  await expect(activeStatus).toHaveAttribute('aria-pressed', 'true');
   const note = page.getByRole('textbox', { name: 'Personal note' });
   await tabTo(page, note);
   await page.keyboard.type('Keyboard route.');
-  const saveNote = page.getByRole('button', { name: 'Save note' });
-  await tabTo(page, saveNote);
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Place progress').getByRole('status')).toHaveText('Saved.');
+  const activeStatus = page.getByLabel('Place progress').getByRole('button', { name: 'Active', exact: true });
+  await tabTo(page, activeStatus, { reverse: true });
+  await page.keyboard.press('Space');
+  await expect(activeStatus).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Escape');
   await expect(result).toBeFocused();
 
@@ -241,12 +251,15 @@ test('supports a real keyboard-only primary workflow and focus return', async ({
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Keyboard marker' })).toHaveCount(0);
 
-  const dataTools = page.locator('details.ledger-data-tools > summary');
-  await tabTo(page, dataTools, { reverse: true });
-  await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: 'Data and backups' })).toBeVisible();
-  const versions = page.getByRole('button', { name: 'Versions' });
-  await tabTo(page, versions, { reverse: true });
+  const compactDataTools = page.locator('.user-data-tools--compact');
+  const importData = compactDataTools.getByLabel('Import JSON backup');
+  await tabTo(page, importData, { reverse: true });
+  await expect(importData).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(compactDataTools.getByRole('button', { name: 'Download JSON backup' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  const back = page.getByRole('button', { name: 'Back to maps' });
+  await expect(back).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(originalCard).toBeFocused();
 });
@@ -271,7 +284,9 @@ test('exposes minimum targets and supports touch pan, zoom, and tap', async ({ p
   await installOfflineRoutes(page);
   await openDataset(page, POISON_CARD_NAME, POISON_HEADING);
   await waitForVisualReady(page);
-  const undersized = await page.locator('button:visible, summary:visible, input:visible, textarea:visible').evaluateAll((elements) =>
+  const undersized = await page.locator(
+    'button:visible, summary:visible, input:visible:not([type="file"]), textarea:visible',
+  ).evaluateAll((elements) =>
     elements.flatMap((element) => {
       const rect = element.getBoundingClientRect();
       return rect.width + 0.01 < 24 || rect.height + 0.01 < 24
@@ -284,13 +299,12 @@ test('exposes minimum targets and supports touch pan, zoom, and tap', async ({ p
   const map = page.getByLabel('Interactive map in TES3 world coordinates');
   const box = await map.boundingBox();
   if (!box) throw new Error('Map has no touchable bounding box');
-  const zoom = page.getByLabel('Map status').locator('.statusbar-zoom strong');
-  const beforeZoom = Number(await zoom.innerText());
+  const beforeZoom = Number(await map.getAttribute('data-view-z'));
   const zoomIn = page.getByRole('button', { name: 'Zoom in' });
   await zoomIn.tap();
   await zoomIn.tap();
   await zoomIn.tap();
-  await expect.poll(async () => Number(await zoom.innerText())).toBeGreaterThan(beforeZoom);
+  await expect.poll(async () => Number(await map.getAttribute('data-view-z'))).toBeGreaterThan(beforeZoom);
 
   const beforeCenter = {
     x: Number(await map.getAttribute('data-view-x')),
@@ -350,7 +364,7 @@ test('has no unwaived WCAG 2.2 AA or severe best-practice violations', async ({ 
   await page.getByLabel('Custom marker').getByRole('button', { name: 'Delete marker' }).click();
   await expectWcagClean(page, 'custom-marker delete confirmation');
 
-  await page.getByRole('button', { name: 'Versions' }).click();
+  await page.getByRole('button', { name: 'Back to maps' }).click();
   await page.getByRole('button', { name: POISON_CARD_NAME }).click();
   await waitForVisualReady(page);
   await expectWcagClean(page, 'Poison Song map');

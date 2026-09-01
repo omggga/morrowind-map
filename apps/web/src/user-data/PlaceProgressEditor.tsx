@@ -210,7 +210,7 @@ export function PlaceProgressEditor({
       setFeedback({
         placeKey,
         tone: 'error',
-        text: strings.operationFailed(errorText(error), strings.saveNote),
+        text: strings.noteSaveFailed(errorText(error)),
       });
     } finally {
       finishSave(operation);
@@ -266,9 +266,6 @@ export function PlaceProgressEditor({
             void persistNote(note);
           }}
         />
-        <button type="submit" disabled={isDisabled}>
-          {strings.saveNote}
-        </button>
       </form>
 
       {currentFeedback ? (

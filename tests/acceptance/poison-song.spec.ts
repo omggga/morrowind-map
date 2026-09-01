@@ -553,18 +553,19 @@ async function hasPaintedBasemap(page: Page): Promise<boolean> {
   return false;
 }
 
-async function cursorCoordinatesAtMapCenter(page: Page): Promise<string> {
-  const map = page.getByLabel('Interactive map in TES3 world coordinates');
-  const box = await map.boundingBox();
-  if (!box) {
-    throw new Error('Map canvas has no visible bounding box');
-  }
-  const x = box.x + box.width / 2;
-  const y = box.y + box.height / 2;
-  await page.mouse.move(x + 1, y);
-  await page.mouse.move(x, y);
-  const values = await page.getByLabel('Map status').locator('strong').allTextContents();
-  return values.slice(0, 2).join(',');
+async function currentMapView(page: Page): Promise<{
+  readonly x: number;
+  readonly y: number;
+  readonly zoom: number;
+}> {
+  return mapCanvas(page).evaluate((element) => {
+    const target = element as HTMLElement;
+    return {
+      x: Number(target.dataset.viewX),
+      y: Number(target.dataset.viewY),
+      zoom: Number(target.dataset.viewZ),
+    };
+  });
 }
 
 function relativePageUrl(page: Page): string {
@@ -587,14 +588,7 @@ async function expectMapView(
   const map = page.getByLabel('Interactive map in TES3 world coordinates');
   await expect(map).toBeVisible();
   await expect.poll(async () => {
-    const view = await map.evaluate((element) => {
-      const target = element as HTMLElement;
-      return {
-        x: Number(target.dataset.viewX),
-        y: Number(target.dataset.viewY),
-        zoom: Number(target.dataset.viewZ),
-      };
-    });
+    const view = await currentMapView(page);
     return [
       Number.isFinite(view.x) && Math.abs(view.x - expectedX) <= 1,
       Number.isFinite(view.y) && Math.abs(view.y - expectedY) <= 1,
@@ -683,7 +677,7 @@ test('keeps the open filter drawer in mobile ledger flow', async ({ page }) => {
 
   const geometry = await page.evaluate(() => {
     const body = document.querySelector<HTMLElement>('.place-filter-drawer__body');
-    const followingRow = document.querySelector<HTMLElement>('.ledger-data-tools');
+    const followingRow = document.querySelector<HTMLElement>('.place-results');
     if (!body || !followingRow) {
       return null;
     }
@@ -724,6 +718,7 @@ test('loads the Stage 7.3 visual system entirely from local assets', async ({ pa
       .filter(({ pathname }) => pathname.endsWith('.woff2'))
       .map(({ origin, pathname }) => ({ origin, pathname })),
     icons: [...document.querySelectorAll<SVGElement>('[data-pixel-icon]')].map((icon) => ({
+      name: icon.dataset.pixelIcon,
       hidden: icon.getAttribute('aria-hidden'),
       focusable: icon.getAttribute('focusable'),
       width: getComputedStyle(icon).width,
@@ -739,12 +734,16 @@ test('loads the Stage 7.3 visual system entirely from local assets', async ({ pa
   expect(visualSystem.fontResources.length).toBeGreaterThanOrEqual(3);
   expect(visualSystem.fontResources.every(({ origin }) => origin === new URL(page.url()).origin))
     .toBe(true);
-  expect(visualSystem.icons.length).toBeGreaterThanOrEqual(5);
+  expect(visualSystem.icons.map(({ name }) => name).sort()).toEqual([
+    'back',
+    'export',
+    'import',
+  ]);
   expect(visualSystem.icons.every(({ hidden, focusable }) =>
     hidden === 'true' && focusable === 'false'
   )).toBe(true);
   expect(visualSystem.icons.every(({ width, height }) => width === height)).toBe(true);
-  expect(visualSystem.markerShapes).toHaveLength(4);
+  expect(visualSystem.markerShapes).toEqual(['hollow-square']);
   expect(probe.externalRequests).toEqual([]);
   expect(probe.localFailures).toEqual([]);
 });
@@ -956,6 +955,7 @@ test('uses push history for semantic states and replace history for camera movem
   const poisonCard = page.getByRole('button', { name: POISON_CARD_NAME });
   await poisonCard.click();
   await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back to maps' })).toBeVisible();
   await expect.poll(() => historyLength(page)).toBe(landingHistoryLength + 1);
 
   const mainland = page.getByRole('button', { name: 'TR Mainland', exact: true });
@@ -1008,6 +1008,10 @@ test('uses push history for semantic states and replace history for camera movem
   await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
   await expectRelativeUrl(page, finalPlaceUrl);
   expect(await historyLength(page)).toBe(cameraHistoryLength);
+
+  await page.getByRole('button', { name: 'Back to maps' }).click();
+  await expect(page.getByRole('heading', { name: 'Choose a world' })).toBeVisible();
+  await expect.poll(() => historyLength(page)).toBe(cameraHistoryLength + 1);
   expect(probe.externalRequests).toEqual([]);
 });
 
@@ -1028,21 +1032,21 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   const activeStatus = progress.getByRole('button', { name: 'Active' });
   await activeStatus.click();
   await expect(activeStatus).toHaveAttribute('aria-pressed', 'true');
-  await progress.getByRole('textbox', { name: 'Personal note' }).fill('Return after sunset.');
-  await progress.getByRole('button', { name: 'Save note' }).click();
+  const note = progress.getByRole('textbox', { name: 'Personal note' });
+  await note.fill('Return after sunset.');
+  await note.blur();
   await expect(progress.getByRole('status')).toHaveText('Saved.');
 
-  const zoomValue = page.getByLabel('Map status').locator('.statusbar-zoom strong');
-  const zoomBefore = Number(await zoomValue.innerText());
+  const zoomBefore = (await currentMapView(page)).zoom;
   await page.getByRole('button', { name: 'Zoom in' }).click();
-  await expect.poll(async () => Number(await zoomValue.innerText())).toBeGreaterThan(zoomBefore);
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBeGreaterThan(zoomBefore);
   await page.getByRole('button', { name: 'Close place card' }).click();
 
   const map = page.getByLabel('Interactive map in TES3 world coordinates');
-  const coordinatesBeforePan = await cursorCoordinatesAtMapCenter(page);
+  const xBeforePan = (await currentMapView(page)).x;
   await map.focus();
   await map.press('ArrowRight');
-  await expect.poll(() => cursorCoordinatesAtMapCenter(page)).not.toBe(coordinatesBeforePan);
+  await expect.poll(async () => (await currentMapView(page)).x).not.toBe(xBeforePan);
 
   await page.locator('button.add-marker-tool').click();
   await map.focus();
@@ -1052,23 +1056,18 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   await markerEditor.getByRole('textbox', { name: 'Personal note' }).fill('Hidden cache.');
   await markerEditor.getByRole('button', { name: 'Save marker' }).click();
   await expect(markerEditor.getByRole('status')).toHaveText('Saved.');
-  await expect(
-    page.getByRole('region', { name: 'Personal markers' }).getByRole('button', {
-      name: /^Field note pin/,
-    }),
-  ).toBeVisible();
+  await expect(markerEditor.getByRole('textbox', { name: 'Marker name' })).toHaveValue(
+    'Field note pin',
+  );
+  await expect(markerEditor.getByRole('textbox', { name: 'Personal note' })).toHaveValue(
+    'Hidden cache.',
+  );
+  await expect(map).toHaveAttribute('data-custom-marker-count', '1');
   await page.getByRole('button', { name: 'Vvardenfell', exact: true }).click();
   await openFilterDrawer(page);
   await typeFilterButton(page, 'Cave').click();
   await statusFilterButton(page, 'Visited').click();
-  await expect(
-    page.getByRole('region', { name: 'Personal markers' }).getByRole('button', {
-      name: /^Field note pin/,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByText('Personal markers ignore catalog filters and map section selection.'),
-  ).toBeVisible();
+  await expect(map).toHaveAttribute('data-custom-marker-count', '1');
   await page.locator('button.place-filter-reset').click();
 
   await page.reload();
@@ -1084,11 +1083,10 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   );
   await page.getByRole('button', { name: 'Close place card' }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has('place')).toBe(false);
-  const persistedMarker = page
-    .getByRole('region', { name: 'Personal markers' })
-    .getByRole('button', { name: /^Field note pin/ });
-  await expect(persistedMarker).toBeVisible();
-  await persistedMarker.click();
+  const reloadedMap = mapCanvas(page);
+  await expect(reloadedMap).toHaveAttribute('data-custom-marker-count', '1');
+  await reloadedMap.focus();
+  await reloadedMap.press('m');
   const reloadedMarkerEditor = page.getByLabel('Custom marker');
   await expect(reloadedMarkerEditor.getByRole('textbox', { name: 'Marker name' })).toHaveValue(
     'Field note pin',
@@ -1291,21 +1289,21 @@ test('@prepared renders and searches the complete local Original HD dataset', as
   const visitedStatus = progress.getByRole('button', { name: 'Visited', exact: true });
   await visitedStatus.click();
   await expect(visitedStatus).toHaveAttribute('aria-pressed', 'true');
-  await progress.getByRole('textbox', { name: 'Personal note' }).fill('Original route cleared.');
-  await progress.getByRole('button', { name: 'Save note' }).click();
+  const note = progress.getByRole('textbox', { name: 'Personal note' });
+  await note.fill('Original route cleared.');
+  await note.blur();
   await expect(progress.getByRole('status')).toHaveText('Saved.');
 
-  const zoomValue = page.getByLabel('Map status').locator('.statusbar-zoom strong');
-  const zoomBefore = Number(await zoomValue.innerText());
+  const zoomBefore = (await currentMapView(page)).zoom;
   await page.getByRole('button', { name: 'Zoom in' }).click();
-  await expect.poll(async () => Number(await zoomValue.innerText())).toBeGreaterThan(zoomBefore);
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBeGreaterThan(zoomBefore);
   await page.getByRole('button', { name: 'Close place card' }).click();
 
   const map = page.getByLabel('Interactive map in TES3 world coordinates');
-  const coordinatesBeforePan = await cursorCoordinatesAtMapCenter(page);
+  const xBeforePan = (await currentMapView(page)).x;
   await map.focus();
   await map.press('ArrowRight');
-  await expect.poll(() => cursorCoordinatesAtMapCenter(page)).not.toBe(coordinatesBeforePan);
+  await expect.poll(async () => (await currentMapView(page)).x).not.toBe(xBeforePan);
 
   await page.locator('button.add-marker-tool').click();
   await map.focus();
@@ -1315,6 +1313,13 @@ test('@prepared renders and searches the complete local Original HD dataset', as
   await markerEditor.getByRole('textbox', { name: 'Personal note' }).fill('Base-game only.');
   await markerEditor.getByRole('button', { name: 'Save marker' }).click();
   await expect(markerEditor.getByRole('status')).toHaveText('Saved.');
+  await expect(markerEditor.getByRole('textbox', { name: 'Marker name' })).toHaveValue(
+    'Original field pin',
+  );
+  await expect(markerEditor.getByRole('textbox', { name: 'Personal note' })).toHaveValue(
+    'Base-game only.',
+  );
+  await expect(map).toHaveAttribute('data-custom-marker-count', '1');
 
   await page.reload();
   await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
@@ -1330,11 +1335,7 @@ test('@prepared renders and searches the complete local Original HD dataset', as
   await expect(reloadedProgress.getByRole('textbox', { name: 'Personal note' })).toHaveValue(
     'Original route cleared.',
   );
-  await expect(
-    page
-      .getByRole('region', { name: 'Personal markers' })
-      .getByRole('button', { name: /^Original field pin/ }),
-  ).toBeVisible();
+  await expect(mapCanvas(page)).toHaveAttribute('data-custom-marker-count', '1');
 
   expect(probe.tileRequests.every((path) => path.includes(ORIGINAL_INVENTORY))).toBe(true);
   expect(probe.externalRequests).toEqual([]);

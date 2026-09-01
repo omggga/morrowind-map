@@ -5,13 +5,13 @@ import {
   loadDatasets,
   type DatasetLoadIssue,
 } from './data/loadDatasets';
+import { LandingMapBackdrop } from './map/LandingMapBackdrop';
 import { Tes3Map } from './map/Tes3Map';
 import {
   readMapUrl,
   writeMapUrl,
   type MapUrlState,
 } from './navigation/mapUrlState';
-import { PixelIcon } from './ui/PixelIcon';
 
 type LoadState =
   | { readonly status: 'loading' }
@@ -52,6 +52,22 @@ function mapUrlStatesEqual(left: MapUrlState, right: MapUrlState): boolean {
         left.view.center[0] === right.view.center[0] &&
         left.view.center[1] === right.view.center[1] &&
         left.view.zoom === right.view.zoom));
+}
+
+function landingChoices(datasets: readonly DatasetManifest[]): readonly DatasetManifest[] {
+  const original = datasets.find(({ mapKey }) => mapKey === 'original');
+  const tamrielRebuilt = datasets.find(({ mapKey }) => mapKey === 'tamriel-rebuilt');
+  return [original, tamrielRebuilt].filter(
+    (dataset): dataset is DatasetManifest => dataset !== undefined,
+  );
+}
+
+function landingBackdropDataset(
+  datasets: readonly DatasetManifest[],
+): DatasetManifest | null {
+  return datasets.find(({ mapKey }) => mapKey === 'tamriel-rebuilt') ??
+    datasets.find(({ mapKey }) => mapKey === 'original') ??
+    null;
 }
 
 export function App() {
@@ -248,161 +264,137 @@ export function App() {
     );
   }
 
+  const availableChoices = loadState.status === 'ready'
+    ? landingChoices(loadState.datasets)
+    : [];
+  const backdropDataset = loadState.status === 'ready'
+    ? landingBackdropDataset(loadState.datasets)
+    : null;
+
   return (
-    <main className="archive-shell">
-      <header className="window-titlebar archive-titlebar">
-        <div className="application-mark" aria-hidden="true">
-          <PixelIcon name="archive" />
-        </div>
-        <div>
-          <span className="titlebar-kicker">LOCAL CARTOGRAPHIC LOG</span>
-          <h1>Morrowind Map Archive</h1>
-        </div>
-        <span className="titlebar-state">OFFLINE</span>
-      </header>
+    <main className="landing-screen">
+      <LandingMapBackdrop
+        key={backdropDataset === null
+          ? 'fallback'
+          : `${backdropDataset.datasetId}:${backdropDataset.snapshotId}`}
+        dataset={backdropDataset}
+      />
+      <div className="landing-atmosphere" aria-hidden="true" />
+      <section className="landing-content" aria-labelledby="landing-heading">
+        <h1
+          id="landing-heading"
+          className="landing-heading"
+          ref={landingHeadingRef}
+          tabIndex={-1}
+        >
+          Choose a world
+        </h1>
 
-      <section className="archive-intro" aria-labelledby="archive-heading">
-        <p className="section-index">MAP ARCHIVE / 01</p>
-        <h2 id="archive-heading" ref={landingHeadingRef} tabIndex={-1}>Choose a world</h2>
-        <p>
-          Two isolated English datasets: the original Morrowind, Tribunal and Bloodmoon world,
-          and the current Tamriel Rebuilt Poison Song release. Each map keeps its own places and
-          progress.
-        </p>
-      </section>
+        {loadState.status === 'loading' ? (
+          <div className="load-panel" role="status">
+            <span className="load-indicator" aria-hidden="true" />
+            {loadIsSlow
+              ? 'Reading manifests… This is taking longer than usual.'
+              : 'Reading manifests…'}
+          </div>
+        ) : null}
 
-      {loadState.status === 'loading' ? (
-        <div className="load-panel" role="status">
-          <span className="load-indicator" aria-hidden="true" />
-          {loadIsSlow ? 'Reading manifests… This is taking longer than usual.' : 'Reading manifests…'}
-        </div>
-      ) : null}
-
-      {loadState.status === 'error' ? (
-        <div className="error-panel" role="alert" aria-busy={loadState.retrying}>
-          <span>DATA ERROR</span>
-          <p>{loadState.message}</p>
-          <button
-            ref={retryButtonRef}
-            type="button"
-            disabled={loadState.retrying}
-            onClick={retryDatasets}
-          >
-            {loadState.retrying ? 'Retrying…' : 'Retry'}
-          </button>
-        </div>
-      ) : null}
-
-      {loadState.status === 'ready' ? (
-        <>
-          {loadState.issues.length > 0 ? (
-            <div
-              className="error-panel error-panel--partial"
-              role="alert"
-              aria-busy={loadState.retrying}
+        {loadState.status === 'error' ? (
+          <div className="error-panel" role="alert" aria-busy={loadState.retrying}>
+            <span>DATA ERROR</span>
+            <p>{loadState.message}</p>
+            <button
+              ref={retryButtonRef}
+              type="button"
+              disabled={loadState.retrying}
+              onClick={retryDatasets}
             >
-              <span>PARTIAL CATALOG</span>
-              <p>
-                {loadState.issues.length === 1
-                  ? 'One map manifest is unavailable. The available map remains usable.'
-                  : `${loadState.issues.length} map manifests are unavailable. Available maps remain usable.`}
-              </p>
-              {loadState.retrying && loadIsSlow ? (
-                <p>The manifest retry is still in progress.</p>
-              ) : null}
-              <ul>
-                {loadState.issues.map((issue) => (
-                  <li key={`${issue.datasetId}\0${issue.manifestUrl}`}>
-                    <strong>{issue.datasetId}</strong>: {issue.message}
-                  </li>
-                ))}
-              </ul>
-              <button
-                ref={retryButtonRef}
-                type="button"
-                disabled={loadState.retrying}
-                onClick={retryDatasets}
-              >
-                {loadState.retrying ? 'Retrying…' : 'Retry unavailable maps'}
-              </button>
-            </div>
-          ) : null}
-          <section className="dataset-grid" aria-label="Available maps">
-            {loadState.datasets.map((dataset) => {
-            const presentation = presentDataset(dataset);
+              {loadState.retrying ? 'Retrying…' : 'Retry'}
+            </button>
+          </div>
+        ) : null}
 
-            return (
-              <button
-                key={dataset.datasetId}
-                ref={(node) => {
-                  if (
-                    node &&
-                    shouldReturnFocusRef.current &&
-                    returnFocusIdRef.current === dataset.datasetId
-                  ) {
-                    node.focus();
-                    shouldReturnFocusRef.current = false;
-                  }
-                }}
-                className={`dataset-card dataset-card--${presentation.tone}`}
-                type="button"
-                data-dataset-id={dataset.datasetId}
-                onClick={(event) => {
-                  const datasetId = event.currentTarget.dataset.datasetId ?? dataset.datasetId;
-                  returnFocusIdRef.current = datasetId;
-                  commitNavigationState(
-                    {
-                      datasetId,
-                      regionId: 'all',
-                      view: null,
-                      placeId: null,
-                      typeFilters: [],
-                      statusFilters: [],
-                    },
-                    'push',
-                  );
-                }}
-                aria-label={`Open map: ${presentation.title}`}
+        {loadState.status === 'ready' ? (
+          <>
+            {loadState.issues.length > 0 ? (
+              <div
+                className="error-panel error-panel--partial"
+                role="alert"
+                aria-busy={loadState.retrying}
               >
-                <span className="card-rail" aria-hidden="true">
-                  {presentation.plate}
-                </span>
-                <span className="card-body">
-                  <span className="card-metadata">
-                    <span>{presentation.era}</span>
-                    <span>{presentation.scope}</span>
-                  </span>
-                  <span className="card-heading">{presentation.title}</span>
-                  <span className="card-summary">{presentation.summary}</span>
-                  <span className="card-survey" aria-hidden="true">
-                    <i className="survey-axis survey-axis--x" />
-                    <i className="survey-axis survey-axis--y" />
-                    <i className="survey-origin" />
-                  </span>
-                  <span className="card-footer">
-                    <span className="dataset-language">EN</span>
-                    <span className={`readiness readiness--${presentation.readiness}`}>
-                      {presentation.readiness}
-                    </span>
-                  </span>
-                  <span className="snapshot-id" title={dataset.snapshotId}>
-                    {dataset.snapshotId}
-                  </span>
-                </span>
-                <span className="open-cue" aria-hidden="true">
-                  OPEN <PixelIcon name="open" />
-                </span>
-              </button>
-            );
-            })}
-          </section>
-        </>
-      ) : null}
+                <span>PARTIAL CATALOG</span>
+                <p>
+                  {loadState.issues.length === 1
+                    ? 'One map manifest is unavailable. The available map remains usable.'
+                    : `${loadState.issues.length} map manifests are unavailable. Available maps remain usable.`}
+                </p>
+                {loadState.retrying && loadIsSlow ? (
+                  <p>The manifest retry is still in progress.</p>
+                ) : null}
+                <ul>
+                  {loadState.issues.map((issue) => (
+                    <li key={`${issue.datasetId}\0${issue.manifestUrl}`}>
+                      <strong>{issue.datasetId}</strong>: {issue.message}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  ref={retryButtonRef}
+                  type="button"
+                  disabled={loadState.retrying}
+                  onClick={retryDatasets}
+                >
+                  {loadState.retrying ? 'Retrying…' : 'Retry unavailable maps'}
+                </button>
+              </div>
+            ) : null}
+            <section className="landing-choice-list" aria-label="Available maps">
+              {availableChoices.map((dataset) => {
+                const presentation = presentDataset(dataset);
 
-      <footer className="archive-footer">
-        <span>ENTER — open</span>
-        <span>data: /datasets/index.json</span>
-      </footer>
+                return (
+                  <button
+                    key={dataset.datasetId}
+                    ref={(node) => {
+                      if (
+                        node &&
+                        shouldReturnFocusRef.current &&
+                        returnFocusIdRef.current === dataset.datasetId
+                      ) {
+                        node.focus();
+                        shouldReturnFocusRef.current = false;
+                      }
+                    }}
+                    className="dataset-choice"
+                    type="button"
+                    data-dataset-id={dataset.datasetId}
+                    onClick={(event) => {
+                      const datasetId = event.currentTarget.dataset.datasetId ?? dataset.datasetId;
+                      returnFocusIdRef.current = datasetId;
+                      commitNavigationState(
+                        {
+                          datasetId,
+                          regionId: 'all',
+                          view: null,
+                          placeId: null,
+                          typeFilters: [],
+                          statusFilters: [],
+                        },
+                        'push',
+                      );
+                    }}
+                    aria-label={`Open map: ${presentation.title}`}
+                  >
+                    <span className="dataset-choice__kind">{presentation.kind}</span>
+                    <span className="dataset-choice__title">{presentation.title}</span>
+                    <span className="dataset-choice__arrow" aria-hidden="true">→</span>
+                  </button>
+                );
+              })}
+            </section>
+          </>
+        ) : null}
+      </section>
     </main>
   );
 }

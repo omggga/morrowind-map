@@ -9,7 +9,7 @@ function colorToken(name: string): string {
   if (!match?.[1]) {
     throw new Error(`Missing color token --${name}`);
   }
-  return match[1];
+  return match[1].toLowerCase();
 }
 
 function relativeLuminance(hex: string): number {
@@ -30,21 +30,31 @@ function contrast(left: string, right: string): number {
     (Math.min(leftLuminance, rightLuminance) + 0.05);
 }
 
-describe('Stage 7.3 design tokens', () => {
+describe('Dunmer atlas design tokens', () => {
   it.each([
-    ['text-strong', 'ash'],
-    ['text-body', 'ash'],
-    ['text-muted', 'ash'],
-    ['text-subtle', 'ash'],
-    ['paper-ink', 'paper'],
-    ['paper-muted', 'paper'],
-    ['focus-dark', 'ash'],
-    ['focus-paper', 'paper'],
-    ['text-muted', 'control-surface'],
-    ['paper-ink', 'paper-control'],
-    ['paper-positive', 'paper'],
-    ['paper-error', 'paper'],
-  ])('keeps %s on %s at WCAG AA contrast', (foreground, background) => {
+    ['ui-void', '#090806'],
+    ['ui-panel', '#1b1710'],
+    ['ui-brass', '#8c7344'],
+    ['ui-gold', '#d6b96f'],
+    ['book-paper', '#d9c79c'],
+    ['book-ink', '#241b10'],
+    ['mim-unvisited', '#f6e27d'],
+    ['mim-active', '#e88bea'],
+    ['mim-visited', '#e9a15b'],
+    ['mim-custom', '#78db78'],
+  ])('pins --%s to %s', (token, expected) => {
+    expect(colorToken(token)).toBe(expected);
+  });
+
+  it.each([
+    ['ui-gold', 'ui-void'],
+    ['ui-gold', 'ui-panel'],
+    ['book-ink', 'book-paper'],
+  ])('keeps normal text token %s on %s at WCAG AA contrast', (foreground, background) => {
     expect(contrast(colorToken(foreground), colorToken(background))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('keeps brass structural lines distinguishable from the dark panel', () => {
+    expect(contrast(colorToken('ui-brass'), colorToken('ui-panel'))).toBeGreaterThanOrEqual(3);
   });
 });

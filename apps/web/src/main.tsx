@@ -4,6 +4,7 @@ import '@fontsource-variable/alegreya/wght.css';
 import '@fontsource-variable/atkinson-hyperlegible-next/wght.css';
 import '@fontsource/ibm-plex-mono/latin-400.css';
 import '@fontsource/ibm-plex-mono/latin-500.css';
+import displayFontUrl from '@fontsource-variable/alegreya/files/alegreya-latin-wght-normal.woff2?url';
 import uiFontUrl from '@fontsource-variable/atkinson-hyperlegible-next/files/atkinson-hyperlegible-next-latin-wght-normal.woff2?url';
 import dataFontUrl from '@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2?url';
 import 'ol/ol.css';
@@ -21,6 +22,7 @@ function preloadFont(href: string): void {
   document.head.append(link);
 }
 
+preloadFont(displayFontUrl);
 preloadFont(uiFontUrl);
 preloadFont(dataFontUrl);
 

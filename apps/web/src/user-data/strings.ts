@@ -14,7 +14,7 @@ interface UserDataStrings {
   readonly placeProgress: string;
   readonly status: string;
   readonly note: string;
-  readonly saveNote: string;
+  readonly noteSaveFailed: (detail: string) => string;
   readonly saved: string;
   readonly customMarker: string;
   readonly label: string;
@@ -43,7 +43,8 @@ const EN: UserDataStrings = {
   placeProgress: 'Place progress',
   status: 'Status',
   note: 'Personal note',
-  saveNote: 'Save note',
+  noteSaveFailed: (detail) =>
+    `The note could not be saved: ${detail}. Edit it or move focus away to try again.`,
   saved: 'Saved.',
   customMarker: 'Custom marker',
   label: 'Marker name',

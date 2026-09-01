@@ -2,33 +2,18 @@ import type { DatasetManifest } from '@morrowind-map/contracts';
 import { describe, expect, it } from 'vitest';
 import { presentDataset } from './datasetPresentation';
 
-function tamrielRebuiltManifest(
-  name: string,
-  version: string,
-): DatasetManifest {
+function manifest(mapKey: DatasetManifest['mapKey'], title: string): DatasetManifest {
   return {
-    mapKey: 'tamriel-rebuilt',
-    release: { name, version, build: null },
-    title: { en: `Tamriel Rebuilt ${version} — ${name}` },
-    summary: { en: 'Tamriel Rebuilt mainland map.' },
-    readiness: {
-      status: 'ready',
-      exactProfile: true,
-      blockers: [],
-      warnings: [],
-    },
+    mapKey,
+    title: { en: title },
   } as unknown as DatasetManifest;
 }
 
 describe('presentDataset', () => {
-  it('derives Tamriel Rebuilt labels from release metadata', () => {
-    const presentation = presentDataset(tamrielRebuiltManifest('Next Release', '27.01'));
-
-    expect(presentation).toMatchObject({
-      plate: '02',
-      era: 'TR · 27.01',
-      scope: 'Next Release',
-      tone: 'brass',
-    });
+  it.each([
+    ['original', 'Classic', 'Morrowind Game of the Year — HD'],
+    ['tamriel-rebuilt', 'Tamriel Rebuilt', 'Tamriel Rebuilt 27.01 — Next Release'],
+  ] as const)('presents %s as a flat landing choice', (mapKey, kind, title) => {
+    expect(presentDataset(manifest(mapKey, title))).toEqual({ kind, title });
   });
 });

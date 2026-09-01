@@ -10,6 +10,7 @@ import {
   importPortableBackup,
   type BackupImportResult,
 } from '../storage/userData';
+import { PixelIcon } from '../ui/PixelIcon';
 import { getUserDataStrings } from './strings';
 
 const MAX_BACKUP_FILE_BYTES = 10 * 1024 * 1024;
@@ -31,6 +32,7 @@ export interface DataToolsProps {
   readonly onBackupImport?: (result: BackupImportResult) => void;
   readonly disabled?: boolean;
   readonly mode?: 'read-write' | 'conflict-export-only';
+  readonly variant?: 'panel' | 'compact';
 }
 
 function errorDetail(error: unknown): string {
@@ -59,6 +61,7 @@ export function DataTools({
   onBackupImport,
   disabled = false,
   mode = 'read-write',
+  variant = 'panel',
 }: DataToolsProps) {
   const strings = getUserDataStrings(locale);
   const headingId = useId();
@@ -68,6 +71,7 @@ export function DataTools({
   const activeOperationRef = useRef<number | null>(null);
   const [busy, setBusy] = useState<BusyOperation>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const compact = variant === 'compact';
   const isDisabled = disabled || busy !== null;
   const importDisabled = isDisabled || mode === 'conflict-export-only';
 
@@ -162,17 +166,41 @@ export function DataTools({
 
   return (
     <section
-      className={['user-data-tools', className].filter(Boolean).join(' ')}
+      className={[
+        'user-data-tools',
+        compact ? 'user-data-tools--compact' : '',
+        className,
+      ].filter(Boolean).join(' ')}
       aria-labelledby={headingId}
       aria-busy={busy !== null}
     >
-      <h2 id={headingId}>{strings.dataToolsTitle}</h2>
+      <h2 id={headingId} className={compact ? 'visually-hidden' : undefined}>
+        {strings.dataToolsTitle}
+      </h2>
       <div className="user-data-tools__actions">
-        <button type="button" disabled={isDisabled} onClick={() => void exportJson()}>
-          {busy === 'export' ? strings.exporting : strings.exportJson}
+        <button
+          type="button"
+          disabled={isDisabled}
+          onClick={() => void exportJson()}
+          {...(compact ? { 'aria-label': strings.exportJson, title: strings.exportJson } : {})}
+        >
+          {compact ? (
+            <PixelIcon name="export" />
+          ) : busy === 'export' ? strings.exporting : strings.exportJson}
         </button>
 
-        <label htmlFor={backupInputId}>{strings.importJson}</label>
+        <label
+          htmlFor={backupInputId}
+          aria-disabled={importDisabled}
+          {...(compact ? { title: strings.importJson } : {})}
+        >
+          {compact ? (
+            <>
+              <PixelIcon name="import" />
+              <span className="visually-hidden">{strings.importJson}</span>
+            </>
+          ) : strings.importJson}
+        </label>
         <input
           id={backupInputId}
           type="file"
@@ -181,7 +209,9 @@ export function DataTools({
           disabled={importDisabled}
           onChange={(event) => void importJsonFile(event)}
         />
-        <small id={backupHintId}>{busy === 'backup' ? strings.importing : strings.importJsonHint}</small>
+        <small id={backupHintId} className={compact ? 'visually-hidden' : undefined}>
+          {busy === 'backup' ? strings.importing : strings.importJsonHint}
+        </small>
       </div>
 
       {feedbackText ? (

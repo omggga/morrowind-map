@@ -63,6 +63,15 @@ vi.mock('./map/Tes3Map', () => ({
   ),
 }));
 
+vi.mock('./map/LandingMapBackdrop', () => ({
+  LandingMapBackdrop: ({ dataset }: { dataset: { datasetId: string } | null }) => (
+    <div
+      data-testid="landing-backdrop"
+      data-dataset-id={dataset?.datasetId ?? 'fallback'}
+    />
+  ),
+}));
+
 const indexFixture = {
   schemaVersion: 1,
   defaultDatasetId: 'original-goty-hd',
@@ -126,6 +135,13 @@ describe('App dataset workflow', () => {
 
     await screen.findByRole('button', { name: 'Open map: Original GOTY HD' });
     expect(screen.getAllByRole('button', { name: /Open map:/ })).toHaveLength(2);
+    expect(screen.getByTestId('landing-backdrop')).toHaveAttribute(
+      'data-dataset-id',
+      'poison-song',
+    );
+    expect(screen.getByText('Classic')).toHaveClass('dataset-choice__kind');
+    expect(screen.getByText('Tamriel Rebuilt')).toHaveClass('dataset-choice__kind');
+    expect(screen.queryByText('LOCAL CARTOGRAPHIC LOG')).not.toBeInTheDocument();
 
     const datasets = [
       { card: 'Open map: Original GOTY HD', heading: 'Original GOTY HD' },
@@ -300,6 +316,10 @@ describe('App dataset workflow', () => {
     expect(alert).toHaveTextContent('poison-song');
     expect(screen.getByRole('button', { name: 'Open map: Original GOTY HD' }))
       .toBeInTheDocument();
+    expect(screen.getByTestId('landing-backdrop')).toHaveAttribute(
+      'data-dataset-id',
+      'original-goty-hd',
+    );
     expect(window.location.search).toBe(directUrl);
 
     const retry = screen.getByRole('button', { name: 'Retry unavailable maps' });

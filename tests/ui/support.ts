@@ -391,6 +391,10 @@ export async function openDataset(
   await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
 }
 
+export async function waitForLandingReady(page: Page): Promise<void> {
+  await expect(page.locator('.landing-map-backdrop')).toHaveAttribute('data-ready', 'true');
+}
+
 export async function waitForVisualReady(page: Page): Promise<void> {
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('.archive-screen, .map-screen')).toBeVisible();
