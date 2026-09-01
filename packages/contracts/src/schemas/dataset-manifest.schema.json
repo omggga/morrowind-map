@@ -28,7 +28,7 @@
       "$ref": "#/$defs/datasetId"
     },
     "mapKey": {
-      "enum": ["original", "poison-song"]
+      "enum": ["original", "tamriel-rebuilt"]
     },
     "snapshotId": {
       "type": "string",
@@ -528,7 +528,7 @@
     "artifacts": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["locations", "locales", "tiles", "mimImport"],
+      "required": ["locations", "locales", "tiles"],
       "properties": {
         "locations": {
           "anyOf": [
@@ -557,9 +557,6 @@
               "type": "null"
             }
           ]
-        },
-        "mimImport": {
-          "type": "null"
         },
         "catalogAudit": {
           "anyOf": [

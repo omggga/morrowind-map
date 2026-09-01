@@ -7,7 +7,7 @@ import {
   loadDataset,
 } from '../data/loadDataset';
 import { i18n } from '../i18n';
-import { DatasetMap } from './DatasetMap';
+import { DatasetMap, MapTitlebar } from './DatasetMap';
 
 vi.mock('../data/loadDataset', () => {
   class MissingError extends Error {
@@ -27,7 +27,7 @@ vi.mock('../data/loadDataset', () => {
 
 const dataset = {
   datasetId: 'poison-song-26.08',
-  mapKey: 'poison-song',
+  mapKey: 'tamriel-rebuilt',
   snapshotId: 'tr:poison-song-26.08:test',
   title: { en: 'Poison Song 26.08' },
   localization: {
@@ -43,6 +43,16 @@ const navigationState = {
   typeFilters: [],
   statusFilters: [],
 } as const;
+
+describe('MapTitlebar', () => {
+  afterEach(cleanup);
+
+  it('uses the stable compact TR family label', () => {
+    render(<MapTitlebar dataset={dataset} onBack={vi.fn()} />);
+
+    expect(screen.getByText('TR / TES3:WORLD')).toHaveClass('titlebar-kicker');
+  });
+});
 
 describe('DatasetMap loading states', () => {
   beforeEach(async () => {

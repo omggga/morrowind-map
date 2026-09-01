@@ -47,14 +47,6 @@
       },
       "kind": "exterior",
       "status": "available"
-    },
-    {
-      "id": "mournhold",
-      "title": {
-        "en": "Mournhold"
-      },
-      "kind": "interior-inset",
-      "status": "planned"
     }
   ],
   "profile": {
@@ -123,7 +115,7 @@
         "id": "tribunal",
         "status": "enabled",
         "notes": [
-          "Tribunal assets are available, but Mournhold requires a separate interior inset instead of false exterior coordinates."
+          "Tribunal records and assets are part of the fixed GOTY input profile."
         ]
       },
       {
@@ -176,20 +168,16 @@
       "mediaType": "application/json",
       "sha256": "46312ba10205a32b47cec07e7d609234646925a7c8ebe9ba0ecb6afb988ab207",
       "bytes": 7907
-    },
-    "mimImport": null
+    }
   },
   "provenance": {
     "kind": "generated",
     "notes": [
-      "The isolated source profile contains only the pinned English Morrowind, Tribunal and Bloodmoon ESM/BSA files; Tamriel Data, Tamriel Rebuilt, Fullrest and loose assets are excluded fail-closed.",
-      "The quality-first V4 WebP pyramid contains 2,114 sparse z0-z7 tiles and is bound to stabilized inventory aade4b98c2fb905fd2617871345292a638e3a4a25c6d036db7a3cc18bb2dd014.",
-      "Full audit 44f722800682e23be1ded7dedf27d5eae19a94864b834e92b488a53ae6c7b4a0 passed all tile, pyramid, seam, resource, coordinate and independent raw-rerender gates.",
+      "The isolated source profile contains only the pinned English Morrowind, Tribunal and Bloodmoon ESM/BSA files; mod data and loose assets are excluded fail-closed.",
+      "The sparse z0-z7 basemap is bound to stabilized inventory aade4b98c2fb905fd2617871345292a638e3a4a25c6d036db7a3cc18bb2dd014 and its passing quality report.",
       "The deterministic English catalog contains 1,036 places and 1,205 entrances and is bound to inventory 6ea0c0a0272f6c8456a947c9dc36bac5116a9cd524cc4b351fdad867cf3e0df1.",
       "Generated game-derived tiles and catalogs remain local ignored artifacts; Git contains compact integrity metadata and audit evidence."
     ],
-    "knownIssues": [
-      "Mournhold is interior topology and is deferred to a separate inset pipeline."
-    ]
+    "knownIssues": []
   }
 }

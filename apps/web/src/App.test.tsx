@@ -79,6 +79,10 @@ function manifestFixture(datasetId: string, mapKey: string, title: string) {
     snapshotId: `${datasetId}:fixture`,
     title: { en: title },
     summary: { en: `${title} summary` },
+    release:
+      mapKey === 'tamriel-rebuilt'
+        ? { name: 'Poison Song', version: '26.08', build: '26.08.23' }
+        : { name: 'Morrowind Game of the Year Edition', version: '1.6.1820', build: null },
     readiness: { status: 'placeholder', exactProfile: false },
     localization: { locales: [{ locale: 'en' }] },
     map: {
@@ -95,7 +99,7 @@ function manifestFixture(datasetId: string, mapKey: string, title: string) {
 
 const manifests = [
   manifestFixture('original-goty-hd', 'original', 'Original GOTY HD'),
-  manifestFixture('poison-song', 'poison-song', 'Poison Song 26.08'),
+  manifestFixture('poison-song', 'tamriel-rebuilt', 'Poison Song 26.08'),
 ];
 
 describe('App dataset workflow', () => {

@@ -359,8 +359,6 @@ def production_image_info(
     expected_labels = {
         "org.opencontainers.image.revision": OPENMW_COMMIT,
         "io.morrowind-map.stage": "5",
-        "io.morrowind-map.dataset": DATASET_ID,
-        "io.morrowind-map.snapshot": SNAPSHOT_ID,
         "io.morrowind-map.production-fingerprint": expected_source_fingerprint,
         "io.morrowind-map.scene-grid": "5x5",
         "io.morrowind-map.rtt-grid": "3x3",
@@ -1937,14 +1935,14 @@ def _add_runtime_identity(parser: argparse.ArgumentParser) -> None:
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[2]
-    parser = argparse.ArgumentParser(description="Stage 5 Poison Song production renderer")
+    parser = argparse.ArgumentParser(description="Tamriel Rebuilt production renderer")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     plan = subparsers.add_parser("plan", help="Derive and print the immutable coverage/shard plan")
     _add_source_and_cells(plan, repo_root)
     plan.add_argument("--output-plan", type=Path)
 
-    build = subparsers.add_parser("build", help="Build the incremental Stage 5 OpenMW image")
+    build = subparsers.add_parser("build", help="Build the release-independent OpenMW image")
     build.add_argument("--image", default=DEFAULT_PRODUCTION_IMAGE)
     build.add_argument("--stage45-image", default=DEFAULT_STAGE45_IMAGE)
 

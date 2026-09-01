@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools.catalog_pipeline.catalog import _aliases, validate_catalog_bundle
+from tools.catalog_pipeline.tes3 import PluginInput
 from tools.catalog_pipeline.poison import (
     AUDIT_VERSION,
     DATASET_ID,
@@ -15,6 +16,7 @@ from tools.catalog_pipeline.poison import (
     _canonical_json_bytes,
     _implementation_audit,
     _json_file_bytes,
+    _known_master_size_exception,
     _publish_tree,
     _sha256_bytes,
     validate_catalog,
@@ -28,6 +30,36 @@ class CatalogDeterminismTests(unittest.TestCase):
 
         self.assertEqual(forward, reverse)
         self.assertEqual(forward, ["ÄFoo"])
+
+    def test_master_size_exception_is_explicit_and_hash_bound(self) -> None:
+        dependent = PluginInput("TR_Mainland.esm", Path("TR_Mainland.esm"), "a" * 64)
+        master = PluginInput("Tamriel_Data.esm", Path("Tamriel_Data.esm"), "b" * 64)
+        exception = {
+            "dependentSha256": dependent.sha256,
+            "masterSha256": master.sha256,
+            "advertisedBytes": 10,
+            "actualBytes": 11,
+            "reason": "fixture-mast-size",
+        }
+
+        with patch("tools.catalog_pipeline.poison.MASTER_SIZE_EXCEPTIONS", (exception,)):
+            self.assertEqual(
+                _known_master_size_exception(
+                    dependent=dependent,
+                    master=master,
+                    advertised_size=10,
+                    actual_size=11,
+                ),
+                "fixture-mast-size",
+            )
+            self.assertIsNone(
+                _known_master_size_exception(
+                    dependent=dependent,
+                    master=master,
+                    advertised_size=10,
+                    actual_size=12,
+                )
+            )
 
 
 class PoisonCatalogValidationTests(unittest.TestCase):

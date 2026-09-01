@@ -9,6 +9,8 @@ export default tseslint.config(
     ignores: [
       '**/dist/**',
       '**/coverage/**',
+      'playwright-report/**',
+      'test-results/**',
       'local-data/**',
       '**/node_modules/**',
       '**/*.tsbuildinfo',

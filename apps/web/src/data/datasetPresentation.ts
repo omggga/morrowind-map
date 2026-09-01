@@ -9,19 +9,21 @@ interface DatasetCopy {
   readonly tone: DatasetTone;
 }
 
-const DATASET_COPY: Record<string, DatasetCopy> = {
-  original: {
+type DatasetCopyFactory = (manifest: DatasetManifest) => DatasetCopy;
+
+const DATASET_COPY: Record<string, DatasetCopyFactory> = {
+  original: () => ({
     plate: '01',
     era: 'GOTY · 2003',
     scope: 'Vvardenfell / Solstheim',
     tone: 'ash',
-  },
-  'poison-song': {
+  }),
+  'tamriel-rebuilt': (manifest) => ({
     plate: '02',
-    era: 'TR · 26.08',
-    scope: 'Poison Song',
+    era: `TR · ${manifest.release.version}`,
+    scope: manifest.release.name,
     tone: 'brass',
-  },
+  }),
 };
 
 const FALLBACK_COPY: DatasetCopy = {
@@ -38,7 +40,7 @@ export interface DatasetPresentation extends DatasetCopy {
 }
 
 export function presentDataset(manifest: DatasetManifest): DatasetPresentation {
-  const copy = DATASET_COPY[manifest.mapKey] ?? FALLBACK_COPY;
+  const copy = DATASET_COPY[manifest.mapKey]?.(manifest) ?? FALLBACK_COPY;
 
   return {
     ...copy,

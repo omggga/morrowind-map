@@ -23,8 +23,6 @@ RUN chmod 0755 /usr/local/bin/morrowind-map-openmw-production
 LABEL org.opencontainers.image.title="morrowind-map OpenMW production exporter" \
       org.opencontainers.image.revision="f4bec41444214a7903bebd178389ca22ca13f646" \
       io.morrowind-map.stage="5" \
-      io.morrowind-map.dataset="poison-song-26.08" \
-      io.morrowind-map.snapshot="tr:poison-song-26.08:6964517551e0fcb0" \
       io.morrowind-map.stage45-image-id="${STAGE45_IMAGE_ID}" \
       io.morrowind-map.production-fingerprint="${PRODUCTION_FINGERPRINT}" \
       io.morrowind-map.scene-grid="5x5" \

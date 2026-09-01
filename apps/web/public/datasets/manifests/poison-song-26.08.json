@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "datasetId": "poison-song-26.08",
-  "mapKey": "poison-song",
+  "mapKey": "tamriel-rebuilt",
   "snapshotId": "tr:poison-song-26.08:6964517551e0fcb0",
   "title": {
     "en": "Tamriel Rebuilt 26.08 — Poison Song"
@@ -55,14 +55,6 @@
       },
       "kind": "exterior",
       "status": "available"
-    },
-    {
-      "id": "mournhold",
-      "title": {
-        "en": "Mournhold"
-      },
-      "kind": "interior-inset",
-      "status": "planned"
     }
   ],
   "profile": {
@@ -221,22 +213,16 @@
       "mediaType": "application/json",
       "sha256": "082e83f0e8f32e4041736767524bed30010af2ddb3fa1e9e7dd7f0cd47cf078c",
       "bytes": 12890
-    },
-    "mimImport": null
+    }
   },
   "provenance": {
     "kind": "generated",
     "notes": [
-      "Extent and center were derived from the effective LAND cell union of the pinned GOTY, Tamriel Data 26.08 and TR 26.08 metadata.",
-      "The activated quality-first V4 WebP pyramid contains 5,464 sparse z0-z7 tiles and is bound to inventory 93758a5e645013821d99a7989d69f3e4aa39373e2c5cb4b97873da421c5052b2.",
-      "The full quality audit passed all tile, pyramid, cross-shard seam, raw-renderer, resource, coordinate and reproducibility gates.",
+      "Extent and center are derived from the effective LAND cell union of the pinned GOTY, Tamriel Data 26.08 and TR 26.08 inputs.",
+      "The sparse z0-z7 basemap is bound to inventory 93758a5e645013821d99a7989d69f3e4aa39373e2c5cb4b97873da421c5052b2 and its passing quality report.",
       "The generic TES3 catalog contains 4,085 places and 4,902 entrances, with complete English coverage, and is bound to inventory 3acf616265926d55c254c961e256cc4ab71aaba23f4dc18d9d368813f0490d3a.",
-      "The catalog audit proves exact five-plugin load order, override and deletion semantics, stable identifiers, deterministic grouping and byte-identical regeneration.",
-      "Generated game-derived tiles remain local ignored artifacts; Git contains compact integrity metadata and audit evidence.",
-      "A future Russian catalog is added to this dataset rather than creating a fourth map version."
+      "Generated game-derived tiles remain local ignored artifacts; Git contains compact integrity metadata and audit evidence."
     ],
-    "knownIssues": [
-      "Mournhold still needs an interior graph or inset contract."
-    ]
+    "knownIssues": []
   }
 }

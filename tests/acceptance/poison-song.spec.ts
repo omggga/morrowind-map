@@ -2,6 +2,11 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
+import {
+  loadTrCandidateFromEnvironment,
+  loadTrCandidatePreparedAssets,
+} from './tr-candidate';
+
 const DATASET_ID = 'poison-song-26.08';
 const SNAPSHOT_ID = 'tr:poison-song-26.08:6964517551e0fcb0';
 const V4_INVENTORY =
@@ -34,6 +39,10 @@ const SYNTHETIC_TILE = Buffer.from(
   'UklGRh4AAABXRUJQVlA4TBEAAAAvB8ABAAfQvK5Vqv+BiOh/AAA=',
   'base64',
 );
+const trCandidate = loadTrCandidateFromEnvironment();
+const trCandidatePreparedAssets = trCandidate
+  ? loadTrCandidatePreparedAssets(trCandidate)
+  : null;
 
 const locationsFixture = {
   schemaVersion: 1,
@@ -251,6 +260,30 @@ const directUrlFixtures: readonly DirectUrlFixture[] = [
   },
 ];
 
+const preparedDirectUrlFixtures: readonly DirectUrlFixture[] = trCandidatePreparedAssets
+  ? [
+      {
+        label: trCandidate!.manifest.title.en,
+        url:
+          `/?dataset=${trCandidate!.manifest.datasetId}` +
+          `&region=${trCandidatePreparedAssets.selectedRegionId}` +
+          `&x=${trCandidatePreparedAssets.selectedPlace.mapPosition[0]}` +
+          `&y=${trCandidatePreparedAssets.selectedPlace.mapPosition[1]}` +
+          `&z=${trCandidatePreparedAssets.zoom}` +
+          `&place=${trCandidatePreparedAssets.selectedPlace.id}`,
+        heading: trCandidate!.manifest.title.en,
+        regionName: trCandidatePreparedAssets.selectedRegionName,
+        placeName: trCandidatePreparedAssets.selectedPlaceName,
+        view: [
+          trCandidatePreparedAssets.selectedPlace.mapPosition[0],
+          trCandidatePreparedAssets.selectedPlace.mapPosition[1],
+          trCandidatePreparedAssets.zoom,
+        ],
+      },
+      directUrlFixtures[1]!,
+    ]
+  : directUrlFixtures;
+
 interface FilterAcceptanceFixture {
   readonly label: string;
   readonly url: string;
@@ -382,6 +415,22 @@ async function installOfflineRoutes(
     }
 
     const { pathname } = url;
+    if (trCandidate && pathname === '/datasets/index.json') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: trCandidate.indexJson,
+      });
+      return;
+    }
+    if (trCandidate && pathname === trCandidate.manifestUrl) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: trCandidate.manifestJson,
+      });
+      return;
+    }
     if (
       blockOriginalManifest &&
       pathname === `/datasets/manifests/${ORIGINAL_DATASET_ID}.json`
@@ -1099,7 +1148,7 @@ test('shows a non-retryable missing state for an unpublished dataset', async ({ 
   expect(probe.externalRequests).toEqual([]);
 });
 
-for (const fixture of directUrlFixtures) {
+for (const fixture of preparedDirectUrlFixtures) {
   test(`@prepared recovers the real ${fixture.label} bundle without losing its URL`, async ({ page }) => {
     test.skip(
       process.env.MORROWIND_ACCEPTANCE_PREPARED !== '1',
@@ -1146,34 +1195,56 @@ for (const fixture of directUrlFixtures) {
   });
 }
 
-test('@prepared renders the complete local V4 catalog and tile pyramid', async ({ page }) => {
+test('@prepared renders the complete current TR catalog and tile pyramid', async ({ page }) => {
   test.skip(
     process.env.MORROWIND_ACCEPTANCE_PREPARED !== '1',
-    'Run pnpm test:acceptance:prepared when the ignored V4 payload is available.',
+    'Run pnpm test:acceptance:prepared when the prepared TR payload is available.',
   );
-  const preparedRoot = join(
-    process.cwd(),
-    'apps/web/public/datasets/generated',
-    DATASET_ID,
-    V4_INVENTORY,
-  );
-  expect(existsSync(join(preparedRoot, 'tiles'))).toBe(true);
+  const preparedRoot = trCandidatePreparedAssets
+    ? trCandidatePreparedAssets.tilesRoot
+    : join(
+        process.cwd(),
+        'apps/web/public/datasets/generated',
+        DATASET_ID,
+        V4_INVENTORY,
+        'tiles',
+      );
+  expect(existsSync(preparedRoot)).toBe(true);
 
   const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
-  const fixture = directUrlFixtures[0]!;
+  const fixture = preparedDirectUrlFixtures[0]!;
   await page.goto(fixture.url);
   await expectDirectUrlState(page, fixture);
   await openFilterDrawer(page);
   // Facet counts remain contextual to the deep-linked region and current zoom.
-  await expect(typeFilterButton(page, 'Any type')).toContainText('3,052');
+  const anyTypeCount = trCandidatePreparedAssets?.anyTypeCount ?? 3_052;
+  await expect(typeFilterButton(page, 'Any type')).toHaveText(
+    `Any type ${anyTypeCount.toLocaleString('en-US')}`,
+  );
   await expect.poll(async () =>
     Number(await mapCanvas(page).getAttribute('data-label-candidate-count')),
   ).toBeGreaterThan(0);
-  await page.getByRole('searchbox', { name: 'Find a place' }).fill(PLACE_NAME);
-  await expect(page.getByRole('button', { name: new RegExp(`^${PLACE_NAME}`) })).toBeVisible();
+  const expectedPlaceName = trCandidatePreparedAssets?.selectedPlaceName ?? PLACE_NAME;
+  await page.getByRole('searchbox', { name: 'Find a place' }).fill(expectedPlaceName);
+  if (trCandidatePreparedAssets) {
+    await expect(page.locator('button.place-result--selected')).toContainText(
+      expectedPlaceName,
+    );
+  } else {
+    await expect(
+      page.getByRole('button', { name: new RegExp(`^${expectedPlaceName}`) }),
+    ).toBeVisible();
+  }
   await expect.poll(() => probe.tileRequests.length).toBeGreaterThan(0);
   await expect.poll(() => hasPaintedBasemap(page)).toBe(true);
-  expect(probe.tileRequests.every((path) => path.includes(V4_INVENTORY))).toBe(true);
+  expect(
+    probe.tileRequests.every((path) =>
+      trCandidatePreparedAssets
+        ? path.startsWith(trCandidatePreparedAssets.tileRequestPrefix) &&
+          path.includes(`/${trCandidatePreparedAssets.tileInventorySha256}/`)
+        : path.includes(V4_INVENTORY),
+    ),
+  ).toBe(true);
   expect(probe.externalRequests).toEqual([]);
   expect(probe.localFailures).toEqual([]);
 });

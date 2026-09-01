@@ -348,6 +348,8 @@ class BatchProcessContractTests(unittest.TestCase):
         self.assertIn('io.morrowind-map.scene-grid="5x5"', dockerfile)
         self.assertIn('io.morrowind-map.rtt-grid="3x3"', dockerfile)
         self.assertIn('io.morrowind-map.stage45-image-id="${STAGE45_IMAGE_ID}"', dockerfile)
+        self.assertNotIn("io.morrowind-map.dataset", dockerfile)
+        self.assertNotIn("io.morrowind-map.snapshot", dockerfile)
         self.assertIn("production_renderer=openmw-export-production-v2", dockerfile)
         self.assertIn("MWMAP_EXPORT_BATCH_FILE is required", entrypoint)
         self.assertIn("/sys/fs/cgroup/memory.peak", entrypoint)

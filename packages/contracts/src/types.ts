@@ -8,7 +8,7 @@ export type DatasetSchemaVersion = typeof DATASET_SCHEMA_VERSION;
 export type Tes3ProjectionCode = typeof TES3_PROJECTION_CODE;
 export type Tes3CellSize = typeof TES3_CELL_SIZE;
 export type Locale = "en";
-export type MapKey = "original" | "poison-song";
+export type MapKey = "original" | "tamriel-rebuilt";
 export type DatasetReadiness = "placeholder" | "blocked" | "ready";
 export type LocaleStatus = "available" | "partial" | "planned" | "unavailable";
 export type RegionKind = "exterior" | "interior-inset";
@@ -166,8 +166,6 @@ export interface DatasetArtifacts {
   locations: ArtifactReference | null;
   locales: LocaleArtifactReference[];
   tiles: TileSetReference | null;
-  /** Deprecated manifest slot retained as null for the immutable Poison Song manifest. */
-  mimImport: null;
   catalogAudit?: ArtifactReference | null;
 }
 

@@ -115,6 +115,15 @@ interface DatasetMapProps extends MapTitlebarProps {
   ) => void;
 }
 
+const MAP_TITLEBAR_FAMILY_LABELS: Record<DatasetManifest['mapKey'], string> = {
+  original: 'ORIGINAL',
+  'tamriel-rebuilt': 'TR',
+};
+
+function formatMapTitlebarKicker(mapKey: DatasetManifest['mapKey']): string {
+  return `${MAP_TITLEBAR_FAMILY_LABELS[mapKey]} / TES3:WORLD`;
+}
+
 type RegionFilter = string;
 
 type LoadState =
@@ -462,7 +471,7 @@ export function DatasetMap({
   );
 }
 
-function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
+export function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
   const { t } = useTranslation();
   return (
     <header className="window-titlebar map-titlebar">
@@ -471,7 +480,7 @@ function MapTitlebar({ dataset, onBack }: MapTitlebarProps) {
         {t('map.versions')}
       </button>
       <div className="map-title-copy">
-        <span className="titlebar-kicker">{dataset.mapKey.toUpperCase()} / TES3:WORLD</span>
+        <span className="titlebar-kicker">{formatMapTitlebarKicker(dataset.mapKey)}</span>
         <h1 id="map-title">{dataset.title.en}</h1>
       </div>
       <span className="titlebar-state">{t('map.local')}</span>

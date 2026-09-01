@@ -130,6 +130,16 @@ EXPECTED_EXCLUSIONS = {
     "exteriorDestinationPolicy": 10,
     "unreachableInteriorCells": 1314,
 }
+EXPECTED_DROPPED = {"exteriorDestinationPolicy": 10}
+MASTER_SIZE_EXCEPTIONS = (
+    {
+        "dependentSha256": "661c96c6aa5e517d897f8b9de93c814d2aca16fd17b6e4ce7869486e3737064b",
+        "masterSha256": "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f",
+        "advertisedBytes": 17_200_101,
+        "actualBytes": 17_199_325,
+        "reason": "tr-mainland-tamriel-data-26.08-size-metadata",
+    },
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,14 +225,15 @@ def _known_master_size_exception(
     advertised_size: int | None,
     actual_size: int,
 ) -> str | None:
-    expected = (
-        "661c96c6aa5e517d897f8b9de93c814d2aca16fd17b6e4ce7869486e3737064b",
-        "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f",
-        17_200_101,
-        17_199_325,
-    )
-    actual = (dependent.sha256, master.sha256, advertised_size, actual_size)
-    return "tr-mainland-tamriel-data-26.08-size-metadata" if actual == expected else None
+    for exception in MASTER_SIZE_EXCEPTIONS:
+        if (
+            exception["dependentSha256"] == dependent.sha256
+            and exception["masterSha256"] == master.sha256
+            and exception["advertisedBytes"] == advertised_size
+            and exception["actualBytes"] == actual_size
+        ):
+            return str(exception["reason"])
+    return None
 
 
 def _input_audit(world: EffectiveWorld, source_root: Path) -> list[dict[str, object]]:
@@ -411,12 +422,12 @@ def build_poison_catalog(
     _require_expected_counts(world.counts, EXPECTED_WORLD_COUNTS, "world")
     _require_expected_counts(build.counts, EXPECTED_CATALOG_COUNTS, "catalog")
     _require_expected_counts(build.resolution, EXPECTED_RESOLUTION_COUNTS, "resolution")
-    if build.dropped != {"exteriorDestinationPolicy": 10}:
+    if build.dropped != EXPECTED_DROPPED:
         raise ValueError(f"Pinned catalog exclusions changed: {build.dropped}")
 
     diagnostics = _catalog_artifact_metrics(build.locations, build.english)
     if not diagnostics["allCoordinatesWithinManifestExtent"]:
-        raise ValueError("Catalog coordinate falls outside the Poison Song manifest extent")
+        raise ValueError("Catalog coordinate falls outside the release manifest extent")
     _require_expected_counts(diagnostics, EXPECTED_CATALOG_COUNTS, "artifact catalog")
     _require_expected_counts(diagnostics, EXPECTED_REGION_COUNTS, "region")
     for key, value in build.counts.items():
@@ -510,7 +521,7 @@ def validate_catalog(root: Path) -> ValidatedCatalog:
     audit, audit_bytes = _read_canonical_json(root / "catalog-audit.json", "Catalog audit")
     for label, value in (("locations", locations), ("English locale", english), ("audit", audit)):
         if value.get("datasetId") != DATASET_ID or value.get("snapshotId") != SNAPSHOT_ID:
-            raise ValueError(f"{label} dataset identity does not match Poison Song")
+            raise ValueError(f"{label} dataset identity does not match the TR release")
     if english.get("locale") != "en":
         raise ValueError("English locale artifact has the wrong locale")
     if audit.get("auditVersion") != AUDIT_VERSION or audit.get("passes") is not True:
@@ -700,7 +711,7 @@ def prepare_catalog(
 
 
 def _parser(repo_root: Path) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Build and publish the Poison Song EN catalog")
+    parser = argparse.ArgumentParser(description="Build and publish the Tamriel Rebuilt EN catalog")
     subparsers = parser.add_subparsers(dest="command", required=True)
     default_build = repo_root / "local-data/catalog-production" / DATASET_ID
     build = subparsers.add_parser("build")

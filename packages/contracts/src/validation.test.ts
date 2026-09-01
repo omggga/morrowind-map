@@ -77,7 +77,6 @@ describe("public dataset fixtures", () => {
       sha256: "46312ba10205a32b47cec07e7d609234646925a7c8ebe9ba0ecb6afb988ab207",
       bytes: 7907,
     });
-    expect(manifest.artifacts.mimImport).toBeNull();
   });
 
   it("pins Original HD to the isolated English GOTY ESM/BSA profile", () => {
@@ -143,7 +142,7 @@ describe("public dataset fixtures", () => {
     }
   });
 
-  it("publishes only English for Poison Song without creating another dataset", () => {
+  it("publishes the current Tamriel Rebuilt release as the shared TR map family", () => {
     const manifest = parseDatasetManifest(poisonSongFixture);
     const catalogInventory =
       "3acf616265926d55c254c961e256cc4ab71aaba23f4dc18d9d368813f0490d3a";
@@ -156,6 +155,7 @@ describe("public dataset fixtures", () => {
       coverage: 1,
     });
     expect(manifest.datasetId).toBe("poison-song-26.08");
+    expect(manifest.mapKey).toBe("tamriel-rebuilt");
     expect(manifest.readiness).toMatchObject({
       status: "ready",
       exactProfile: true,
@@ -188,6 +188,17 @@ describe("public dataset fixtures", () => {
       sha256: "082e83f0e8f32e4041736767524bed30010af2ddb3fa1e9e7dd7f0cd47cf078c",
       bytes: 12_890,
     });
+  });
+
+  it("rejects the retired release-specific Poison Song map family", () => {
+    const invalid = structuredClone(poisonSongFixture);
+    invalid.mapKey = "poison-song";
+
+    expect(getDatasetManifestValidationIssues(invalid)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ instancePath: "/mapKey", keyword: "enum" }),
+      ]),
+    );
   });
 });
 

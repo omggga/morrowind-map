@@ -27,7 +27,7 @@ class SourceInput:
 
 
 # The exact English GOTY input allowlist.  No Tamriel Data, Tamriel Rebuilt,
-# Fullrest, loose asset, or optional plugin path is accepted by this profile.
+# No loose asset or optional plugin path is accepted by this profile.
 SOURCE_INPUTS = (
     SourceInput(
         "morrowind-esm",
