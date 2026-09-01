@@ -1,8 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DatasetManifest } from '@morrowind-map/contracts';
 import { presentDataset } from './data/datasetPresentation';
 import { loadDatasets } from './data/loadDatasets';
 import { Tes3Map } from './map/Tes3Map';
+import {
+  readMapUrl,
+  writeMapUrl,
+  type MapUrlState,
+} from './navigation/mapUrlState';
 
 type LoadState =
   | { readonly status: 'loading' }
@@ -13,12 +18,54 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown loading error';
 }
 
+const LANDING_URL_STATE: MapUrlState = {
+  datasetId: null,
+  regionId: 'all',
+  view: null,
+  placeId: null,
+};
+
+type NavigationMode = 'push' | 'replace';
+
+function mapUrlStatesEqual(left: MapUrlState, right: MapUrlState): boolean {
+  return left.datasetId === right.datasetId &&
+    left.regionId === right.regionId &&
+    left.placeId === right.placeId &&
+    (left.view === right.view ||
+      (left.view !== null &&
+        right.view !== null &&
+        left.view.center[0] === right.view.center[0] &&
+        left.view.center[1] === right.view.center[1] &&
+        left.view.zoom === right.view.zoom));
+}
+
 export function App() {
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
-  const [selectedDataset, setSelectedDataset] = useState<DatasetManifest | null>(null);
+  const [navigationState, setNavigationState] = useState<MapUrlState>(() =>
+    readMapUrl(new URL(window.location.href)),
+  );
+  const [navigationRevision, setNavigationRevision] = useState(0);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const returnFocusIdRef = useRef<string | null>(null);
   const shouldReturnFocusRef = useRef(false);
+
+  const commitNavigationState = useCallback((nextState: MapUrlState, mode: NavigationMode) => {
+    const currentUrl = new URL(window.location.href);
+    const nextUrl = writeMapUrl(currentUrl, nextState);
+    const canonicalState = readMapUrl(nextUrl);
+
+    if (nextUrl.href !== currentUrl.href) {
+      const relativeUrl = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+      if (mode === 'push') {
+        window.history.pushState(null, '', relativeUrl);
+      } else {
+        window.history.replaceState(null, '', relativeUrl);
+      }
+    }
+    setNavigationState((current) =>
+      mapUrlStatesEqual(current, canonicalState) ? current : canonicalState,
+    );
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -39,18 +86,71 @@ export function App() {
     return () => controller.abort();
   }, [loadAttempt]);
 
-  if (selectedDataset) {
-    const datasets = loadState.status === 'ready' ? loadState.datasets : [selectedDataset];
+  useEffect(() => {
+    const handlePopState = () => {
+      const nextState = readMapUrl(new URL(window.location.href));
+      setNavigationState((current) => {
+        if (current.datasetId !== null && nextState.datasetId === null) {
+          returnFocusIdRef.current = current.datasetId;
+          shouldReturnFocusRef.current = true;
+        }
+        return mapUrlStatesEqual(current, nextState) ? current : nextState;
+      });
+      setNavigationRevision((revision) => revision + 1);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const selectedDataset = loadState.status === 'ready' && navigationState.datasetId !== null
+    ? loadState.datasets.find(({ datasetId }) => datasetId === navigationState.datasetId) ?? null
+    : null;
+
+  useEffect(() => {
+    const currentUrl = new URL(window.location.href);
+    const parserCanonicalState = navigationState.datasetId === null
+      ? LANDING_URL_STATE
+      : navigationState;
+    const parserNeedsCanonicalization =
+      writeMapUrl(currentUrl, parserCanonicalState).href !== currentUrl.href;
+    const datasetIsUnknown =
+      loadState.status === 'ready' &&
+      navigationState.datasetId !== null &&
+      selectedDataset === null;
+    if (parserNeedsCanonicalization || datasetIsUnknown) {
+      const timeoutId = window.setTimeout(() => {
+        commitNavigationState(
+          datasetIsUnknown ? LANDING_URL_STATE : parserCanonicalState,
+          'replace',
+        );
+      }, 0);
+      return () => window.clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [
+    commitNavigationState,
+    loadState.status,
+    navigationRevision,
+    navigationState,
+    selectedDataset,
+  ]);
+
+  if (selectedDataset && loadState.status === 'ready') {
     const datasetSnapshots = Object.fromEntries(
-      datasets.map(({ datasetId, snapshotId }) => [datasetId, snapshotId]),
+      loadState.datasets.map(({ datasetId, snapshotId }) => [datasetId, snapshotId]),
     );
     return (
       <Tes3Map
+        key={selectedDataset.datasetId}
         dataset={selectedDataset}
         datasetSnapshots={datasetSnapshots}
+        navigationState={navigationState}
+        navigationRevision={navigationRevision}
+        onNavigationChange={commitNavigationState}
         onBack={() => {
+          returnFocusIdRef.current = selectedDataset.datasetId;
           shouldReturnFocusRef.current = true;
-          setSelectedDataset(null);
+          commitNavigationState(LANDING_URL_STATE, 'push');
         }}
       />
     );
@@ -124,8 +224,12 @@ export function App() {
                 type="button"
                 data-dataset-id={dataset.datasetId}
                 onClick={(event) => {
-                  returnFocusIdRef.current = event.currentTarget.dataset.datasetId ?? null;
-                  setSelectedDataset(dataset);
+                  const datasetId = event.currentTarget.dataset.datasetId ?? dataset.datasetId;
+                  returnFocusIdRef.current = datasetId;
+                  commitNavigationState(
+                    { datasetId, regionId: 'all', view: null, placeId: null },
+                    'push',
+                  );
                 }}
                 aria-label={`Open map: ${presentation.title}`}
               >

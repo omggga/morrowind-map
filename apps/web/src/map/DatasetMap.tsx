@@ -37,6 +37,8 @@ import {
   type DatasetBundle,
 } from '../data/loadDataset';
 import { buildPlaceViews, PlaceSearch, type PlaceView } from '../data/placeSearch';
+import type { MapUrlState, MapUrlView } from '../navigation/mapUrlState';
+import { normalizeMapUrlState } from '../navigation/normalizeMapUrlState';
 import { userDatabase } from '../storage/database';
 import {
   ensureDatasetSnapshot,
@@ -75,6 +77,12 @@ interface MapTitlebarProps {
 
 interface DatasetMapProps extends MapTitlebarProps {
   readonly datasetSnapshots: Readonly<Record<string, string>>;
+  readonly navigationState: MapUrlState;
+  readonly navigationRevision: number;
+  readonly onNavigationChange: (
+    state: MapUrlState,
+    mode: 'push' | 'replace',
+  ) => void;
 }
 
 type RegionFilter = string;
@@ -192,7 +200,31 @@ function formatCoordinate(value: number): string {
   return Math.round(value).toLocaleString('en-US');
 }
 
-export function DatasetMap({ dataset, datasetSnapshots, onBack }: DatasetMapProps) {
+function navigationStatesMatch(
+  left: MapUrlState,
+  right: MapUrlState,
+  coordinateTolerance = 0,
+  zoomTolerance = 0,
+): boolean {
+  return left.datasetId === right.datasetId &&
+    left.regionId === right.regionId &&
+    left.placeId === right.placeId &&
+    (left.view === right.view ||
+      (left.view !== null &&
+        right.view !== null &&
+        Math.abs(left.view.center[0] - right.view.center[0]) <= coordinateTolerance &&
+        Math.abs(left.view.center[1] - right.view.center[1]) <= coordinateTolerance &&
+        Math.abs(left.view.zoom - right.view.zoom) <= zoomTolerance));
+}
+
+export function DatasetMap({
+  dataset,
+  datasetSnapshots,
+  navigationState,
+  navigationRevision,
+  onNavigationChange,
+  onBack,
+}: DatasetMapProps) {
   const { t } = useTranslation();
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -266,6 +298,9 @@ export function DatasetMap({ dataset, datasetSnapshots, onBack }: DatasetMapProp
       dataset={dataset}
       datasetSnapshots={datasetSnapshots}
       bundle={loadState.bundle}
+      navigationState={navigationState}
+      navigationRevision={navigationRevision}
+      onNavigationChange={onNavigationChange}
       onBack={onBack}
     />
   );
@@ -292,16 +327,23 @@ interface DatasetMapReadyProps extends DatasetMapProps {
   readonly bundle: DatasetBundle;
 }
 
-function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetMapReadyProps) {
+function DatasetMapReady({
+  dataset,
+  datasetSnapshots,
+  bundle,
+  navigationState,
+  navigationRevision,
+  onNavigationChange,
+  onBack,
+}: DatasetMapReadyProps) {
   const { t } = useTranslation();
+  const locale: Locale = 'en';
   const targetRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<Map | null>(null);
   const failedTilesRef = useRef(new Set<Tile>());
   const markerLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const customMarkerLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
-  const selectedIdRef = useRef<string | null>(null);
-  const selectedMarkerIdRef = useRef<string | null>(null);
   const customMarkerButtonRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
   const customMarkerEditorInputRef = useRef<HTMLInputElement>(null);
   const customMarkerHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -309,22 +351,6 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
     new globalThis.Map<string, ProgressRecord>(),
   );
   const placingMarkerRef = useRef(false);
-  const regionRef = useRef<RegionFilter>('all');
-  const zoomRef = useRef(0);
-  const locale: Locale = 'en';
-  const [query, setQuery] = useState('');
-  const [region, setRegion] = useState<RegionFilter>('all');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
-  const [placingMarker, setPlacingMarker] = useState(false);
-  const [markerError, setMarkerError] = useState<string | null>(null);
-  const [cursor, setCursor] = useState<CursorReadout | null>(null);
-  const [zoom, setZoom] = useState(0);
-  const [basemapState, setBasemapState] = useState<BasemapRuntimeState>({
-    pending: 0,
-    failures: 0,
-    missing: false,
-  });
   const progress = useDatasetProgress(dataset.datasetId);
   const customMarkers = useDatasetCustomMarkers(dataset.datasetId);
   const projectionDescriptor = dataset.map.projection;
@@ -353,6 +379,61 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
       ),
     [bundle, locale],
   );
+  const primaryPyramid = bundle.mapAssets.tilePyramids?.[0];
+  const viewResolutions = useMemo(
+    () => primaryPyramid ? createOverscaledViewResolutions(primaryPyramid) : undefined,
+    [primaryPyramid],
+  );
+  const minimumZoom = primaryPyramid?.minZoom ?? 0;
+  const maximumZoom = viewResolutions ? viewResolutions.length - 1 : 12;
+  const placeRegions = useMemo(
+    () => new globalThis.Map(places.map(({ id, place }) => [id, place.regionId])),
+    [places],
+  );
+  const normalizedNavigationState = useMemo(
+    () => normalizeMapUrlState(navigationState, {
+      datasetId: dataset.datasetId,
+      availableRegionIds: new Set(availableRegionIds),
+      placeRegions,
+      extent,
+      minimumZoom,
+      maximumZoom,
+    }),
+    [
+      availableRegionIds,
+      dataset.datasetId,
+      extent,
+      maximumZoom,
+      minimumZoom,
+      navigationState,
+      placeRegions,
+    ],
+  );
+  const initialNavigationRef = useRef(normalizedNavigationState);
+  const navigationStateRef = useRef(normalizedNavigationState);
+  const selfAuthoredNavigationRef = useRef<MapUrlState | null>(null);
+  const handledNavigationRevisionRef = useRef(navigationRevision);
+  const hasHandledInitialNavigationRef = useRef(false);
+  const selectedIdRef = useRef<string | null>(normalizedNavigationState.placeId);
+  const selectedMarkerIdRef = useRef<string | null>(null);
+  const regionRef = useRef<RegionFilter>(normalizedNavigationState.regionId);
+  const zoomRef = useRef(normalizedNavigationState.view?.zoom ?? 0);
+  const [query, setQuery] = useState('');
+  const [region, setRegion] = useState<RegionFilter>(normalizedNavigationState.regionId);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    normalizedNavigationState.placeId,
+  );
+  const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
+  const [placingMarker, setPlacingMarker] = useState(false);
+  const [markerError, setMarkerError] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<CursorReadout | null>(null);
+  const [viewState, setViewState] = useState<MapUrlView | null>(normalizedNavigationState.view);
+  const [zoom, setZoom] = useState(normalizedNavigationState.view?.zoom ?? 0);
+  const [basemapState, setBasemapState] = useState<BasemapRuntimeState>({
+    pending: 0,
+    failures: 0,
+    missing: false,
+  });
   const regionPlaces = useMemo(
     () => places.filter(({ place }) => region === 'all' || place.regionId === region),
     [places, region],
@@ -444,6 +525,15 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
     customMarkerLayerRef.current?.changed();
   }, [region]);
 
+  const commitNavigation = useCallback(
+    (nextState: MapUrlState, mode: 'push' | 'replace') => {
+      navigationStateRef.current = nextState;
+      selfAuthoredNavigationRef.current = nextState;
+      onNavigationChange(nextState, mode);
+    },
+    [onNavigationChange],
+  );
+
   const createMarkerAt = useCallback(
     (position: readonly [number, number]) => {
       placingMarkerRef.current = false;
@@ -454,15 +544,22 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
         label: 'Personal marker',
         note: '',
         position,
-      })
+        })
         .then((marker) => {
           setSelectedId(null);
           setSelectedMarkerId(marker.id);
+          if (navigationStateRef.current.placeId !== null) {
+            commitNavigation(
+              { ...navigationStateRef.current, placeId: null },
+              'push',
+            );
+          }
         })
         .catch((error: unknown) => setMarkerError(errorMessage(error)));
     },
     [
       dataset.datasetId,
+      commitNavigation,
       setMarkerError,
       setPlacingMarker,
       setSelectedId,
@@ -589,16 +686,27 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
     });
     customMarkerLayer.setZIndex(20);
     customMarkerLayerRef.current = customMarkerLayer;
-    const primaryPyramid = pyramidContexts[0]?.pyramid;
-    const viewResolutions = primaryPyramid
-      ? createOverscaledViewResolutions(primaryPyramid)
-      : undefined;
+    const initialNavigation = initialNavigationRef.current;
+    const initialPlace = initialNavigation.placeId === null
+      ? null
+      : places.find(({ id }) => id === initialNavigation.placeId) ?? null;
+    const initialView = initialNavigation.view ?? (
+      initialPlace === null
+        ? null
+        : {
+            center: initialPlace.place.mapPosition,
+            zoom: Math.min(
+              maximumZoom,
+              Math.max(minimumZoom, initialPlace.place.minZoom + 1, 5),
+            ),
+          }
+    );
     const view = new View({
       projection,
-      center,
-      zoom: 1,
-      minZoom: primaryPyramid?.minZoom ?? 0,
-      maxZoom: viewResolutions ? viewResolutions.length - 1 : 12,
+      center: initialView ? [...initialView.center] : center,
+      zoom: initialView?.zoom ?? 1,
+      minZoom: minimumZoom,
+      maxZoom: maximumZoom,
       ...(viewResolutions ? { resolutions: viewResolutions } : {}),
       extent,
       showFullExtent: true,
@@ -616,7 +724,21 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
       controls: [],
     });
     mapRef.current = map;
-    view.fit(extent, { duration: 0, maxZoom: 4, padding: [44, 44, 44, 44] });
+    if (initialView === null) {
+      const initialExtent = initialNavigation.regionId === 'all'
+        ? extent
+        : regionExtent(
+            bundle,
+            initialNavigation.regionId,
+            extent,
+            projectionDescriptor.cellSize,
+          ) ?? extent;
+      view.fit([...initialExtent], {
+        duration: 0,
+        maxZoom: Math.min(4, view.getMaxZoom()),
+        padding: [44, 44, 44, 44],
+      });
+    }
     zoomRef.current = view.getZoom() ?? 0;
     setZoom(zoomRef.current);
     markerLayer.changed();
@@ -667,9 +789,21 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
         if (markerId) {
           setSelectedId(null);
           setSelectedMarkerId(markerId);
+          if (navigationStateRef.current.placeId !== null) {
+            commitNavigation(
+              { ...navigationStateRef.current, placeId: null },
+              'push',
+            );
+          }
         } else {
+          const placeId = feature.get('placeId') as string;
           setSelectedMarkerId(null);
-          setSelectedId(feature.get('placeId') as string);
+          setSelectedId(placeId);
+          selectedIdRef.current = placeId;
+          commitNavigation(
+            { ...navigationStateRef.current, placeId },
+            'push',
+          );
         }
       }
     });
@@ -678,7 +812,33 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
       setZoom(zoomRef.current);
       markerLayer.changed();
     });
-    const moveEndKey = map.on('moveend', updateCoverageAtCenter);
+    const updateNavigationFromView = () => {
+      const currentCenter = view.getCenter();
+      const currentZoom = view.getZoom();
+      if (!currentCenter || currentZoom === undefined) {
+        return;
+      }
+      const [currentX = 0, currentY = 0] = currentCenter;
+      const nextView: MapUrlView = {
+        center: [currentX, currentY],
+        zoom: currentZoom,
+      };
+      setViewState(nextView);
+      commitNavigation(
+        {
+          ...navigationStateRef.current,
+          datasetId: dataset.datasetId,
+          view: nextView,
+        },
+        'replace',
+      );
+    };
+    const handleMoveEnd = () => {
+      updateCoverageAtCenter();
+      updateNavigationFromView();
+    };
+    const moveEndKey = map.on('moveend', handleMoveEnd);
+    updateNavigationFromView();
     const viewport = map.getViewport();
     const clearCursor = () => {
       setCursor(null);
@@ -699,7 +859,112 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
       markerLayerRef.current = null;
       customMarkerLayerRef.current = null;
     };
-  }, [bundle, center, createMarkerAt, extent, projectionDescriptor.cellSize]);
+  }, [
+    bundle,
+    center,
+    commitNavigation,
+    createMarkerAt,
+    dataset.datasetId,
+    extent,
+    maximumZoom,
+    minimumZoom,
+    places,
+    projectionDescriptor.cellSize,
+    viewResolutions,
+  ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+    if (!hasHandledInitialNavigationRef.current) {
+      hasHandledInitialNavigationRef.current = true;
+      return;
+    }
+
+    const isExternalPop = handledNavigationRevisionRef.current !== navigationRevision;
+    handledNavigationRevisionRef.current = navigationRevision;
+    const selfAuthored = selfAuthoredNavigationRef.current;
+    const isSelfAuthored = !isExternalPop && selfAuthored !== null && navigationStatesMatch(
+      selfAuthored,
+      normalizedNavigationState,
+      1,
+      0.01,
+    );
+    selfAuthoredNavigationRef.current = null;
+    navigationStateRef.current = normalizedNavigationState;
+    regionRef.current = normalizedNavigationState.regionId;
+    selectedIdRef.current = normalizedNavigationState.placeId;
+    setRegion(normalizedNavigationState.regionId);
+    setSelectedId(normalizedNavigationState.placeId);
+
+    if (
+      isExternalPop ||
+      !navigationStatesMatch(navigationState, normalizedNavigationState)
+    ) {
+      onNavigationChange(normalizedNavigationState, 'replace');
+    }
+    if (isSelfAuthored) {
+      return;
+    }
+
+    setSelectedMarkerId(null);
+    setPlacingMarker(false);
+    const view = map.getView();
+    view.cancelAnimations();
+    if (normalizedNavigationState.view !== null) {
+      const requestedView = normalizedNavigationState.view;
+      const currentCenter = view.getCenter();
+      const currentZoom = view.getZoom();
+      const [currentX = 0, currentY = 0] = currentCenter ?? [];
+      if (
+        !currentCenter ||
+        Math.abs(currentX - requestedView.center[0]) > 1 ||
+        Math.abs(currentY - requestedView.center[1]) > 1
+      ) {
+        view.setCenter([...requestedView.center]);
+      }
+      if (currentZoom === undefined || Math.abs(currentZoom - requestedView.zoom) > 0.01) {
+        view.setZoom(requestedView.zoom);
+      }
+      return;
+    }
+
+    const requestedPlace = normalizedNavigationState.placeId === null
+      ? null
+      : places.find(({ id }) => id === normalizedNavigationState.placeId) ?? null;
+    if (requestedPlace) {
+      view.setCenter([...requestedPlace.place.mapPosition]);
+      view.setZoom(Math.min(
+        view.getMaxZoom(),
+        Math.max(view.getMinZoom(), requestedPlace.place.minZoom + 1, 5),
+      ));
+      return;
+    }
+    const requestedExtent = normalizedNavigationState.regionId === 'all'
+      ? extent
+      : regionExtent(
+          bundle,
+          normalizedNavigationState.regionId,
+          extent,
+          projectionDescriptor.cellSize,
+        ) ?? extent;
+    view.fit([...requestedExtent], {
+      duration: 0,
+      maxZoom: Math.min(4, view.getMaxZoom()),
+      padding: [48, 48, 48, 48],
+    });
+  }, [
+    bundle,
+    extent,
+    navigationState,
+    navigationRevision,
+    normalizedNavigationState,
+    onNavigationChange,
+    places,
+    projectionDescriptor.cellSize,
+  ]);
 
   useEffect(() => {
     const source = customMarkerLayerRef.current?.getSource();
@@ -746,8 +1011,38 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
     });
   };
 
+  const navigationWithCurrentView = (): MapUrlState => {
+    const view = mapRef.current?.getView();
+    const currentCenter = view?.getCenter();
+    const currentZoom = view?.getZoom();
+    const [currentX = 0, currentY = 0] = currentCenter ?? [];
+    return {
+      ...navigationStateRef.current,
+      datasetId: dataset.datasetId,
+      view: currentCenter && currentZoom !== undefined
+        ? { center: [currentX, currentY], zoom: currentZoom }
+        : navigationStateRef.current.view,
+    };
+  };
+
   const selectRegion = (nextRegion: RegionFilter) => {
+    const nextPlaceId = selectedPlace !== null &&
+        nextRegion !== 'all' &&
+        selectedPlace.place.regionId !== nextRegion
+      ? null
+      : selectedId;
+    regionRef.current = nextRegion;
+    selectedIdRef.current = nextPlaceId;
     setRegion(nextRegion);
+    setSelectedId(nextPlaceId);
+    commitNavigation(
+      {
+        ...navigationWithCurrentView(),
+        regionId: nextRegion,
+        placeId: nextPlaceId,
+      },
+      'push',
+    );
     if (nextRegion === 'all') {
       fitExtent(extent);
       return;
@@ -767,6 +1062,11 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
     setPlacingMarker(false);
     setSelectedMarkerId(null);
     setSelectedId(place.id);
+    selectedIdRef.current = place.id;
+    commitNavigation(
+      { ...navigationWithCurrentView(), placeId: place.id },
+      'push',
+    );
     const view = mapRef.current?.getView();
     if (!view) {
       return;
@@ -787,6 +1087,13 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
     setPlacingMarker(false);
     setSelectedId(null);
     setSelectedMarkerId(marker.id);
+    selectedIdRef.current = null;
+    if (navigationStateRef.current.placeId !== null) {
+      commitNavigation(
+        { ...navigationWithCurrentView(), placeId: null },
+        'push',
+      );
+    }
     window.requestAnimationFrame(() => {
       customMarkerEditorInputRef.current?.focus({ preventScroll: true });
     });
@@ -807,7 +1114,23 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
     setMarkerError(null);
     setSelectedId(null);
     setSelectedMarkerId(null);
+    selectedIdRef.current = null;
+    if (navigationStateRef.current.placeId !== null) {
+      commitNavigation(
+        { ...navigationWithCurrentView(), placeId: null },
+        'push',
+      );
+    }
     setPlacingMarker((current) => !current);
+  };
+
+  const closeSelectedPlace = () => {
+    setSelectedId(null);
+    selectedIdRef.current = null;
+    commitNavigation(
+      { ...navigationWithCurrentView(), placeId: null },
+      'push',
+    );
   };
 
   const closeSelectedCustomMarker = () => {
@@ -976,6 +1299,9 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
             className="map-canvas"
             style={BASEMAP_PRESENTATION_STYLE}
             tabIndex={0}
+            data-view-x={viewState?.center[0]}
+            data-view-y={viewState?.center[1]}
+            data-view-z={viewState?.zoom}
             aria-label={t('map.mapAria')}
             aria-describedby={placingMarker ? 'marker-placement-hint' : undefined}
             onKeyDown={(event) => {
@@ -1049,7 +1375,7 @@ function DatasetMapReady({ dataset, datasetSnapshots, bundle, onBack }: DatasetM
               locale={locale}
               regionName={regionTitle(dataset, selectedPlace.place.regionId)}
               progress={progress.byPlaceId.get(selectedPlace.id)}
-              onClose={() => setSelectedId(null)}
+              onClose={closeSelectedPlace}
             />
           ) : null}
           {selectedMarker ? (

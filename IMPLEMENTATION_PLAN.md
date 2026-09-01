@@ -2,7 +2,7 @@
 
 - Дата фиксации: 2026-08-26
 - Последний полный аудит: 2026-09-01
-- Статус: этапы 0–6 завершены в зафиксированных границах; Poison Song V4 опубликован и считается immutable; чистый Original GOTY HD отрендерен, прошёл полный аудит, опубликован и принят в browser acceptance; этап 7 выполнен частично
+- Статус: этапы 0–6 завершены в зафиксированных границах; Poison Song V4 опубликован и считается immutable; чистый Original GOTY HD отрендерен, прошёл полный аудит, опубликован и принят в browser acceptance; этап 7 разделён на 7.1–7.5, подэтап 7.1 завершён, 7.2–7.5 остаются частично выполненными
 - Целевой репозиторий: `omggga/morrowind-map`
 
 ## 1. Цель
@@ -552,7 +552,7 @@ Node builder → static dist → Nginx runtime
 | 4.5 — OpenMW spike | **100% complete в spike scope** | Bounded exporter и Linux/Docker quality gate приняты |
 | 5 — Poison Song | **100% complete** | 5.1–5.6 завершены: V4 pyramid, deterministic EN catalog (`4 085` places / `4 902` entrances), generic runtime, `ready` manifest и offline real-browser acceptance приняты |
 | 6 — Original GOTY HD | **100% complete** | Изолированный base-trio profile, smoke `5/5`, full render/audit/publication, EN catalog, strict validators и real-browser acceptance обеих карт приняты |
-| 7 — two-map visual/UX polish | **Partially complete** | Functional browser acceptance двух реальных datasets готов; labels, URL/deep links, расширенный visual/a11y polish остаются |
+| 7 — two-map visual/UX polish | **Partially complete; split into 7.1–7.5** | 7.1 URL/deep links завершён; functional browser acceptance двух реальных datasets остаётся зелёным; в 7.2–7.5 есть частичный foundation |
 
 Этапы 0–4.5 считаются закрытыми именно в их исторически зафиксированных границах. Poison V4 закрыт Stage 5 и заморожен; Original HD закрыт Stage 6 как отдельный audited production release.
 
@@ -774,37 +774,170 @@ Exit: **достигнут.** Доступны ровно две EN-only cards; 
 
 ### Этап 7 — visual/UX polish
 
-Status: **partially complete foundation; functional acceptance двух реальных datasets выполнен, расширенный visual/UX/a11y polish остаётся**.
+Status: **partially complete; этап разделён на 7.1–7.5, подэтап 7.1 завершён (verified 2026-09-01)**. Functional acceptance двух реальных datasets выполнен в Этапах 5–6 и остаётся обязательным regression baseline; здесь ещё доделываются map labels/filters, финальная стилизация, responsive/a11y acceptance и полная матрица system states.
 
-Уже реализовано:
+Границы этапа:
 
-- MIM-like palette, square markers и базовая typography/pixel стилизация;
-- responsive breakpoints для desktop/mobile, `focus-visible`, reduced-motion и tab-focus карты;
-- базовые keyboard actions (`/`, `Escape`), возврат focus на landing и ARIA labels;
-- loading/error/no-results states и ручной mobile/browser smoke.
-- pinned real-browser functional acceptance для Original GOTY HD и Poison Song V4 на настоящих prepared datasets.
+- опубликованные Poison Song V4 tiles/catalog/manifest остаются byte/hash-identical, Original GOTY HD artifacts также не перегенерируются ради UI polish;
+- dataset, place, region, type и progress contracts переиспользуются; breaking migration IndexedDB/portable backup не входит в Stage 7;
+- существующий Playwright functional flow двух карт не заменяется visual snapshots, а остаётся отдельным обязательным gate;
+- Stage 8 начинается только после общего Exit Stage 7.
 
-Остаток работ:
+Сводка подэтапов:
 
-1. Довести generic regions, types, statuses, strings и controls двух реальных datasets за пределами уже принятого functional Stage 6 scope; убрать оставшийся snapshot-specific UX.
-2. Добавить OpenLayers text-label layer с deterministic declutter и zoom/type/status/region filters; сейчас labels на карте отсутствуют.
-3. Ввести стабильный URL contract как минимум для `dataset`, `region`, `x`, `y`, `z`, `place`, включая back/forward, invalid-state fallback и shareable deep links. Сейчас `App` хранит выбор только в React state.
-4. Расширить уже готовые functional tile `missing`/`loading`/`error`/retry cases двух datasets дополнительными большими payload и visual fixtures.
-5. Провести финальный MIM-like font/icon/pixel tuning на готовых Poison/Original подложках.
-6. Расширить существующий two-dataset Playwright functional suite до visual fixtures desktop/mobile/landscape и ключевых UI states; OpenMW visual receipt проверяет basemap, но не UI.
-7. Выполнить keyboard-only/manual focus matrix и automated accessibility checks, включая dialog focus, contrast, touch, 200% reflow и screen-reader names.
+| Подэтап | Статус сейчас | Уже есть | Основной остаток |
+| --- | --- | --- | --- |
+| 7.1 — URL/deep links | **Complete (verified 2026-09-01)** | Typed URL state, validation/canonicalization, push/replace history, popstate и direct-load acceptance двух карт | — |
+| 7.2 — labels/declutter/filters | **Partially complete foundation** | Square markers, EN search, single-region filter, `minZoom`, progress colors | Text-label layer, deterministic priority/declutter и общие region/type/status predicates |
+| 7.3 — final MIM styling | **Partially complete foundation** | Palette, Win95/MIM-like frames, system-font typography и основные component states | Deterministic offline fonts/icons, marker semantics, readability, contrast и approved visual baseline |
+| 7.4 — visual/responsive/a11y | **Partially complete foundation** | Breakpoints, `focus-visible`, reduced-motion, несколько keyboard/focus actions и ARIA labels | Viewport/orientation snapshots, 200% reflow, full keyboard/touch flow и automated/manual accessibility gate |
+| 7.5 — loading/error/empty/retry | **Partially complete foundation** | Основные landing/dataset/tile states, no-results и editor feedback | Полная state matrix, slow/large/partial failures, recovery semantics и deterministic fixtures |
 
-Deliverables:
+Рекомендуемый dependency order: `7.1 → 7.2 → 7.5 → 7.3 → 7.4`. Visual/a11y harness из 7.4 можно начинать раньше, но закрывается он последним, когда URL, filters, system states и финальные styles уже стабильны.
 
-- MIM-like typography/pixel tuning для всех datasets;
-- responsive/mobile/touch layout без overflow;
-- keyboard navigation и accessibility acceptance;
-- deterministic label declutter/filtering;
-- complete loading/error/empty/retry states;
-- pinned Playwright functional/visual regression fixtures;
-- stable URL/deep links с browser history.
+#### 7.1 — стабильные URL и deep links
 
-Exit: обе готовые карты проходят URL round-trip/back-forward, keyboard-only flow, automated + manual accessibility checks, desktop/mobile/landscape visual fixtures, deterministic label/filter behavior и полные loading/error/empty scenarios.
+Status: **100% complete (verified 2026-09-01)**. `dataset`, `region`, `x`, `y`, `z` и `place` образуют единый typed URL state; direct load, reload, canonicalization и browser Back/Forward синхронизированы с React и OpenLayers без history churn.
+
+Реализовано:
+
+1. Вынесен чистый typed URL contract с каноническим порядком и точностью параметров:
+   - отсутствие `dataset` означает landing;
+   - `dataset` принимает только ID из активного two-map index;
+   - `region` принимает `all` или доступный exterior region выбранного dataset;
+   - `x`, `y`, `z` атомарно описывают центр и zoom карты;
+   - `place` принимает только стабильный Place ID того же dataset.
+2. Initial hydration выполняется до первого meaningful map paint, поэтому valid deep link не проходит через краткий `fit(extent)` и визуальный скачок к default view.
+3. Зафиксированы validation/fallback:
+   - unknown `dataset` возвращает landing и канонизирует URL;
+   - unknown `region` сбрасывается в `all`;
+   - incomplete/non-finite `x/y/z` сбрасываются целиком в dataset default view, finite values clamp-ятся к extent/zoom range;
+   - stale или cross-dataset `place` удаляется без падения;
+   - при valid `place` и valid `x/y/z` place управляет selection/card, а координаты — камерой; конфликтующий region нормализуется к region выбранной локации.
+4. Реализована двусторонняя синхронизация React/OpenLayers ↔ URL без циклов и URL churn. Dataset, region, place и переход на landing создают meaningful `pushState`; pan/zoom после `moveend` используют `replaceState`, а не запись на каждый pointer event.
+5. Обработан `popstate`: Back/Forward восстанавливают landing/dataset/region/place/view без добавления новой history entry, потери focus и применения stale async response от предыдущего dataset.
+6. URL сохраняется через dataset `loading/error/retry`; retry не сбрасывает валидный deep-link state. Serializer управляет только своими query parameters и даёт один и тот же URL после повторной canonicalization.
+7. Добавлены unit tests serializer/parser/validation/precedence, component tests hydration и Playwright scenarios direct load, copy/reload, invalid input и Back/Forward для обеих карт.
+
+Exit 7.1: **достигнут (verified 2026-09-01)**.
+
+- прямой URL открывает нужные dataset, region, camera и place card без промежуточного неверного view;
+- copy/reload воспроизводит state с погрешностью не более `1` world unit для `x/y` и `0.01` для `z`;
+- Back/Forward последовательно восстанавливают meaningful navigation states, а pan/zoom не засоряют history;
+- unknown/stale/cross-dataset значения, `NaN`, `Infinity` и partial coordinates дают документированный fallback без crash или redirect loop;
+- URL round-trip стабилен на Original GOTY HD и Poison Song V4, включая loading/error/retry.
+
+#### 7.2 — подписи локаций, declutter и фильтры
+
+Status: **partially complete foundation**. Уже работают square markers, EN search, single-region filter, `minZoom` и status colors, но OpenLayers feature style не содержит text labels, а type/status controls и единый visibility predicate отсутствуют.
+
+Осталось:
+
+1. Вынести data-driven filter model без dataset-specific branches:
+   - region берётся из manifest и остаётся single-select;
+   - type строится по фактически доступным contract types;
+   - status использует `unvisited | active | visited`, причём отсутствие progress record означает `unvisited`;
+   - внутри одной оси multi-select работает как OR, между region/type/status/minZoom — как AND;
+   - `All/Clear filters` возвращает канонический default.
+2. Применять один base-visibility predicate к search candidates, map markers, text labels, visible count и filter empty-state. Query дополнительно сужает только sidebar results и может повышать priority совпавших labels, не скрывая остальные допустимые map markers. Если открытая place card перестала проходить base filters, selection закрывается и focus возвращается к предсказуемому инициатору.
+3. Оставить personal markers отдельным global layer/list: у текущего storage contract нет надёжного `regionId`, а type/status filters относятся только к catalog places. Region-aware personal markers потребовали бы отдельной schema/backup migration и не входят в Stage 7.
+4. Добавить отдельный OpenLayers text-label layer с EN display name, не запекая labels в tiles. Eligibility учитывает `place.minZoom`, active filters и documented priority table; selected place получает высший приоритет.
+5. Сделать declutter воспроизводимым: стабильная сортировка по selected/search match → type priority → status priority → `place.id`, deterministic feature insertion и одинаковый tie-break при равных кандидатах. Square markers не исчезают из-за text declutter.
+6. Обновлять marker/label/filter state сразу после смены progress и не допускать hidden selected place. При необходимости `type` и `status` добавляются как additive shareable parameters поверх минимального URL contract 7.1.
+7. Довести controls, counts, strings, keyboard/ARIA states и empty results для всех доступных типов, без hardcode под конкретный snapshot.
+8. Добавить unit tests predicate/default status/priority/tie-break, component tests controls/count/selection и Playwright coverage обеих production catalogs, включая плотный Poison Song view.
+
+Exit 7.2:
+
+- region/type/status/minZoom одинаково определяют search candidates, marker, label и count; query предсказуемо сужает sidebar results, сохраняя текущую map-search semantics;
+- одинаковые dataset/view/filter/progress state после reload дают одинаковый набор labels и declutter outcome;
+- все доступные types появляются data-driven, status меняется реактивно, reset и empty state работают с клавиатуры;
+- Original `1 036` places и Poison Song `4 085` places проходят functional и visual fixtures без dataset-specific UI branches;
+- personal-marker global semantics явно отражена в UI/tests и не меняет IndexedDB/backup contract.
+
+#### 7.3 — окончательная MIM-стилизация шрифтов, маркеров и интерфейса
+
+Status: **partially complete foundation**. Уже есть MIM-like palette, pseudo-Win95 frames, square status markers и единые базовые styles, но текущий системный font stack зависит от ОС, часть icons остаётся text glyphs, статусы различаются в основном цветом, а approved UI visual baseline отсутствует.
+
+Осталось:
+
+1. Зафиксировать reference screenshots и design tokens: palette, border/shadow levels, spacing grid, type scale, control heights, overlay layering и состояния default/hover/pressed/selected/focus/disabled/loading/error.
+2. Подключить локальный open-licensed WOFF2 font set с EN glyph coverage, предсказуемыми metrics/fallback и license notice. Runtime не должен запрашивать внешний font/CDN и не должен включать proprietary system fonts в репозиторий.
+3. Заменить platform-dependent glyph icons (`←`, `□`, `M+`, `OPEN ↗` и аналоги) на единый локальный SVG/CSS pixel icon set с одинаковыми accessible names и hit areas.
+4. Унифицировать marker rendering в map, results и legend: status должен различаться не только цветом, но и shape/pattern cue; selected/hover/focus variants сохраняют резкость на обычном и HiDPI display.
+5. Поднять читаемость слишком мелкого `7–10px` текста там, где он несёт содержательную информацию, и исправить contrast до целевого WCAG 2.2 AA без потери MIM-like характера.
+6. Довести landing, titlebar, ledger, filters, map controls, place/custom-marker cards, data tools и все system states до одной component/state matrix; убрать оставшийся snapshot-specific UX и presentation branching за пределами manifest/presentation layer.
+7. Проверить стили отдельно на Original и Poison подложках без изменения published tile bytes и без новых canvas/CSS corrections basemap.
+
+Exit 7.3:
+
+- fonts/icons полностью локальны, лицензии зафиксированы, внешний network request отсутствует;
+- одни design tokens и component states применяются к обеим картам;
+- текст и controls проходят AA contrast, status различим без опоры только на цвет;
+- markers/icons остаются pixel-crisp и имеют стабильные размеры/состояния;
+- approved reference screenshots готовы к фиксации visual regression в 7.4.
+
+#### 7.4 — mobile/landscape visual tests, accessibility и keyboard flow
+
+Status: **partially complete foundation**. Есть desktop/mobile breakpoints, `focus-visible`, reduced-motion, `/`, keyboard pan/placement и несколько focus-return paths, но Playwright запускает только Desktop Chrome, visual snapshots, полный Tab order, orientation/height constraints, 200% reflow и automated accessibility suite отсутствуют.
+
+Осталось:
+
+1. Добавить pinned Playwright visual projects как минимум для desktop, `390×844` portrait, `320×568` narrow portrait, `844×390` и `667×375` landscape. Зафиксировать browser/font/animation environment и использовать deterministic synthetic payloads/tiles; prepared real-dataset acceptance остаётся отдельным gate.
+2. Покрыть snapshots: landing, обе map themes, labels/filters, no-results, selected place, personal-marker editor/delete confirmation, data tools, loading/missing/error/retry. Общие components проверяются одной state matrix, dataset-specific presentation — на обеих картах.
+3. Исправить responsive/height-constrained layout: safe-area insets, portrait/landscape, software-keyboard/touch mode, overlays и ledger/map split без clipping или page-level horizontal overflow на ширине от `320px`.
+4. Проверить 200% browser zoom/reflow: весь non-map content доступен без потери функций и двумерного scrolling; сама интерактивная карта может сохранять pan как допустимую двумерную поверхность.
+5. Зафиксировать keyboard-only path: landing → dataset → search → filters → result → place progress/note → personal marker create/edit/delete → data tools → versions. Тест использует реальные `Tab`/`Shift+Tab`/`Enter`/`Space`/`Escape`, а не программный `.focus()` для обхода порядка.
+6. Согласовать семантику overlay cards и confirmations: initial focus, видимое selected state (`aria-current`/`aria-pressed`), Escape/close, отсутствие focus trap в non-modal UI и возврат focus точному инициатору.
+7. Добавить automated WCAG 2.2 AA audit для обеих карт и ключевых states: headings/landmarks, accessible names, contrast, state relationships, live-region announcements, reduced-motion. Gate: `0` unwaived WCAG 2.2 AA violations и `0` serious/critical findings; false positives документируются отдельно и не скрывают реальные нарушения.
+8. Довести pointer/touch hit targets минимум до WCAG `24×24 CSS px`, целевой размер основных controls — `44×44 CSS px`; проверить pan/zoom/tap без hover dependency.
+9. Выполнить и сохранить manual checklist для keyboard-only, 200% reflow и screen reader как минимум на одном desktop browser/reader pair; automated snapshots не считаются заменой manual acceptance.
+
+Exit 7.4:
+
+- Playwright functional suite и pinned visual snapshots зелёные на всей viewport/orientation matrix;
+- основной workflow полностью выполняется только клавиатурой, focus order/return предсказуемы и focus никогда не теряется за overlay;
+- на `320px`, landscape и 200% zoom нет недоступного/clipped non-map content или page-level horizontal overflow;
+- automated audit имеет `0` unwaived WCAG 2.2 AA violations и `0` serious/critical findings, AA contrast подтверждён, manual keyboard/reflow/screen-reader checklist закрыт;
+- touch controls и state announcements проверены для обеих production maps.
+
+#### 7.5 — расширенные loading/error/empty/retry сценарии
+
+Status: **partially complete foundation**. Уже реализованы landing loading/error/retry, dataset loading/non-retryable missing/runtime error/retry, basemap pending/partial failure/sparse missing/retry, no-results, empty personal markers и editor status/error feedback. Осталось превратить отдельные cases в полную, проверяемую state matrix.
+
+Осталось:
+
+1. Зафиксировать для каждого producer/consumer состояние, severity, message, доступное action и recovery:
+   - dataset index и отдельные manifests;
+   - locations/locale/map-assets bundles;
+   - sparse tiles и burst/partial/full tile failures;
+   - IndexedDB load/write/quota, autosave, JSON export/import.
+2. Landing fixtures: delayed/slow response, malformed или empty index, failure одного manifest при доступности второго, offline/network error и successful retry.
+3. Dataset fixtures: delayed large catalog, navigation/abort во время load, `404/503`, malformed/schema/inventory/snapshot mismatch, явное разделение unpublished `missing` и recoverable runtime error.
+4. Tile fixtures: продолжительный pending burst, частичный и полный failure, ожидаемая sparse transparency, repeated retry и восстановление только failed source без сброса camera/selection/filters.
+5. Content empty states: empty query, region/type/status combination без результатов, отсутствие personal markers и dataset без доступного exterior content. Каждый state объясняет причину и следующий шаг.
+6. User-data failures: недоступный IndexedDB/quota/write, autosave failure, invalid/oversized backup, import/export failure и recovery без потери существующих records или draft.
+7. Сделать retry idempotent: disabled/busy state не создаёт параллельных операций, stale response игнорируется, повторный retry безопасен, рабочий context и deep-link URL сохраняются.
+8. Добавить focus/announcement acceptance: error использует `alert`, progress — `status`/`aria-busy`; после recovery focus возвращается к retry/исходному control и live region не дублирует сообщения.
+9. Создать deterministic unit/component/Playwright fixtures и включить их visual/a11y states в 7.4; отдельные prepared checks подтверждают те же transitions на Original и Poison real payloads.
+
+Exit 7.5:
+
+- state matrix покрывает landing, dataset bundle, tiles и user-data operations;
+- для каждого missing/error/empty состояния определены понятный message, retry/next step и non-destructive recovery;
+- slow/large/abort/repeated-retry cases не дают race, duplicate work, stale UI или потери user data;
+- focus, live announcements, camera/selection/filters и URL сохраняются либо восстанавливаются по зафиксированному contract;
+- deterministic state fixtures проходят functional, visual и accessibility regression на обеих картах.
+
+Deliverables Stage 7:
+
+- typed stable URL/deep-link contract и browser history tests;
+- data-driven label/filter model с deterministic declutter;
+- final offline MIM-like font/icon/marker/component system;
+- pinned desktop/mobile/landscape visual projects и manual/automated accessibility receipts;
+- полная loading/error/empty/retry state matrix с synthetic и prepared-real fixtures.
+
+Exit Stage 7: обе карты проходят URL direct-load/round-trip/Back/Forward, deterministic label/filter behavior, полный keyboard-only flow, desktop/mobile/landscape/200% visual matrix, automated + manual accessibility acceptance и все loading/error/empty/retry recovery scenarios; существующий functional Stage 6 gate остаётся зелёным, а published dataset artifacts неизменны.
 
 ### Этап 8 — Docker local release
 
@@ -828,9 +961,13 @@ Stage 8 публикует только два EN-only manifests/datasets. Read-
 - Poison Song V4 остаётся byte/hash-identical опубликованному release;
 - поиск работает по EN names и aliases;
 - pan/zoom/search/select сохраняют точные world coordinates;
+- URL contract восстанавливает `dataset`, `region`, `x`, `y`, `z` и `place` через direct load/reload/Back/Forward;
+- labels и region/type/status filters работают data-driven и дают deterministic visibility/declutter;
 - statuses, notes и personal markers переживают reload;
 - старые IndexedDB records не очищаются, остаются инертными и не попадают в UI;
 - generic JSON export/import двух активных карт проходит атомарно;
+- desktop/mobile/landscape/200% matrix, keyboard-only flow и automated/manual accessibility acceptance закрыты;
+- loading/error/empty/retry state matrix проходит functional, visual и accessibility regression;
 - никакой runtime dependency от UESP/CloudFront отсутствует;
 - Docker запускает приложение локально одной командой;
 - BSA/ESM/ESP/assets/полные tiles отсутствуют в Git;
@@ -851,7 +988,7 @@ Stage 8 публикует только два EN-only manifests/datasets. Read-
 | Межверсионная порча progress | Новый dataset-scoped namespace без автоматической миграции старых MIM IDs |
 | Browser storage eviction | Persistent storage request + portable JSON backup |
 | Очень большие tiles | 512px pyramid, active dataset loading, external volume |
-| Ручной browser smoke невоспроизводим | **Resolved для Poison functional flow в Этапе 5.6;** two-map visual/a11y matrix остаётся в Этапе 7 |
+| Ручной browser smoke невоспроизводим | **Resolved для functional flow двух карт в Этапах 5–6;** pinned visual matrix, keyboard/reflow и accessibility receipts остаются в 7.4, system-state fixtures — в 7.5 |
 | Случайная публикация игровых файлов | External paths, `.gitignore`, verification перед commit/push |
 
 ## 20. Полезные технические источники

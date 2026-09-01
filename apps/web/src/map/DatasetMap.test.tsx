@@ -29,6 +29,12 @@ const dataset = {
     locales: [{ locale: 'en', status: 'available', coverage: 1, fallbackLocale: null }],
   },
 } as DatasetManifest;
+const navigationState = {
+  datasetId: dataset.datasetId,
+  regionId: 'all',
+  view: null,
+  placeId: null,
+} as const;
 
 describe('DatasetMap loading states', () => {
   beforeEach(async () => {
@@ -41,7 +47,16 @@ describe('DatasetMap loading states', () => {
   it('shows loading while the generic dataset bundle is pending', () => {
     vi.mocked(loadDataset).mockImplementation(() => new Promise(() => undefined));
 
-    render(<DatasetMap dataset={dataset} datasetSnapshots={{}} onBack={vi.fn()} />);
+    render(
+      <DatasetMap
+        dataset={dataset}
+        datasetSnapshots={{}}
+        navigationState={navigationState}
+        navigationRevision={0}
+        onNavigationChange={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
 
     expect(screen.getByRole('status')).toHaveTextContent('Opening the map dataset');
   });
@@ -51,7 +66,16 @@ describe('DatasetMap loading states', () => {
       new DatasetAssetsMissingError('Dataset does not contain a location catalog'),
     );
 
-    render(<DatasetMap dataset={dataset} datasetSnapshots={{}} onBack={vi.fn()} />);
+    render(
+      <DatasetMap
+        dataset={dataset}
+        datasetSnapshots={{}}
+        navigationState={navigationState}
+        navigationRevision={0}
+        onNavigationChange={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
 
     const status = await screen.findByRole('status');
     expect(status).toHaveTextContent('This map has not been published locally yet');
@@ -64,7 +88,16 @@ describe('DatasetMap loading states', () => {
       .mockRejectedValueOnce(new Error('HTTP 503'))
       .mockImplementationOnce(() => new Promise(() => undefined));
 
-    render(<DatasetMap dataset={dataset} datasetSnapshots={{}} onBack={vi.fn()} />);
+    render(
+      <DatasetMap
+        dataset={dataset}
+        datasetSnapshots={{}}
+        navigationState={navigationState}
+        navigationRevision={0}
+        onNavigationChange={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
 
     expect(await screen.findByRole('alert')).toHaveTextContent('HTTP 503');
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
