@@ -133,7 +133,7 @@ describe('App dataset workflow', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Reading manifests');
 
-    await screen.findByRole('button', { name: 'Open map: Original GOTY HD' });
+    await screen.findByRole('button', { name: 'Open map: Morrowind Game of the Year' });
     expect(screen.getAllByRole('button', { name: /Open map:/ })).toHaveLength(2);
     expect(screen.getByTestId('landing-backdrop')).toHaveAttribute(
       'data-dataset-id',
@@ -144,8 +144,16 @@ describe('App dataset workflow', () => {
     expect(screen.queryByText('LOCAL CARTOGRAPHIC LOG')).not.toBeInTheDocument();
 
     const datasets = [
-      { card: 'Open map: Original GOTY HD', heading: 'Original GOTY HD' },
-      { card: 'Open map: Poison Song 26.08', heading: 'Poison Song 26.08' },
+      {
+        card: 'Open map: Morrowind Game of the Year',
+        datasetId: 'original-goty-hd',
+        heading: 'Original GOTY HD',
+      },
+      {
+        card: 'Open map: Tamriel Rebuilt — Poison Song',
+        datasetId: 'poison-song',
+        heading: 'Poison Song 26.08',
+      },
     ];
 
     for (const dataset of datasets) {
@@ -158,7 +166,7 @@ describe('App dataset workflow', () => {
       expect(document.documentElement.scrollTop).toBe(0);
       expect(document.body.scrollTop).toBe(0);
       expect(window.location.search).toBe(
-        `?dataset=${dataset.card.includes('Original') ? 'original-goty-hd' : 'poison-song'}&region=all`,
+        `?dataset=${dataset.datasetId}&region=all`,
       );
 
       fireEvent.click(screen.getByRole('button', { name: 'Versions' }));
@@ -209,7 +217,7 @@ describe('App dataset workflow', () => {
 
     render(<App />);
 
-    await screen.findByRole('button', { name: 'Open map: Original GOTY HD' });
+    await screen.findByRole('button', { name: 'Open map: Morrowind Game of the Year' });
     await waitFor(() => expect(window.location.search).toBe('?theme=sepia'));
     expect(screen.queryByRole('region', { name: 'mock map' })).not.toBeInTheDocument();
   });
@@ -224,7 +232,7 @@ describe('App dataset workflow', () => {
     render(<App />);
 
     await waitFor(() => expect(window.location.search).toBe('?theme=sepia'));
-    expect(screen.getByRole('heading', { name: 'Choose a world' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Choose your world' })).toBeInTheDocument();
   });
 
   it('canonicalizes and preserves a direct URL while manifest loading fails and retries', async () => {
@@ -269,8 +277,8 @@ describe('App dataset workflow', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
 
-    await screen.findByRole('button', { name: 'Open map: Original GOTY HD' });
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Choose a world' })).toHaveFocus());
+    await screen.findByRole('button', { name: 'Open map: Morrowind Game of the Year' });
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Choose your world' })).toHaveFocus());
     expect(window.location.search).toBe('');
     expect(window.history.length).toBe(historyLength);
   });
@@ -314,7 +322,7 @@ describe('App dataset workflow', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('PARTIAL CATALOG');
     expect(alert).toHaveTextContent('poison-song');
-    expect(screen.getByRole('button', { name: 'Open map: Original GOTY HD' }))
+    expect(screen.getByRole('button', { name: 'Open map: Morrowind Game of the Year' }))
       .toBeInTheDocument();
     expect(screen.getByTestId('landing-backdrop')).toHaveAttribute(
       'data-dataset-id',
@@ -358,7 +366,7 @@ describe('App dataset workflow', () => {
   it('hydrates popstate and returns focus to the previous dataset card', async () => {
     render(<App />);
 
-    const card = await screen.findByRole('button', { name: 'Open map: Original GOTY HD' });
+    const card = await screen.findByRole('button', { name: 'Open map: Morrowind Game of the Year' });
     fireEvent.click(card);
     expect(await screen.findByRole('region', { name: 'mock map' })).toBeInTheDocument();
 
@@ -366,7 +374,7 @@ describe('App dataset workflow', () => {
     fireEvent(window, new PopStateEvent('popstate'));
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Open map: Original GOTY HD' })).toHaveFocus(),
+      expect(screen.getByRole('button', { name: 'Open map: Morrowind Game of the Year' })).toHaveFocus(),
     );
   });
 });

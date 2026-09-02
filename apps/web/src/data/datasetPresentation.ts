@@ -13,6 +13,8 @@ export interface DatasetPresentation {
 export function presentDataset(manifest: DatasetManifest): DatasetPresentation {
   return {
     kind: DATASET_KIND[manifest.mapKey],
-    title: manifest.title.en,
+    title: manifest.mapKey === 'original'
+      ? 'Morrowind Game of the Year'
+      : `Tamriel Rebuilt — ${manifest.release.name}`,
   };
 }

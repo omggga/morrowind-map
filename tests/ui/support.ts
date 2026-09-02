@@ -1,17 +1,21 @@
 import { expect, type Page } from '@playwright/test';
+import {
+  ANALYTICS_CONSENT_STORAGE_KEY,
+  ANALYTICS_NOTICE_VERSION,
+} from '../../apps/web/src/analytics/googleAnalytics';
 
 export const POISON_DATASET_ID = 'poison-song-26.08';
 export const POISON_SNAPSHOT_ID = 'tr:poison-song-26.08:6964517551e0fcb0';
 export const POISON_PLACE_ID = 'poison-song-26.08.place-014cd9c0ca05af58dc14';
 export const POISON_PLACE_NAME = 'Pneuma Grove';
-export const POISON_CARD_NAME = 'Open map: Tamriel Rebuilt 26.08 — Poison Song';
+export const POISON_CARD_NAME = 'Open map: Tamriel Rebuilt — Poison Song';
 export const POISON_HEADING = 'Tamriel Rebuilt 26.08 — Poison Song';
 
 export const ORIGINAL_DATASET_ID = 'original-goty-hd';
 export const ORIGINAL_SNAPSHOT_ID = 'original:goty:8b2690c0ce1c954e';
 export const ORIGINAL_PLACE_ID = 'original-goty-hd.place-18680400d24ed6f70770';
 export const ORIGINAL_PLACE_NAME = 'Balmora, Guild of Mages';
-export const ORIGINAL_CARD_NAME = 'Open map: Morrowind Game of the Year — HD';
+export const ORIGINAL_CARD_NAME = 'Open map: Morrowind Game of the Year';
 export const ORIGINAL_HEADING = 'Morrowind Game of the Year — HD';
 
 const SYNTHETIC_TILE = Buffer.from(
@@ -211,6 +215,17 @@ export async function installOfflineRoutes(
     emptyCatalogDatasetId,
   }: OfflineRouteOptions = {},
 ): Promise<OfflineProbe> {
+  await page.addInitScript(({ storageKey, noticeVersion }) => {
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      choice: 'denied',
+      decidedAt: '2026-09-02T00:00:00.000Z',
+      noticeVersion,
+    }));
+  }, {
+    storageKey: ANALYTICS_CONSENT_STORAGE_KEY,
+    noticeVersion: ANALYTICS_NOTICE_VERSION,
+  });
+
   let manifestUnavailable = failManifestDatasetId !== undefined;
   let datasetAssetsUnavailable = failDatasetAssets;
   let activeTileFailureMode = tileFailureMode;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DatasetManifest } from '@morrowind-map/contracts';
+import { AnalyticsConsentBanner } from './analytics/AnalyticsConsent';
 import { presentDataset } from './data/datasetPresentation';
 import {
   loadDatasets,
@@ -247,20 +248,23 @@ export function App() {
       loadState.datasets.map(({ datasetId, snapshotId }) => [datasetId, snapshotId]),
     );
     return (
-      <Tes3Map
-        key={selectedDataset.datasetId}
-        dataset={selectedDataset}
-        datasetSnapshots={datasetSnapshots}
-        focusMapOnMount={focusRecoveredContent}
-        navigationState={navigationState}
-        navigationRevision={navigationRevision}
-        onNavigationChange={commitNavigationState}
-        onBack={() => {
-          returnFocusIdRef.current = selectedDataset.datasetId;
-          shouldReturnFocusRef.current = true;
-          commitNavigationState(LANDING_URL_STATE, 'push');
-        }}
-      />
+      <>
+        <Tes3Map
+          key={selectedDataset.datasetId}
+          dataset={selectedDataset}
+          datasetSnapshots={datasetSnapshots}
+          focusMapOnMount={focusRecoveredContent}
+          navigationState={navigationState}
+          navigationRevision={navigationRevision}
+          onNavigationChange={commitNavigationState}
+          onBack={() => {
+            returnFocusIdRef.current = selectedDataset.datasetId;
+            shouldReturnFocusRef.current = true;
+            commitNavigationState(LANDING_URL_STATE, 'push');
+          }}
+        />
+        <AnalyticsConsentBanner showSettings={false} />
+      </>
     );
   }
 
@@ -272,7 +276,8 @@ export function App() {
     : null;
 
   return (
-    <main className="landing-screen">
+    <>
+      <main className="landing-screen">
       <LandingMapBackdrop
         key={backdropDataset === null
           ? 'fallback'
@@ -287,7 +292,7 @@ export function App() {
           ref={landingHeadingRef}
           tabIndex={-1}
         >
-          Choose a world
+          Choose your world
         </h1>
 
         {loadState.status === 'loading' ? (
@@ -395,6 +400,8 @@ export function App() {
           </>
         ) : null}
       </section>
-    </main>
+      </main>
+      <AnalyticsConsentBanner showSettings={navigationState.datasetId === null} />
+    </>
   );
 }

@@ -1,6 +1,10 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import {
+  ANALYTICS_CONSENT_STORAGE_KEY,
+  ANALYTICS_NOTICE_VERSION,
+} from '../../apps/web/src/analytics/googleAnalytics';
 
 import {
   loadTrCandidateFromEnvironment,
@@ -19,10 +23,10 @@ const POISON_GUILD_ID = 'poison-song-26.08.place-andothren-guildhall';
 const POISON_GUILD_NAME = 'Andothren Guildhall';
 const POISON_SHOP_ID = 'poison-song-26.08.place-vvardenfell-tradehouse';
 const POISON_SHOP_NAME = 'Vvardenfell Tradehouse';
-const POISON_CARD_NAME = 'Open map: Tamriel Rebuilt 26.08 — Poison Song';
+const POISON_CARD_NAME = 'Open map: Tamriel Rebuilt — Poison Song';
 const OLD_EBONHEART_ID = 'poison-song-26.08.place-old-ebonheart-fixture';
 const OLD_EBONHEART_NAME = 'Old Ebonheart';
-const ORIGINAL_CARD_NAME = 'Open map: Morrowind Game of the Year — HD';
+const ORIGINAL_CARD_NAME = 'Open map: Morrowind Game of the Year';
 const ORIGINAL_DATASET_ID = 'original-goty-hd';
 const ORIGINAL_INVENTORY =
   'aade4b98c2fb905fd2617871345292a638e3a4a25c6d036db7a3cc18bb2dd014';
@@ -389,6 +393,19 @@ const landingDefaultViewFixtures: readonly LandingDefaultViewFixture[] = [
     view: [-16_384, 40_960, 2],
   },
 ];
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(({ storageKey, noticeVersion }) => {
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      choice: 'denied',
+      decidedAt: '2026-09-02T00:00:00.000Z',
+      noticeVersion,
+    }));
+  }, {
+    storageKey: ANALYTICS_CONSENT_STORAGE_KEY,
+    noticeVersion: ANALYTICS_NOTICE_VERSION,
+  });
+});
 
 const TR_MAINLAND_DEFAULT_VIEW = [53_248, -151_552, 4] as const;
 
@@ -1189,7 +1206,7 @@ test('canonicalizes an unknown dataset to landing while preserving unrelated URL
     '/?theme=sepia&dataset=retired-map&region=vvardenfell&x=1&y=2&z=3&place=stale#ledger',
   );
 
-  await expect(page.getByRole('heading', { name: 'Choose a world' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose your world' })).toBeVisible();
   await expectRelativeUrl(page, '/?theme=sepia#ledger');
   expect(probe.externalRequests).toEqual([]);
 });
@@ -1294,7 +1311,7 @@ test('uses push history for semantic states and replace history for camera movem
   );
 
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'Choose a world' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose your world' })).toBeVisible();
   await expect(poisonCard).toBeFocused();
 
   await page.goForward();
@@ -1313,7 +1330,7 @@ test('uses push history for semantic states and replace history for camera movem
   expect(await historyLength(page)).toBe(cameraHistoryLength);
 
   await page.getByRole('button', { name: 'Back to maps' }).click();
-  await expect(page.getByRole('heading', { name: 'Choose a world' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose your world' })).toBeVisible();
   await expect.poll(() => historyLength(page)).toBe(cameraHistoryLength + 1);
   expect(probe.externalRequests).toEqual([]);
 });

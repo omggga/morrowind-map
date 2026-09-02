@@ -267,7 +267,7 @@ test('provides focused actions for query, filter, marker, and empty-catalog stat
     'This dataset contains no exterior places to display. Choose another version.',
   );
   await noExterior.getByRole('button', { name: 'Back to maps' }).click();
-  await expect(page.getByRole('heading', { name: 'Choose a world' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose your world' })).toBeVisible();
 });
 
 test('keeps the map read-only and recovers when IndexedDB becomes available', async ({ page }, testInfo) => {

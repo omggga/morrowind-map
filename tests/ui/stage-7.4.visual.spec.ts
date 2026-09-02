@@ -63,7 +63,7 @@ async function expectWcagClean(page: Page, state: string): Promise<void> {
 test('pins landing and map layout across the viewport matrix', async ({ page }) => {
   const probe = await installOfflineRoutes(page);
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Choose a world' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose your world' })).toBeVisible();
   await waitForLandingReady(page);
   await expectNoViewportOverflow(page);
   await screenshot(page, 'landing.png');
@@ -359,7 +359,7 @@ test('has no unwaived WCAG 2.2 AA or severe best-practice violations', async ({ 
   test.skip(!isDesktop(testInfo), 'The complete axe state matrix runs once.');
   await installOfflineRoutes(page);
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Choose a world' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose your world' })).toBeVisible();
   await expectWcagClean(page, 'landing');
 
   await page.getByRole('button', { name: ORIGINAL_CARD_NAME }).click();
