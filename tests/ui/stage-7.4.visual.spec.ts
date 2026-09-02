@@ -182,6 +182,7 @@ test('pins dataset-load failure, retry, and unpublished state', async ({ page },
   await page.goto(`/?dataset=poison-song-26.08&region=tr-mainland&x=12288&y=-217088&z=6`);
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('could not be opened');
+  await expect(alert.getByRole('button', { name: 'Retry' })).toBeFocused();
   await screenshot(page, 'dataset-error.png');
   probe.restoreDatasetAssets();
   await alert.getByRole('button', { name: 'Retry' }).click();
