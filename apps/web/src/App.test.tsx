@@ -142,6 +142,7 @@ describe('App dataset workflow', () => {
     expect(screen.getByText('Classic')).toHaveClass('dataset-choice__kind');
     expect(screen.getByText('Tamriel Rebuilt')).toHaveClass('dataset-choice__kind');
     expect(screen.queryByText('LOCAL CARTOGRAPHIC LOG')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Contact information' })).toBeInTheDocument();
 
     const datasets = [
       {
@@ -162,6 +163,8 @@ describe('App dataset workflow', () => {
       document.body.scrollTop = 96;
       fireEvent.click(card);
       expect(screen.getByRole('region', { name: 'mock map' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Contact information' }))
+        .not.toBeInTheDocument();
       expect(screen.getByRole('heading', { name: dataset.heading })).toBeInTheDocument();
       expect(document.documentElement.scrollTop).toBe(0);
       expect(document.body.scrollTop).toBe(0);
@@ -171,6 +174,7 @@ describe('App dataset workflow', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Versions' }));
       await waitFor(() => expect(screen.getByRole('button', { name: dataset.card })).toHaveFocus());
+      expect(screen.getByRole('button', { name: 'Contact information' })).toBeInTheDocument();
       expect(window.location.search).toBe('');
     }
   });
@@ -185,6 +189,8 @@ describe('App dataset workflow', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Poison Song 26.08' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Contact information' }))
+      .not.toBeInTheDocument();
     expect(screen.getByLabelText('mock navigation state')).toHaveTextContent(
       '"regionId":"tr-mainland"',
     );

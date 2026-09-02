@@ -3,6 +3,8 @@ export const PIXEL_ICON_NAMES = [
   'import',
   'export',
   'close',
+  'mail',
+  'github',
 ] as const;
 
 export type PixelIconName = (typeof PIXEL_ICON_NAMES)[number];

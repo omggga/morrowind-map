@@ -6,6 +6,7 @@ import {
   loadDatasets,
   type DatasetLoadIssue,
 } from './data/loadDatasets';
+import { LandingContact } from './landing/LandingContact';
 import { LandingMapBackdrop } from './map/LandingMapBackdrop';
 import { Tes3Map } from './map/Tes3Map';
 import {
@@ -400,6 +401,7 @@ export function App() {
           </>
         ) : null}
       </section>
+      {navigationState.datasetId === null ? <LandingContact /> : null}
       </main>
       <AnalyticsConsentBanner showSettings={navigationState.datasetId === null} />
     </>

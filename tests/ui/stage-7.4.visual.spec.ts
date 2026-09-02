@@ -60,13 +60,23 @@ async function expectWcagClean(page: Page, state: string): Promise<void> {
   expect(severe, `${state}: serious/critical best-practice violations\n${JSON.stringify(severe, null, 2)}`).toEqual([]);
 }
 
-test('pins landing and map layout across the viewport matrix', async ({ page }) => {
+test('pins landing and map layout across the viewport matrix', async ({ page }, testInfo) => {
   const probe = await installOfflineRoutes(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Choose your world' })).toBeVisible();
   await waitForLandingReady(page);
   await expectNoViewportOverflow(page);
   await screenshot(page, 'landing.png');
+
+  await page.getByRole('button', { name: 'Contact information' }).click();
+  const contactPanel = page.getByRole('complementary', { name: 'Contact information' });
+  await expect(contactPanel).toBeInViewport({ ratio: 1 });
+  await expectNoViewportOverflow(page);
+  if (isDesktop(testInfo)) {
+    await expectWcagClean(page, 'Landing contact information');
+    await screenshot(page, 'landing-contact.png');
+  }
+  await page.getByRole('button', { name: 'Close contact information' }).click();
 
   await page.getByRole('button', { name: POISON_CARD_NAME }).click();
   await waitForVisualReady(page);
