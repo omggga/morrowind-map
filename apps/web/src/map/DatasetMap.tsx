@@ -351,6 +351,17 @@ export function DatasetMap({
   const retryButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    if (loadState.status !== 'error' || loadState.retrying) {
+      return undefined;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      retryButtonRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [loadState]);
+
+  useEffect(() => {
     const controller = new AbortController();
     loadInFlightRef.current = true;
     const slowTimer = window.setTimeout(() => setLoadIsSlow(true), 800);
@@ -376,7 +387,6 @@ export function DatasetMap({
                 ? { status: 'invalid', message: error.message }
               : { status: 'error', message: errorMessage(error), retrying: false },
           );
-          window.requestAnimationFrame(() => retryButtonRef.current?.focus());
         }
       });
     return () => {

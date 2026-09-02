@@ -152,6 +152,7 @@ describe('DatasetMap loading states', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('HTTP 503');
     const retry = screen.getByRole('button', { name: 'Retry' });
+    await waitFor(() => expect(retry).toHaveFocus());
     fireEvent.click(retry);
     fireEvent.click(retry);
 
