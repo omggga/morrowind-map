@@ -1000,6 +1000,11 @@ textarea:focus-visible,
   scrollbar-width: thin;
 }
 
+.place-results__sentinel {
+  height: 1px;
+  pointer-events: none;
+}
+
 .place-result {
   display: grid;
   width: 100%;

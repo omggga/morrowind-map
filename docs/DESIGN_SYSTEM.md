@@ -69,6 +69,12 @@ Tile mosaic собирается из проверенного coverage-окна
 
 Map controls используют простые `+` и `−`. Import/export находятся справа в titlebar как компактные tray-and-arrow controls. Entrance и personal markers на canvas — небольшие тонкие пустые квадраты; подписи мест меньше основного UI-текста и рисуются без фоновой плашки или рамки. В list, legend и editor сохраняется та же square semantics с размером, подходящим для чтения и управления.
 
+Стартовая camera после выбора карты использует `map.projection.center` из manifest и первый catalog tier `z=2`. Для выбранного `TR Mainland` стартовая точка — Old Ebonheart на `z=4`. Если URL содержит валидные `x/y/z`, эта camera authoritative: default и region focus её не заменяют.
+
+Catalog results появляются последовательными batches при прокрутке ledger. Batch влияет только на число созданных DOM-строк: поиск, counters, markers и filters продолжают отражать полный набор совпадений.
+
+Штатная загрузка map tiles визуально бесшумна: без status-текста, spinner и overlay поверх карты. Видимый system state появляется только для missing coverage, ошибки загрузки или доступного retry; он не сбрасывает camera, filters и selection.
+
 ## Responsive и доступность
 
 - `1280×720`: full-viewport backdrop, выбор слева; карта использует ledger + canvas.
@@ -77,4 +83,4 @@ Map controls используют простые `+` и `−`. Import/export н�
 - Landscape высотой до `480px`: titlebar остаётся `46px`, ledger самостоятельно scrollable.
 - Safe-area tokens применяются к titlebar, landing и overlays.
 
-Keyboard focus всегда имеет `2px` контрастный outline. На сфокусированной карте стрелки двигают viewport, `+`/`−` меняют zoom, а `M` по очереди открывает сохранённые personal markers. Touch flow не зависит от hover. Controls сохраняют accessible names, disabled/busy semantics и recovery actions. Error остаётся `alert`, сохранение и loading — `status`; overlays не создают focus trap без модального поведения.
+Keyboard focus всегда имеет `2px` контрастный outline. На сфокусированной карте стрелки двигают viewport, `+`/`−` меняют zoom, а `M` по очереди открывает сохранённые personal markers. Touch flow не зависит от hover. Controls сохраняют accessible names, disabled/busy semantics и recovery actions. Error остаётся `alert`; сохранение и загрузка dataset, catalog или user data — `status`. Ожидание отдельных tiles не анонсируется как status. Overlays не создают focus trap без модального поведения.

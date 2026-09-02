@@ -140,15 +140,27 @@ test('pins both themes and the interactive state matrix', async ({ page }, testI
   await screenshot(page, 'data-tools.png');
 });
 
-test('pins loading, error, retry, and missing-data states', async ({ page }, testInfo) => {
-  test.skip(!isDesktop(testInfo), 'System-state snapshots are pinned once in the desktop project.');
+test('keeps the place card fixed while map tiles load', async ({ page }, testInfo) => {
+  test.skip(!isDesktop(testInfo), 'Tile loading layout runs once in the desktop project.');
 
-  const loadingProbe = await installOfflineRoutes(page, { holdTiles: true });
+  const probe = await installOfflineRoutes(page, { holdTiles: true });
   await openDataset(page, POISON_CARD_NAME, POISON_HEADING);
-  await expect(page.getByRole('status').filter({ hasText: 'Loading map tiles' })).toBeVisible();
-  await screenshot(page, 'tiles-loading.png');
-  loadingProbe.releaseTiles();
+  const map = page.getByLabel('Interactive map in TES3 world coordinates');
+  await expect(map).toHaveAttribute('data-basemap-pending', /^[1-9]\d*$/);
+  await expect(page.getByText(/Loading map tiles/)).toHaveCount(0);
+
+  await page.getByRole('searchbox', { name: 'Find a place' }).fill(POISON_PLACE_NAME);
+  await page.getByRole('button', { name: new RegExp(`^${POISON_PLACE_NAME}`) }).click();
+  const card = page.locator('article.place-card');
+  await expect(card).toBeVisible();
+  const before = await card.boundingBox();
+
+  probe.releaseTiles();
   await waitForVisualReady(page);
+  const after = await card.boundingBox();
+  expect(before).not.toBeNull();
+  expect(after).not.toBeNull();
+  expect(Math.abs((after?.y ?? 0) - (before?.y ?? 0))).toBeLessThanOrEqual(1);
 });
 
 test('pins recoverable tile failure and successful retry', async ({ page }, testInfo) => {

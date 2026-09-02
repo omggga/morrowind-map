@@ -139,7 +139,12 @@ interface BasemapRuntimeState {
 
 type MarkerEmphasis = 'default' | 'hovered' | 'selected';
 
-const INITIAL_MAP_ZOOM_DELTA = 1;
+const RESULT_BATCH_SIZE = 80;
+const DEFAULT_MAP_ZOOM = 2;
+const OLD_EBONHEART_VIEW: MapUrlView = {
+  center: [53_248, -151_552],
+  zoom: 4,
+};
 
 const MARKER_ICON_SOURCES = new globalThis.Map<MarkerKind, string>(
   MARKER_KINDS.map((kind) => {
@@ -223,6 +228,28 @@ function errorMessage(error: unknown): string {
 function regionTitle(dataset: DatasetManifest, regionId: string): string {
   const region = dataset.regions.find(({ id }) => id === regionId);
   return region?.title.en ?? regionId;
+}
+
+function regionNavigationView(
+  dataset: DatasetManifest,
+  regionId: string,
+  minimumZoom: number,
+  maximumZoom: number,
+): MapUrlView | null {
+  const clampZoom = (zoom: number) => Math.min(maximumZoom, Math.max(minimumZoom, zoom));
+  if (regionId === 'all') {
+    return {
+      center: [...dataset.map.projection.center],
+      zoom: clampZoom(DEFAULT_MAP_ZOOM),
+    };
+  }
+  if (dataset.mapKey === 'tamriel-rebuilt' && regionId === 'tr-mainland') {
+    return {
+      center: [...OLD_EBONHEART_VIEW.center],
+      zoom: clampZoom(OLD_EBONHEART_VIEW.zoom),
+    };
+  }
+  return null;
 }
 
 function regionExtent(
@@ -487,6 +514,7 @@ function DatasetMapReady({
   });
   const customMarkerEditorInputRef = useRef<HTMLInputElement>(null);
   const filterResetRef = useRef<HTMLButtonElement>(null);
+  const resultSentinelRef = useRef<HTMLDivElement>(null);
   const userDataRetryButtonRef = useRef<HTMLButtonElement>(null);
   const placeCardRef = useRef<HTMLElement>(null);
   const placeCardFocus = useMemo(() => createFocusReturnController(), []);
@@ -707,7 +735,50 @@ function DatasetMapReady({
     () => placeSearch.search(query, visiblePlaces.length),
     [placeSearch, query, visiblePlaces.length],
   );
-  const results = useMemo(() => allResults.slice(0, 80), [allResults]);
+  const [resultWindow, setResultWindow] = useState(() => ({
+    source: allResults,
+    count: RESULT_BATCH_SIZE,
+  }));
+  if (resultWindow.source !== allResults) {
+    setResultWindow({ source: allResults, count: RESULT_BATCH_SIZE });
+  }
+  const renderedResultCount = typeof IntersectionObserver === 'undefined'
+    ? allResults.length
+    : resultWindow.source === allResults
+      ? resultWindow.count
+      : RESULT_BATCH_SIZE;
+  const results = useMemo(
+    () => allResults.slice(0, renderedResultCount),
+    [allResults, renderedResultCount],
+  );
+  const hasMoreResults = results.length < allResults.length;
+
+  useEffect(() => {
+    if (!hasMoreResults) {
+      return undefined;
+    }
+    const sentinel = resultSentinelRef.current;
+    if (sentinel === null) {
+      return undefined;
+    }
+    if (typeof IntersectionObserver === 'undefined') {
+      return undefined;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some(({ isIntersecting }) => isIntersecting)) {
+        return;
+      }
+      setResultWindow((current) => current.source === allResults
+        ? {
+            source: current.source,
+            count: Math.min(allResults.length, current.count + RESULT_BATCH_SIZE),
+          }
+        : current
+      );
+    }, { rootMargin: '240px 0px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [allResults, hasMoreResults, renderedResultCount]);
   const searchMatchIds = useMemo(
     () => query.trim().length === 0
       ? new Set<string>()
@@ -1220,9 +1291,17 @@ function DatasetMapReady({
     const initialPlace = initialNavigation.placeId === null
       ? null
       : places.find(({ id }) => id === initialNavigation.placeId) ?? null;
+    const initialRegionView = initialNavigation.view === null && initialPlace === null
+      ? regionNavigationView(
+          dataset,
+          initialNavigation.regionId,
+          minimumZoom,
+          maximumZoom,
+        )
+      : null;
     const initialView = initialNavigation.view ?? (
       initialPlace === null
-        ? null
+        ? initialRegionView
         : {
             center: initialPlace.place.mapPosition,
             zoom: Math.min(
@@ -1273,12 +1352,6 @@ function DatasetMapReady({
         maxZoom: Math.min(4, view.getMaxZoom()),
         padding: [44, 44, 44, 44],
       });
-      if (initialNavigation.regionId === 'all') {
-        const fittedZoom = view.getZoom();
-        if (fittedZoom !== undefined) {
-          view.setZoom(Math.min(view.getMaxZoom(), fittedZoom + INITIAL_MAP_ZOOM_DELTA));
-        }
-      }
     }
     zoomRef.current = view.getZoom() ?? 0;
     setZoom(zoomRef.current);
@@ -1468,6 +1541,7 @@ function DatasetMapReady({
     commitNavigation,
     createMarkerAt,
     customMarkerCardFocus,
+    dataset,
     dataset.datasetId,
     extent,
     maximumZoom,
@@ -1549,6 +1623,17 @@ function DatasetMapReady({
       ));
       return;
     }
+    const requestedRegionView = regionNavigationView(
+      dataset,
+      normalizedNavigationState.regionId,
+      minimumZoom,
+      maximumZoom,
+    );
+    if (requestedRegionView !== null) {
+      view.setCenter([...requestedRegionView.center]);
+      view.setZoom(requestedRegionView.zoom);
+      return;
+    }
     const requestedExtent = normalizedNavigationState.regionId === 'all'
       ? extent
       : regionExtent(
@@ -1564,7 +1649,10 @@ function DatasetMapReady({
     });
   }, [
     bundle,
+    dataset,
     extent,
+    maximumZoom,
+    minimumZoom,
     navigationState,
     navigationRevision,
     normalizedNavigationState,
@@ -1614,6 +1702,24 @@ function DatasetMapReady({
       duration: prefersReducedMotion() ? 0 : 180,
       maxZoom: Math.min(4, view.getMaxZoom()),
       padding: [48, 48, 48, 48],
+    });
+  };
+
+  const moveToView = (nextView: MapUrlView) => {
+    const view = mapRef.current?.getView();
+    if (!view) {
+      return;
+    }
+    view.cancelAnimations();
+    if (prefersReducedMotion()) {
+      view.setCenter([...nextView.center]);
+      view.setZoom(nextView.zoom);
+      return;
+    }
+    view.animate({
+      center: [...nextView.center],
+      zoom: nextView.zoom,
+      duration: 180,
     });
   };
 
@@ -1670,6 +1776,12 @@ function DatasetMapReady({
         selectedPlace.place.regionId !== nextRegion
       ? null
       : selectedId;
+    const nextRegionView = regionNavigationView(
+      dataset,
+      nextRegion,
+      minimumZoom,
+      maximumZoom,
+    );
     selectedIdRef.current = nextPlaceId;
     setRegion(nextRegion);
     setSelectedId(nextPlaceId);
@@ -1678,11 +1790,12 @@ function DatasetMapReady({
         ...navigationWithCurrentView(),
         regionId: nextRegion,
         placeId: nextPlaceId,
+        ...(nextRegionView === null ? {} : { view: nextRegionView }),
       },
       'push',
     );
-    if (nextRegion === 'all') {
-      fitExtent(extent);
+    if (nextRegionView !== null) {
+      moveToView(nextRegionView);
       return;
     }
     const nextExtent = regionExtent(
@@ -2043,6 +2156,14 @@ function DatasetMapReady({
             ) : (
               <p className="no-results">{t('map.noPlacesAtZoom')}</p>
             )}
+            {hasMoreResults ? (
+              <div
+                ref={resultSentinelRef}
+                className="place-results__sentinel"
+                data-rendered-result-count={results.length}
+                aria-hidden="true"
+              />
+            ) : null}
           </div>
         </aside>
 
@@ -2055,6 +2176,8 @@ function DatasetMapReady({
             data-view-x={viewState?.center[0]}
             data-view-y={viewState?.center[1]}
             data-view-z={viewState?.zoom}
+            data-basemap-pending={basemapState.pending}
+            data-basemap-loaded={basemapState.loaded}
             data-custom-marker-count={customMarkers.records.length}
             data-visible-place-count={visiblePlaces.length}
             data-label-candidate-count={visiblePlaces.length}
@@ -2138,10 +2261,6 @@ function DatasetMapReady({
                 {basemapState.retrying ? t('map.retrying') : t('map.retryFailedTiles')}
               </button>
             </div>
-          ) : basemapState.pending > 0 ? (
-            <p className="basemap-state" role="status">
-              {t('map.basemapLoading', { count: basemapState.pending })}
-            </p>
           ) : basemapState.missing ? (
             <p className="basemap-state basemap-state--missing" role="status">
               {t('map.basemapMissing')}

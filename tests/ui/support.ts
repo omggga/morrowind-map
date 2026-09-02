@@ -398,6 +398,9 @@ export async function waitForLandingReady(page: Page): Promise<void> {
 export async function waitForVisualReady(page: Page): Promise<void> {
   await page.evaluate(async () => document.fonts.ready);
   await expect(page.locator('.archive-screen, .map-screen')).toBeVisible();
+  const map = page.getByLabel('Interactive map in TES3 world coordinates');
+  await expect(map).toHaveAttribute('data-basemap-loaded', /^[1-9]\d*$/);
+  await expect(map).toHaveAttribute('data-basemap-pending', '0');
   await expect(page.locator('.basemap-state')).toHaveCount(0);
   await page.locator('.archive-screen, .map-screen').evaluate((element) => {
     element.setAttribute('data-visual-ready', 'true');

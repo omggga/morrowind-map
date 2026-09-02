@@ -20,6 +20,7 @@ const POISON_GUILD_NAME = 'Andothren Guildhall';
 const POISON_SHOP_ID = 'poison-song-26.08.place-vvardenfell-tradehouse';
 const POISON_SHOP_NAME = 'Vvardenfell Tradehouse';
 const POISON_CARD_NAME = 'Open map: Tamriel Rebuilt 26.08 — Poison Song';
+const OLD_EBONHEART_NAME = 'Old Ebonheart';
 const ORIGINAL_CARD_NAME = 'Open map: Morrowind Game of the Year — HD';
 const ORIGINAL_DATASET_ID = 'original-goty-hd';
 const ORIGINAL_INVENTORY =
@@ -35,6 +36,7 @@ const ORIGINAL_TEMPLE_ID = 'original-goty-hd.place-balmora-temple-fixture';
 const ORIGINAL_TEMPLE_NAME = 'Balmora Temple';
 const ORIGINAL_CAVE_ID = 'original-goty-hd.place-solstheim-ice-cave';
 const ORIGINAL_CAVE_NAME = 'Solstheim Ice Cave';
+const BAL_FELL_NAME = 'Bal Fell';
 const SYNTHETIC_TILE = Buffer.from(
   'UklGRh4AAABXRUJQVlA4TBEAAAAvB8ABAAfQvK5Vqv+BiOh/AAA=',
   'base64',
@@ -259,6 +261,30 @@ const directUrlFixtures: readonly DirectUrlFixture[] = [
     view: [-20_000, -15_000, 5.25],
   },
 ];
+
+interface LandingDefaultViewFixture {
+  readonly label: string;
+  readonly cardName: string;
+  readonly heading: string;
+  readonly view: readonly [x: number, y: number, zoom: number];
+}
+
+const landingDefaultViewFixtures: readonly LandingDefaultViewFixture[] = [
+  {
+    label: 'Poison Song',
+    cardName: POISON_CARD_NAME,
+    heading: 'Tamriel Rebuilt 26.08 — Poison Song',
+    view: [90_112, -98_304, 2],
+  },
+  {
+    label: 'Original GOTY HD',
+    cardName: ORIGINAL_CARD_NAME,
+    heading: 'Morrowind Game of the Year — HD',
+    view: [-16_384, 40_960, 2],
+  },
+];
+
+const TR_MAINLAND_DEFAULT_VIEW = [53_248, -151_552, 4] as const;
 
 const preparedDirectUrlFixtures: readonly DirectUrlFixture[] = trCandidatePreparedAssets
   ? [
@@ -597,6 +623,18 @@ async function expectMapView(
   }).toEqual([true, true, true]);
 }
 
+async function expectExactMapView(
+  page: Page,
+  [expectedX, expectedY, expectedZoom]: LandingDefaultViewFixture['view'],
+): Promise<void> {
+  const map = mapCanvas(page);
+  await expect(map).toBeVisible();
+  await expect.poll(async () => {
+    const view = await currentMapView(page);
+    return [view.x, view.y, view.zoom];
+  }).toEqual([expectedX, expectedY, expectedZoom]);
+}
+
 async function expectDirectUrlState(page: Page, fixture: DirectUrlFixture): Promise<void> {
   await expect(page.getByRole('heading', { name: fixture.heading })).toBeVisible();
   await expect(
@@ -628,6 +666,12 @@ function statusFilterButton(page: Page, label: string) {
   return page
     .locator('fieldset.place-filter-axis--statuses')
     .getByRole('button', { name: new RegExp(`^${label}(?:\\s|$)`) });
+}
+
+function placeResultByExactName(page: Page, name: string) {
+  return page.locator('button.place-result').filter({
+    has: page.locator('strong').filter({ hasText: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }),
+  });
 }
 
 async function expectUrlFilters(
@@ -663,6 +707,94 @@ for (const fixture of directUrlFixtures) {
     expect(probe.localFailures).toEqual([]);
   });
 }
+
+for (const fixture of landingDefaultViewFixtures) {
+  test(`opens ${fixture.label} from its landing card at the manifest default view`, async ({ page }) => {
+    const probe = await installOfflineRoutes(page);
+    await page.goto('/');
+    const landingUrl = new URL(page.url());
+    expect(landingUrl.searchParams.has('x')).toBe(false);
+    expect(landingUrl.searchParams.has('y')).toBe(false);
+    expect(landingUrl.searchParams.has('z')).toBe(false);
+
+    await page.getByRole('button', { name: fixture.cardName }).click();
+    await expect(page.getByRole('heading', { name: fixture.heading })).toBeVisible();
+    await expectExactMapView(page, fixture.view);
+    await expect.poll(async () =>
+      Number(await mapCanvas(page).getAttribute('data-visible-place-count')),
+    ).toBeGreaterThan(0);
+    expect(probe.externalRequests).toEqual([]);
+    expect(probe.localFailures).toEqual([]);
+  });
+}
+
+test('loads Original catalog results beyond the first batch when the ledger is scrolled', async ({ page }) => {
+  const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`/?dataset=${ORIGINAL_DATASET_ID}&region=all&x=-22000&y=-15000&z=4`);
+  const map = mapCanvas(page);
+  await expect(map).toHaveAttribute('data-visible-place-count', '1036');
+
+  const resultList = page.locator('.place-results');
+  const catalogResults = resultList.locator(':scope > button.place-result');
+  const balFell = placeResultByExactName(page, BAL_FELL_NAME);
+  await expect(catalogResults).toHaveCount(80);
+  await expect(balFell).toHaveCount(0);
+
+  await resultList.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect.poll(() => catalogResults.count()).toBeGreaterThan(80);
+  await expect(balFell).toHaveCount(1);
+  await balFell.scrollIntoViewIfNeeded();
+  await expect(balFell).toBeVisible();
+  await balFell.click();
+  await expect(page.getByRole('heading', { name: BAL_FELL_NAME, exact: true })).toBeVisible();
+  expect(probe.externalRequests).toEqual([]);
+  expect(probe.localFailures).toEqual([]);
+});
+
+test('fits the complete real TR Mainland catalog from landing and a no-view URL', async ({ page }) => {
+  const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
+  await page.goto('/');
+  await page.getByRole('button', { name: POISON_CARD_NAME }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Tamriel Rebuilt 26.08 — Poison Song' }),
+  ).toBeVisible();
+
+  const mainland = page.getByRole('button', { name: 'TR Mainland', exact: true });
+  await mainland.click();
+  await expect(mainland).toHaveAttribute('aria-pressed', 'true');
+  await expectExactMapView(page, TR_MAINLAND_DEFAULT_VIEW);
+  const map = mapCanvas(page);
+  await expect(map).toHaveAttribute('data-visible-place-count', '3052');
+  const resultList = page.locator('.place-results');
+  await expect(resultList.locator(':scope > .empty-state')).toHaveCount(0);
+  await expect(
+    resultList.getByText('No catalog places match these filters.', { exact: false }),
+  ).toHaveCount(0);
+
+  await page.getByRole('searchbox', { name: 'Find a place' }).fill('Old Ebonheart');
+  const oldEbonheart = placeResultByExactName(page, OLD_EBONHEART_NAME);
+  await expect(oldEbonheart).toBeVisible();
+  await oldEbonheart.click();
+  await expect(
+    page.getByRole('heading', { name: OLD_EBONHEART_NAME, exact: true }),
+  ).toBeVisible();
+
+  await page.goto(`/?dataset=${DATASET_ID}&region=tr-mainland`);
+  await expect(
+    page.getByRole('heading', { name: 'Tamriel Rebuilt 26.08 — Poison Song' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'TR Mainland', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expectExactMapView(page, TR_MAINLAND_DEFAULT_VIEW);
+  await expect(mapCanvas(page)).toHaveAttribute('data-visible-place-count', '3052');
+  await expect(page.locator('.place-results > .empty-state')).toHaveCount(0);
+  expect(probe.externalRequests).toEqual([]);
+  expect(probe.localFailures).toEqual([]);
+});
 
 test('keeps the open filter drawer in mobile ledger flow', async ({ page }) => {
   const probe = await installOfflineRoutes(page);

@@ -61,7 +61,11 @@ Generated artifacts публикуются в каталог, имя котор�
 
 URL хранит `dataset`, `region`, `x`, `y`, `z` и выбранное `place`. Входные параметры валидируются и canonicalize-ятся; Back/Forward восстанавливают meaningful navigation state без новых записей от каждого pan/zoom.
 
-Dataset, catalog и tiles имеют явные состояния loading, missing, invalid, network error, partial failure и retry. Abort/generation guards не позволяют позднему ответу старой загрузки заменить новое состояние. Tile retry повторяет только текущий failed set и не пересоздаёт карту, camera, filters или selection.
+Переход с landing без явной camera открывает карту в `map.projection.center` из manifest на первом каталожном tier `z=2`. Исключение для выбранного региона `tr-mainland` — Old Ebonheart на `z=4`. Явные валидные `x/y/z` из URL всегда authoritative и не заменяются default или region focus.
+
+Region, type, status и zoom-tier применяются ко всему каталогу. Список результатов добавляет DOM-строки последовательными batches по мере прокрутки; поиск, facet counts, map markers и общее число совпадений работают с полным отфильтрованным набором, а не только с уже отрисованным batch.
+
+Dataset и catalog имеют явные состояния loading, missing, invalid, network error, partial failure и retry. Обычная загрузка tile requests не показывает status, spinner или перекрывающий карту overlay. Missing coverage, tile errors и retry остаются видимыми recovery-состояниями. Abort/generation guards не позволяют позднему ответу старой загрузки заменить новое состояние. Tile retry повторяет только текущий failed set и не пересоздаёт карту, camera, filters или selection.
 
 ## Пользовательские данные
 

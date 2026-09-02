@@ -35,7 +35,6 @@ const resources = {
         noPlacesAtZoom: 'No places are visible at this zoom level. Zoom in to reveal more locations.',
         progressFilterUnavailable: 'Progress filters are paused until local data is available again.',
         mapAria: 'Interactive map in TES3 world coordinates',
-        basemapLoading: 'Loading map tiles: {{count}}',
         basemapError: 'Map tiles failed to load: {{count}}',
         basemapPartialError: 'Map tiles failed to load in some areas: {{count}}. Loaded areas remain available.',
         basemapFullError: 'Map tiles failed to load in the visible area: {{count}}.',
