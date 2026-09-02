@@ -20,6 +20,7 @@ const POISON_GUILD_NAME = 'Andothren Guildhall';
 const POISON_SHOP_ID = 'poison-song-26.08.place-vvardenfell-tradehouse';
 const POISON_SHOP_NAME = 'Vvardenfell Tradehouse';
 const POISON_CARD_NAME = 'Open map: Tamriel Rebuilt 26.08 — Poison Song';
+const OLD_EBONHEART_ID = 'poison-song-26.08.place-old-ebonheart-fixture';
 const OLD_EBONHEART_NAME = 'Old Ebonheart';
 const ORIGINAL_CARD_NAME = 'Open map: Morrowind Game of the Year — HD';
 const ORIGINAL_DATASET_ID = 'original-goty-hd';
@@ -36,6 +37,7 @@ const ORIGINAL_TEMPLE_ID = 'original-goty-hd.place-balmora-temple-fixture';
 const ORIGINAL_TEMPLE_NAME = 'Balmora Temple';
 const ORIGINAL_CAVE_ID = 'original-goty-hd.place-solstheim-ice-cave';
 const ORIGINAL_CAVE_NAME = 'Solstheim Ice Cave';
+const BAL_FELL_ID = 'original-goty-hd.place-bal-fell-fixture';
 const BAL_FELL_NAME = 'Bal Fell';
 const SYNTHETIC_TILE = Buffer.from(
   'UklGRh4AAABXRUJQVlA4TBEAAAAvB8ABAAfQvK5Vqv+BiOh/AAA=',
@@ -232,6 +234,110 @@ const originalLocaleFixture = {
   ],
 };
 
+const trMainlandLocationsFixture = {
+  ...locationsFixture,
+  places: [
+    ...locationsFixture.places,
+    {
+      id: OLD_EBONHEART_ID,
+      regionId: 'tr-mainland',
+      type: 'settlement',
+      mapPosition: [53_248, -151_552],
+      exteriorCell: [6, -19],
+      mimCategory: null,
+      minZoom: 0,
+      entrances: [],
+      sources: [
+        {
+          kind: 'esm',
+          plugin: 'TR_Mainland.esm',
+          recordId: OLD_EBONHEART_NAME,
+          mimIndex: null,
+        },
+      ],
+    },
+  ],
+};
+
+const trMainlandLocaleFixture = {
+  ...localeFixture,
+  places: [
+    ...localeFixture.places,
+    { placeId: OLD_EBONHEART_ID, name: OLD_EBONHEART_NAME, aliases: [] },
+  ],
+};
+
+const ORIGINAL_PAGINATION_PREFIX_COUNT = 80;
+const originalPaginationLocations = Array.from(
+  { length: ORIGINAL_PAGINATION_PREFIX_COUNT },
+  (_, index) => {
+    const ordinal = String(index + 1).padStart(3, '0');
+    return {
+      id: `original-goty-hd.place-pagination-${ordinal}`,
+      regionId: 'vvardenfell',
+      type: 'landmark',
+      mapPosition: [-22_000 + (index % 9) * 32, -15_000 + Math.floor(index / 9) * 32],
+      exteriorCell: [-3, -2],
+      mimCategory: null,
+      minZoom: 0,
+      entrances: [],
+      sources: [
+        {
+          kind: 'esm',
+          plugin: 'Morrowind.esm',
+          recordId: `Ald Fixture ${ordinal}`,
+          mimIndex: null,
+        },
+      ],
+    };
+  },
+);
+
+const originalPaginationLocale = Array.from(
+  { length: ORIGINAL_PAGINATION_PREFIX_COUNT },
+  (_, index) => {
+    const ordinal = String(index + 1).padStart(3, '0');
+    return {
+      placeId: `original-goty-hd.place-pagination-${ordinal}`,
+      name: `Ald Fixture ${ordinal}`,
+      aliases: [],
+    };
+  },
+);
+
+const originalPaginationLocationsFixture = {
+  ...originalLocationsFixture,
+  places: [
+    ...originalPaginationLocations,
+    {
+      id: BAL_FELL_ID,
+      regionId: 'vvardenfell',
+      type: 'landmark',
+      mapPosition: [-21_700, -14_700],
+      exteriorCell: [-3, -2],
+      mimCategory: null,
+      minZoom: 0,
+      entrances: [],
+      sources: [
+        {
+          kind: 'esm',
+          plugin: 'Morrowind.esm',
+          recordId: BAL_FELL_NAME,
+          mimIndex: null,
+        },
+      ],
+    },
+  ],
+};
+
+const originalPaginationLocaleFixture = {
+  ...originalLocaleFixture,
+  places: [
+    ...originalPaginationLocale,
+    { placeId: BAL_FELL_ID, name: BAL_FELL_NAME, aliases: [] },
+  ],
+};
+
 interface DirectUrlFixture {
   readonly label: string;
   readonly url: string;
@@ -358,6 +464,7 @@ const filterAcceptanceFixtures: readonly FilterAcceptanceFixture[] = [
 
 interface RouteOptions {
   readonly syntheticPayloads?: boolean;
+  readonly syntheticCatalogScenario?: 'default' | 'original-pagination' | 'tr-mainland';
   readonly failMapAssets?: boolean;
   readonly failTiles?: boolean;
   readonly blockOriginalManifest?: boolean;
@@ -376,14 +483,23 @@ function isAppUrl(url: URL): boolean {
   return url.hostname === '127.0.0.1' && url.port === '4173';
 }
 
-function syntheticCatalog(pathname: string): {
-  readonly locations: typeof locationsFixture | typeof originalLocationsFixture;
-  readonly locale: typeof localeFixture | typeof originalLocaleFixture;
-} | null {
+function syntheticCatalog(
+  pathname: string,
+  scenario: NonNullable<RouteOptions['syntheticCatalogScenario']>,
+) {
   if (pathname.includes(`/datasets/generated/${DATASET_ID}/catalogs/`)) {
+    if (scenario === 'tr-mainland') {
+      return { locations: trMainlandLocationsFixture, locale: trMainlandLocaleFixture };
+    }
     return { locations: locationsFixture, locale: localeFixture };
   }
   if (pathname.includes(`/datasets/generated/${ORIGINAL_DATASET_ID}/catalogs/`)) {
+    if (scenario === 'original-pagination') {
+      return {
+        locations: originalPaginationLocationsFixture,
+        locale: originalPaginationLocaleFixture,
+      };
+    }
     return { locations: originalLocationsFixture, locale: originalLocaleFixture };
   }
   return null;
@@ -393,6 +509,7 @@ async function installOfflineRoutes(
   page: Page,
   {
     syntheticPayloads = true,
+    syntheticCatalogScenario = 'default',
     failMapAssets = false,
     failTiles = false,
     blockOriginalManifest = false,
@@ -496,7 +613,7 @@ async function installOfflineRoutes(
       await route.fulfill({ response, json: manifest });
       return;
     }
-    const catalog = syntheticCatalog(pathname);
+    const catalog = syntheticCatalog(pathname, syntheticCatalogScenario);
     const isLocations = catalog !== null && pathname.endsWith('/locations.json');
     const isLocale = catalog !== null && pathname.endsWith('/locales/en.json');
     const isMapAssets =
@@ -729,11 +846,16 @@ for (const fixture of landingDefaultViewFixtures) {
 }
 
 test('loads Original catalog results beyond the first batch when the ledger is scrolled', async ({ page }) => {
-  const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
+  const probe = await installOfflineRoutes(page, {
+    syntheticCatalogScenario: 'original-pagination',
+  });
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto(`/?dataset=${ORIGINAL_DATASET_ID}&region=all&x=-22000&y=-15000&z=4`);
   const map = mapCanvas(page);
-  await expect(map).toHaveAttribute('data-visible-place-count', '1036');
+  await expect(map).toHaveAttribute(
+    'data-visible-place-count',
+    String(originalPaginationLocationsFixture.places.length),
+  );
 
   const resultList = page.locator('.place-results');
   const catalogResults = resultList.locator(':scope > button.place-result');
@@ -754,8 +876,10 @@ test('loads Original catalog results beyond the first batch when the ledger is s
   expect(probe.localFailures).toEqual([]);
 });
 
-test('fits the complete real TR Mainland catalog from landing and a no-view URL', async ({ page }) => {
-  const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
+test('fits TR Mainland from landing and a no-view URL', async ({ page }) => {
+  const probe = await installOfflineRoutes(page, {
+    syntheticCatalogScenario: 'tr-mainland',
+  });
   await page.goto('/');
   await page.getByRole('button', { name: POISON_CARD_NAME }).click();
   await expect(
@@ -767,7 +891,7 @@ test('fits the complete real TR Mainland catalog from landing and a no-view URL'
   await expect(mainland).toHaveAttribute('aria-pressed', 'true');
   await expectExactMapView(page, TR_MAINLAND_DEFAULT_VIEW);
   const map = mapCanvas(page);
-  await expect(map).toHaveAttribute('data-visible-place-count', '3052');
+  await expect(map).toHaveAttribute('data-visible-place-count', '4');
   const resultList = page.locator('.place-results');
   await expect(resultList.locator(':scope > .empty-state')).toHaveCount(0);
   await expect(
@@ -790,7 +914,7 @@ test('fits the complete real TR Mainland catalog from landing and a no-view URL'
     page.getByRole('button', { name: 'TR Mainland', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   await expectExactMapView(page, TR_MAINLAND_DEFAULT_VIEW);
-  await expect(mapCanvas(page)).toHaveAttribute('data-visible-place-count', '3052');
+  await expect(mapCanvas(page)).toHaveAttribute('data-visible-place-count', '4');
   await expect(page.locator('.place-results > .empty-state')).toHaveCount(0);
   expect(probe.externalRequests).toEqual([]);
   expect(probe.localFailures).toEqual([]);
@@ -826,7 +950,7 @@ test('keeps the open filter drawer in mobile ledger flow', async ({ page }) => {
 });
 
 test('keeps catalog filters above the growing result list after zoom', async ({ page }) => {
-  const probe = await installOfflineRoutes(page, { syntheticPayloads: false });
+  const probe = await installOfflineRoutes(page);
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto(`/?dataset=${ORIGINAL_DATASET_ID}&region=all&x=-22000&y=-15000&z=1`);
   await expect(page.getByRole('heading', { name: 'Morrowind Game of the Year — HD' })).toBeVisible();
