@@ -226,7 +226,7 @@ test('uses distinct wording when every visible tile fails', async ({ page }, tes
 
 test('provides focused actions for query, filter, marker, and empty-catalog states', async ({ page }, testInfo) => {
   test.skip(!isDesktop(testInfo), 'The full empty-state action matrix runs once on desktop.');
-  await installOfflineRoutes(page);
+  const probe = await installOfflineRoutes(page);
   await openDataset(page, POISON_CARD_NAME, POISON_HEADING);
   await waitForVisualReady(page);
 
@@ -260,10 +260,8 @@ test('provides focused actions for query, filter, marker, and empty-catalog stat
   expect(resetUrl.searchParams.getAll('status')).toEqual([]);
   await expect(page.getByRole('button', { name: new RegExp(`^${POISON_PLACE_NAME}`) })).toBeVisible();
 
-  await page.unrouteAll({ behavior: 'wait' });
-  await installOfflineRoutes(page, { emptyCatalogDatasetId: POISON_DATASET_ID });
-  await page.goto('/');
-  await page.getByRole('button', { name: POISON_CARD_NAME }).click();
+  probe.showEmptyCatalog(POISON_DATASET_ID);
+  await openDataset(page, POISON_CARD_NAME, POISON_HEADING);
   const noExterior = page.locator('.place-results > .empty-state');
   await expect(noExterior).toContainText(
     'This dataset contains no exterior places to display. Choose another version.',

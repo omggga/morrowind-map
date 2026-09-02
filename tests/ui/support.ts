@@ -177,6 +177,7 @@ export interface OfflineProbe {
   readonly restoreDatasetAssets: () => void;
   readonly restoreTiles: () => void;
   readonly failTilesFully: () => void;
+  readonly showEmptyCatalog: (datasetId: string) => void;
   readonly releaseDatasetAssets: () => void;
   readonly releaseTiles: () => void;
   readonly releaseTileRetries: () => void;
@@ -213,6 +214,7 @@ export async function installOfflineRoutes(
   let manifestUnavailable = failManifestDatasetId !== undefined;
   let datasetAssetsUnavailable = failDatasetAssets;
   let activeTileFailureMode = tileFailureMode;
+  let activeEmptyCatalogDatasetId = emptyCatalogDatasetId;
   let tileRecoveryStarted = false;
   const manifestRequests: string[] = [];
   const datasetAssetRequests: string[] = [];
@@ -252,6 +254,7 @@ export async function installOfflineRoutes(
       tileRecoveryStarted = true;
     },
     failTilesFully: () => { activeTileFailureMode = 'full'; },
+    showEmptyCatalog: (datasetId) => { activeEmptyCatalogDatasetId = datasetId; },
     releaseDatasetAssets: () => { releasePendingDatasetAssets?.(); },
     releaseTiles: () => { releasePendingTiles?.(); },
     releaseTileRetries: () => { releasePendingTileRetries?.(); },
@@ -360,7 +363,7 @@ export async function installOfflineRoutes(
     }
     if (isLocations) {
       await route.fulfill({
-        json: emptyCatalogDatasetId === catalog.locations.datasetId
+        json: activeEmptyCatalogDatasetId === catalog.locations.datasetId
           ? { ...catalog.locations, places: [] }
           : catalog.locations,
       });
@@ -368,7 +371,7 @@ export async function installOfflineRoutes(
     }
     if (isLocale) {
       await route.fulfill({
-        json: emptyCatalogDatasetId === catalog.locale.datasetId
+        json: activeEmptyCatalogDatasetId === catalog.locale.datasetId
           ? { ...catalog.locale, places: [] }
           : catalog.locale,
       });
