@@ -26,6 +26,14 @@ def descriptor(url: str, payload: bytes, media_type: str = "application/json") -
     }
 
 
+def relative_descriptor(path: str, payload: bytes) -> dict[str, Any]:
+    return {
+        "bytes": len(payload),
+        "path": path,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
 def build_runtime() -> tuple[dict[str, bytes], dict[str, str]]:
     paths = {
         "manifest": "/datasets/manifests/test-dataset.json",
@@ -35,13 +43,26 @@ def build_runtime() -> tuple[dict[str, bytes], dict[str, str]]:
         "mapAssets": f"/datasets/metadata/test-dataset/{TILE_HASH}/map-assets.json",
         "coverage": f"/datasets/metadata/test-dataset/{TILE_HASH}/tile-coverage.json",
         "quality": f"/datasets/metadata/test-dataset/{TILE_HASH}/basemap-audit.json",
+        "tilesInventory": f"/datasets/metadata/test-dataset/{TILE_HASH}/tiles.ndjson",
         "receipt": f"/datasets/metadata/test-dataset/{TILE_HASH}/seam-stabilization.json",
         "tile": f"/datasets/generated/test-dataset/{TILE_HASH}/tiles/0/0/0.webp",
     }
     identity = {"datasetId": DATASET_ID, "schemaVersion": 1, "snapshotId": SNAPSHOT_ID}
     locations = json_bytes({**identity, "places": []})
     locale = json_bytes({**identity, "locale": "en", "places": []})
-    catalog_audit = json_bytes({**identity, "status": "passed"})
+    catalog_audit = json_bytes(
+        {
+            **identity,
+            "catalogInventorySha256": CATALOG_HASH,
+            "integrity": {
+                "artifacts": {
+                    "english": relative_descriptor("locales/en.json", locale),
+                    "locations": relative_descriptor("locations.json", locations),
+                }
+            },
+            "passes": True,
+        }
+    )
     coverage = json_bytes(
         {
             **identity,
@@ -51,8 +72,34 @@ def build_runtime() -> tuple[dict[str, bytes], dict[str, str]]:
             "tilePyramidId": PYRAMID_ID,
         }
     )
-    quality = json_bytes({**identity, "status": "passed"})
     receipt = json_bytes({**identity, "status": "passed"})
+    webp = b"RIFF" + (4).to_bytes(4, "little") + b"WEBP"
+    tiles_inventory = json_bytes(
+        {
+            "bytes": len(webp),
+            "path": "tiles/0/0/0.webp",
+            "sha256": hashlib.sha256(webp).hexdigest(),
+            "x": 0,
+            "y": 0,
+            "z": 0,
+        }
+    )
+    quality = json_bytes(
+        {
+            **identity,
+            "artifacts": {"tiles": relative_descriptor("tiles.ndjson", tiles_inventory)},
+            "gates": {
+                "inventory": {
+                    "inventoryFileSha256": "2" * 64,
+                    "inventorySha256": TILE_HASH,
+                    "passes": True,
+                    "tileCount": 1,
+                    "totalBytes": len(webp),
+                }
+            },
+            "passes": True,
+        }
+    )
     map_assets = json_bytes(
         {
             **identity,
@@ -74,14 +121,14 @@ def build_runtime() -> tuple[dict[str, bytes], dict[str, str]]:
                         "assetTreeFingerprint": "8" * 64,
                         "inputFingerprint": "9" * 64,
                         "inventoryFileSha256": "2" * 64,
-                        "inventorySha256": "1" * 64,
+                        "inventorySha256": TILE_HASH,
                         "planFingerprint": "6" * 64,
                         "productionSourceFingerprint": "7" * 64,
                         "profileFingerprint": "3" * 64,
                         "provenanceFingerprint": "a" * 64,
                         "rendererFingerprint": "b" * 64,
                         "tileCount": 1,
-                        "totalBytes": 12,
+                        "totalBytes": len(webp),
                     },
                     "kind": "xyz-pyramid",
                     "maxZoom": 0,
@@ -119,7 +166,6 @@ def build_runtime() -> tuple[dict[str, bytes], dict[str, str]]:
             "schemaVersion": 1,
         }
     )
-    webp = b"RIFF" + (4).to_bytes(4, "little") + b"WEBP"
     runtime = {
         "/datasets/index.json": index,
         paths["manifest"]: manifest,
@@ -129,6 +175,7 @@ def build_runtime() -> tuple[dict[str, bytes], dict[str, str]]:
         paths["mapAssets"]: map_assets,
         paths["coverage"]: coverage,
         paths["quality"]: quality,
+        paths["tilesInventory"]: tiles_inventory,
         paths["receipt"]: receipt,
         paths["tile"]: webp,
     }
@@ -146,15 +193,10 @@ def write_dist(root: Path) -> dict[str, str]:
         encoding="utf-8",
     )
     for url, payload in runtime.items():
-        if url.startswith("/datasets/generated/"):
-            continue
         path = root / url.lstrip("/")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(payload)
     stale = root / "datasets/metadata/test-dataset/stale-snapshot/unused.json"
     stale.parent.mkdir(parents=True)
     stale.write_bytes(b"{}\n")
-    generated = root / paths["tile"].lstrip("/")
-    generated.parent.mkdir(parents=True)
-    generated.write_bytes(runtime[paths["tile"]])
     return paths
