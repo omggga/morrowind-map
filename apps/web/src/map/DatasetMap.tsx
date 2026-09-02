@@ -803,6 +803,7 @@ function DatasetMapReady({
   const selectedMarker = selectedMarkerId === null
     ? null
     : (customMarkers.byId.get(selectedMarkerId) ?? null);
+  const selectedMarkerFocusTargetId = selectedMarker?.id ?? null;
   const knownPlaceIds = useMemo(
     () => new Set(bundle.locations.places.map(({ id }) => id)),
     [bundle.locations.places],
@@ -957,14 +958,14 @@ function DatasetMapReady({
   useEffect(() => {
     selectedMarkerIdRef.current = selectedMarkerId;
     customMarkerLayerRef.current?.changed();
-    if (selectedMarkerId === null) {
+    if (selectedMarkerFocusTargetId === null) {
       return undefined;
     }
     const animationFrame = window.requestAnimationFrame(() => {
       customMarkerEditorInputRef.current?.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [selectedMarkerId]);
+  }, [selectedMarkerFocusTargetId, selectedMarkerId]);
 
   useEffect(() => {
     progressByPlaceIdRef.current = progress.byPlaceId;
