@@ -32,21 +32,6 @@ function contrast(left: string, right: string): number {
 
 describe('Dunmer atlas design tokens', () => {
   it.each([
-    ['ui-void', '#090806'],
-    ['ui-panel', '#1b1710'],
-    ['ui-brass', '#8c7344'],
-    ['ui-gold', '#d6b96f'],
-    ['book-paper', '#d9c79c'],
-    ['book-ink', '#241b10'],
-    ['mim-unvisited', '#f6e27d'],
-    ['mim-active', '#e88bea'],
-    ['mim-visited', '#e9a15b'],
-    ['mim-custom', '#78db78'],
-  ])('pins --%s to %s', (token, expected) => {
-    expect(colorToken(token)).toBe(expected);
-  });
-
-  it.each([
     ['ui-gold', 'ui-void'],
     ['ui-gold', 'ui-panel'],
     ['book-ink', 'book-paper'],

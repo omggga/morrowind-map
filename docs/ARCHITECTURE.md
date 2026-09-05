@@ -59,9 +59,8 @@ Local activation is the final atomic operation in the release workflow. Until th
 
 Prepared active WebP tiles are versioned in Git LFS; generated JSON catalogs/locales and metadata are versioned in regular Git. Game inputs and intermediate renderer outputs stay outside Git. `pnpm datasets:stage` validates the complete active graph and stages only its reachable files plus `config/dataset-upload-plan.json`.
 
-Changes enter `main` through topic-branch PRs. CI validates the Git source boundary and application; dataset changes also hydrate the committed LFS objects, verify the recorded plan, and run prepared browser acceptance. A manually dispatched trusted workflow exports the candidate as data, without executing its code, and generates review artifacts pinned to the PR head SHA. Deployment requires the successful trusted review associated with the merged dataset PR.
+Changes enter `main` through topic-branch PRs. CI validates the Git source boundary and application; dataset changes also hydrate the committed LFS objects, verify the recorded plan, and run prepared browser acceptance. A manually dispatched trusted workflow exports the candidate as data, without executing its code, and generates review artifacts pinned to the PR head SHA.
 
-Actions publishes the application package produced by CI for the same commit. It first probes for the complete immutable dataset graph on the server, uploading a missing graph separately. Each application release pins its graph through `datasets/generated`; nginx serves generated files through `current/datasets/generated`. The installer validates required artifacts before atomically switching `current`, then runs health checks against the origin and public site. Failed health checks restore the previous release and its pinned graph. Application and dataset locks coordinate server-side publication, while Actions queues production deployments sequentially. See [DEPLOYMENT.md](DEPLOYMENT.md) for the exact workflow and [DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md) for recovery procedures.
 
 ## Browser state
 

@@ -10,9 +10,6 @@
   },
   "scripts": {
     "dev": "pnpm --filter @morrowind-map/web dev",
-    "data:renderer-spike": "python3 -m tools.land_renderer.spike",
-    "data:openmw-spike": "python3 -m tools.openmw_renderer.spike",
-    "data:openmw-smoke": "python3 -m tools.openmw_renderer.spike --skip-build --smoke-only",
     "data:original:plan": "python3 -m tools.original_renderer.production plan --output-plan local-data/openmw-production/original-goty-hd/plan.json",
     "data:original:renderer:build": "python3 -m tools.original_renderer.production build --image morrowind-map-openmw:0.51.0-original-hd-v1",
     "data:original:renderer:smoke": "pnpm data:original:renderer:smoke:balmora && pnpm data:original:renderer:smoke:vivec && pnpm data:original:renderer:smoke:ald-ruhn && pnpm data:original:renderer:smoke:seyda-neen && pnpm data:original:renderer:smoke:solstheim",
@@ -79,7 +76,9 @@
     "render:preview": "python3 -m tools.rendering.cli preview",
     "render:use": "python3 -m tools.rendering.cli use",
     "test:rendering": "python3 -m unittest discover -s tools/rendering/tests -t . -v",
-    "test:acceptance:rendered": "playwright test -c playwright.acceptance.config.ts tests/acceptance/rendered-candidate.spec.ts"
+    "test:acceptance:rendered": "playwright test -c playwright.acceptance.config.ts tests/acceptance/rendered-candidate.spec.ts",
+    "check": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm build",
+    "preview": "pnpm --filter @morrowind-map/web preview"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

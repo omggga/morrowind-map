@@ -1,6 +1,6 @@
 # Updating Tamriel Rebuilt
 
-This runbook covers the TR-specific input contract and release stages. Start with
+This guide describes the TR input contract and preparing a new map version. Start with
 [RENDERING.md](RENDERING.md) for the shared input layout, commands, and isolated preview
 workflow. A TR-only render keeps the current Original baseline; `render:all` composes
 both newly rendered maps.
@@ -151,34 +151,6 @@ renderer checkpoints can be reused only while lock, producer, and baseline ident
 remain unchanged. Use a separate `--work-root local-data/render/next-attempt` when
 changing those inputs; never edit an old lock or output to force compatibility.
 
-## Advanced existing entry points
-
-The lower-level `pnpm data:tr:*` commands and legacy `pnpm data:tr:release` orchestrator
-remain available for existing workflows. Their default work layout remains
-`local-data/tr-release`; they do not automatically select the new normalized adapter
-profile or isolated public root. New contributors should use the facade above.
-
-For diagnosis, an individual stage can explicitly use the adapter's profile and roots:
-
-```bash
-python3 -m tools.tr_release.cli check \
-  --profile local-data/render/tamriel-rebuilt/profile.json \
-  --lock local-data/render/tamriel-rebuilt/release.lock.json \
-  --source-root local-data/inputs \
-  --work-root local-data/render/tamriel-rebuilt \
-  --public-root local-data/render/tamriel-rebuilt/candidate/apps/web/public
-```
-
-Use the same arguments for a later stage and preserve the required order. The public
-`activate-local` stage rejects the tracked public root and requires an isolated public
-directory inside its explicit work root. The legacy production orchestrator still
-uses its full pre-activation browser/repository gates and internal activation callback.
-Neither workflow bypasses the PR and trusted dataset review required for publication.
-
-`pnpm render:build tamriel-rebuilt` checks inputs and builds/reuses the renderer images.
-A renderer/toolchain change requires fresh smoke and full-release checks even when
-game inputs are unchanged. Normal image cache reuse avoids unnecessary rebuilding.
-
 ## What enters Git
 
 After explicit `render:use`, validate and commit the current contracts and prepared active payload:
@@ -196,49 +168,4 @@ intermediate renders, and original game files remain local artifacts. ESM/ESP/BS
 and other game inputs must never enter Git or LFS. A TR-only contribution leaves
 Original unchanged; a deliberate `render:all` contribution includes both new candidates.
 
-Before committing, run:
-
-```bash
-git lfs install
-pnpm deploy:datasets:plan
-pnpm test:acceptance:prepared
-pnpm datasets:stage
-pnpm verify
-```
-
-`datasets:stage` validates and stages only generated files in the complete active plan
-for both maps, using a restricted `git add -f`. It writes/stages
-`config/dataset-upload-plan.json` and removes obsolete generated paths only from the
-Git index. Stage changed TR configuration/index/manifests/metadata separately with
-`git add -- <exact-paths>`. Do not stage the entire local generated tree: old snapshots
-may remain there. After committing, validate the full commit SHA:
-
-```bash
-python3 -m tools.deployment.git_datasets check --repo-root . --revision <fullSHA>
-```
-
-Open a pull request from your topic branch into `main`. The maintainer runs trusted
-`dataset-review.yml` from `main` with `pr_number`, then reviews
-`dataset-review-<candidateSHA>` and the complete JSON change list. Every new candidate
-SHA requires a new review. Branch protection now requires PRs and successful CI
-for `main`, including for administrators; the repository remains private on GitHub Pro.
-The maintainer also inspects the conditional dataset report before merge. See
-[DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md) for the full process and
-[CONTRIBUTING.md](../CONTRIBUTING.md) for branch policy.
-
-## Activation result
-
-After successful isolated candidate assembly and explicit local adoption:
-
-- The dataset index still contains exactly Original GOTY HD and one active TR dataset.
-- The new manifest references only validated content-addressed basemap and catalog packages.
-- `datasetId` and `snapshotId` match the lock and all artifacts.
-- The previous package is unchanged.
-- User data for the new dataset starts in a separate namespace.
-
-This activates prepared files locally. Production deployment from `main` first probes
-the committed plan on the server; only a missing graph requires LFS download and
-`--stage-only` upload. The installer pins the new application release to a specific
-graph. Nginx reads `current/datasets/generated`; rollback restores the application
-and its graph together. Previous releases/graphs remain until a separate future
-garbage-collection procedure. No automatic backup is configured. See [DEPLOYMENT.md](DEPLOYMENT.md).
+Follow [DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md) to validate and stage the prepared graph and open a PR. Include the release metadata and any deliberate settings or coverage changes. The two-map index, manifests, catalogs, and tiles must agree on their respective dataset and snapshot identities. User data remains bound to its original map version.
