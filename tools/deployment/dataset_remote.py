@@ -235,22 +235,15 @@ def _remove_child(parent: Path, child: Path) -> None:
         child.unlink()
 
 
-def _cleanup_after_activation(
-    releases: Path,
+def _cleanup_completed_stage(
     incoming: Path,
     *,
-    current_release: Path,
     completed_stage: Path,
 ) -> None:
-    """Keep one release and remove only this upload's completed stage."""
+    """Remove this upload's staging files; app releases may reference any graph."""
 
-    if current_release.parent != releases:
-        raise RemoteInstallError("Current release escaped the fixed releases namespace")
     if completed_stage.parent != incoming:
         raise RemoteInstallError("Completed stage escaped the fixed incoming namespace")
-    for child in sorted(releases.iterdir()):
-        if child != current_release:
-            _remove_child(releases, child)
     if completed_stage.exists() or completed_stage.is_symlink():
         _remove_child(incoming, completed_stage)
 
@@ -268,7 +261,7 @@ def _activate(data_root: Path, release: Path, upload_id: str) -> None:
     os.replace(temporary_link, generated)
 
 
-def probe_installed(data_root: Path, upload_id: str) -> bool:
+def probe_installed(data_root: Path, upload_id: str, *, stage_only: bool = False) -> bool:
     releases, incoming = _require_layout(data_root)
     stage = _stage_path(data_root, upload_id)
     plan = _load_plan(stage / "plan.json")
@@ -279,17 +272,16 @@ def probe_installed(data_root: Path, upload_id: str) -> bool:
             return False
         verify_tree(release, plan)
         _normalize_public_permissions(release)
-        _activate(data_root, release, upload_id)
-        _cleanup_after_activation(
-            releases,
+        if not stage_only:
+            _activate(data_root, release, upload_id)
+        _cleanup_completed_stage(
             incoming,
-            current_release=release,
             completed_stage=stage,
         )
     return True
 
 
-def install_stage(data_root: Path, upload_id: str) -> Path:
+def install_stage(data_root: Path, upload_id: str, *, stage_only: bool = False) -> Path:
     releases, incoming = _require_layout(data_root)
     stage = _stage_path(data_root, upload_id)
     plan = _load_plan(stage / "plan.json")
@@ -304,11 +296,10 @@ def install_stage(data_root: Path, upload_id: str) -> Path:
         else:
             os.replace(payload, release)
         _normalize_public_permissions(release)
-        _activate(data_root, release, upload_id)
-        _cleanup_after_activation(
-            releases,
+        if not stage_only:
+            _activate(data_root, release, upload_id)
+        _cleanup_completed_stage(
             incoming,
-            current_release=release,
             completed_stage=stage,
         )
     return release
@@ -320,10 +311,12 @@ def main(argv: list[str] | None = None) -> int:
         "abort",
         "prepare",
         "probe",
+        "probe-stage",
         "install",
+        "install-stage",
     }:
         print(
-            "usage: dataset_remote.py {abort|prepare|probe|install} UPLOAD_ID",
+            "usage: dataset_remote.py {abort|prepare|probe|probe-stage|install|install-stage} UPLOAD_ID",
             file=sys.stderr,
         )
         return 2
@@ -335,10 +328,10 @@ def main(argv: list[str] | None = None) -> int:
         elif action == "prepare":
             prepare_stage(DATA_ROOT, upload_id)
             result = "prepared"
-        elif action == "probe":
-            result = "installed" if probe_installed(DATA_ROOT, upload_id) else "upload"
+        elif action in {"probe", "probe-stage"}:
+            result = "installed" if probe_installed(DATA_ROOT, upload_id, stage_only=action == "probe-stage") else "upload"
         else:
-            install_stage(DATA_ROOT, upload_id)
+            install_stage(DATA_ROOT, upload_id, stage_only=action == "install-stage")
             result = "installed"
     except (OSError, RemoteInstallError) as error:
         print(f"dataset remote install failed: {error}", file=sys.stderr)
