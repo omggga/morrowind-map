@@ -1,110 +1,112 @@
-# Проверки
+# Testing
 
-## Основной gate
+## Main gate
 
-Перед commit выполняется одна команда:
+Run this command before committing:
 
 ```bash
 pnpm verify
 ```
 
-Она последовательно запускает:
+It runs the following checks in sequence:
 
-- TypeScript typecheck;
-- ESLint без warnings;
+- TypeScript type checking;
+- ESLint with no warnings;
 - Vitest unit/component suites;
-- Python tests для catalog, LAND, TR renderer/release и Original renderer tooling;
+- Python tests for the catalog, LAND, TR renderer/release, Original renderer, and deployment tooling;
 - Playwright functional acceptance;
-- Playwright visual/responsive/interaction suite;
-- production build.
+- Playwright visual/responsive/interaction tests;
+- the production build.
 
-Успех означает exit code `0` всей команды. Исправление отдельного failing test не заменяет повтор полного gate.
+Success means the entire command exits with code `0`. Fixing an individual failing test does not replace rerunning the complete gate. Use a topic branch and PR into `main` for changes; see [CONTRIBUTING.md](../CONTRIBUTING.md) for the English-language policy, branch conventions, and current protection status.
 
-## Полные локальные datasets
+## Complete prepared datasets
 
-Активные prepared WebP pyramids хранятся в Git LFS, generated JSON catalogs/locales — в обычном Git. После локальной подготовки или получения реальных LFS payload bytes запускается отдельный gate:
+Active prepared WebP pyramids are stored in Git LFS; generated JSON catalogs/locales are stored in regular Git. After preparing the data locally or downloading the actual LFS payload bytes, run the separate gate:
 
 ```bash
 pnpm test:acceptance:prepared
 ```
 
-Он открывает обе текущие реальные карты, загружает полные catalogs и tiles и повторяет основные workflows и recovery paths. Для неактивного нового TR release используется candidate-вариант ниже.
+It opens both current maps with their real data, loads complete catalogs and tiles, and repeats the main workflows and recovery paths. For a new TR release that is not yet active, use the candidate variant below.
 
-До browser gate проверьте весь активный graph:
+Before the browser gate, validate the entire active graph:
 
 ```bash
 pnpm deploy:datasets:plan
 ```
 
-Он сверяет active index, manifests, metadata и size/hash всех reachable generated files. Git LFS pointers вместо WebP не проходят проверку подготовленного graph. Для committed revision дополнительно выполняется source/LFS guard:
+This checks the active index, manifests, metadata, and the size/hash of every reachable generated file. Git LFS pointers in place of WebP bytes do not pass prepared-graph validation. For a committed revision, also run the source/LFS guard:
 
 ```bash
 python3 -m tools.deployment.git_datasets check --repo-root . --revision <fullSHA>
 ```
 
-Обычный CI проверяет dataset payload при изменениях данных, committed plan, TR config, deployment tooling или LFS rules: пересоздаёт план, сравнивает его с `config/dataset-upload-plan.json` и запускает prepared acceptance. App-only CI оставляет LFS pointers и не скачивает tiles. Render остаётся локальным и требует собственных игровых inputs, но просмотр готовых данных в браузере и prepared acceptance не требуют OpenMW.
+CI validates dataset payloads when data, the committed plan, TR config, deployment tooling, or LFS rules change: it regenerates the plan, compares it with `config/dataset-upload-plan.json`, and runs prepared acceptance. This job runs for relevant PRs and `main` pushes; topic-branch pushes skip the duplicate heavy job. App-only CI leaves the LFS pointers in place and does not download tiles. Rendering stays local and requires the contributor's own game inputs, but browsing prepared data and running prepared acceptance do not require OpenMW.
 
-Dataset PR также требует визуального review artifact `dataset-review-<candidateSHA>` из вручную запущенного на `main` workflow `dataset-review.yml` с input `pr_number`. Он использует доверенные scripts, не исполняет код candidate и не получает deploy environment. Maintainer проверяет HTML preview, полный `summary.json` и соответствие SHA текущему PR; новый commit требует нового review. Порядок и локальная команда отчёта — в [DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md).
+A dataset PR also requires visual inspection of the `dataset-review-<candidateSHA>` artifact from `dataset-review.yml`, manually dispatched on `main` with the `pr_number` input. It uses trusted scripts, does not execute candidate code, and has no deployment environment. A maintainer checks the HTML preview, complete `summary.json`, and SHA against the current PR head; a new commit requires a new review. See [DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md) for the workflow and local report command.
 
-В текущем private GitHub Free репозитории branch protection для `main` недоступна (при настройке получен HTTP 403). До смены плана и включения защиты прохождение проверок и review является ручным правилом maintainer; сервером required checks пока не принуждаются.
+The deployment gate independently checks that the merged dataset PR has a successful trusted review bound to its exact head and an authentic completed Actions run. This check runs before deployment SSH is configured. Branch protection and the production environment's main-only policy are separate enforced controls; their settings and the conditional review requirement are recorded in [CONTRIBUTING.md](../CONTRIBUTING.md) and [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Release-specific gate
 
-Перед активацией нового TR dataset выполняется:
+Before activating a new TR dataset, run:
 
 ```bash
 pnpm data:tr:release:verify
 ```
 
-Он проверяет соответствие config, lock, plan, renderer audit, catalog audit, publication metadata и manifest-кандидата одной release identity. Этот gate дополняет, но не заменяет `pnpm verify` и prepared acceptance.
+It verifies that the config, lock, plan, renderer audit, catalog audit, publication metadata, and candidate manifest share one release identity. This gate supplements rather than replaces `pnpm verify` and prepared acceptance.
 
-До internal activation нового TR release prepared gate читает неактивный candidate index/manifest:
+Before internal activation of a new TR release, the prepared gate reads the inactive candidate index/manifest:
 
 ```bash
 pnpm test:acceptance:prepared:candidate
 ```
 
-Команда использует `local-data/tr-release/candidate`, а Original и content-addressed payload продолжает читать из обычного `apps/web/public`.
+The command uses `local-data/tr-release/candidate`, while still reading Original and content-addressed payloads from the normal `apps/web/public` root.
 
-Оба release-specific browser/full gates запускает `pnpm data:tr:release`; отдельная activation-команда не публикуется.
+`pnpm data:tr:release` runs both release-specific browser/full gates; no standalone activation command is exposed. Passing local release gates does not deploy production: the prepared dataset must still pass the PR/Actions publication workflow.
 
 ## Browser matrix
 
-Functional acceptance работает в pinned Chromium, блокирует non-loopback traffic и проверяет:
+Functional acceptance runs in pinned Chromium, blocks non-loopback traffic, and checks:
 
-- обе dataset cards и direct URL load;
-- painted WebP canvas, pan, zoom и sparse coverage;
-- search, filters, labels и place selection;
-- progress, notes, personal markers и reload persistence;
-- Back/Forward и URL canonicalization;
-- missing, invalid, loading, partial failure, retry и recovery;
-- JSON export/import и local-storage failures.
+- both dataset choices and direct URL loading;
+- a painted WebP canvas, pan, zoom, and sparse coverage;
+- search, filters, labels, and place selection;
+- progress, notes, personal markers, and persistence after reload;
+- Back/Forward and URL canonicalization;
+- missing, invalid, loading, partial-failure, retry, and recovery states;
+- JSON export/import and local-storage failures.
 
-Visual suite фиксирует DPR, fonts, reduced motion и отдельные platform baselines. Обязательные viewports: `1280×720`, `390×844`, `320×568`, `844×390` и `667×375`; desktop suite также проверяет 200% reflow.
+The visual suite fixes DPR, fonts, reduced motion, and separate platform baselines. Required viewports are `1280×720`, `390×844`, `320×568`, `844×390`, and `667×375`; the desktop suite also checks 200% reflow.
 
-Keyboard tests покрывают порядок фокуса, видимый focus ring, Escape/close, возврат фокуса, map controls и отсутствие недостижимых действий. Automated accessibility gate использует axe для WCAG 2.2 AA, проверяет ARIA names/states, landmark structure, alerts/status и отсутствие serious/critical violations.
+Keyboard tests cover focus order, visible focus rings, Escape/close behavior, focus restoration, map controls, and the absence of unreachable actions. The automated accessibility gate uses axe for WCAG 2.2 AA, checks ARIA names/states, landmark structure, and alerts/status, and rejects serious/critical violations.
 
-Touch tests используют trusted pointer/touch events для zoom, pan, marker selection и editor flow без зависимости от hover.
+Touch tests use trusted pointer/touch events for zoom, pan, marker selection, and the editor flow without relying on hover.
 
 ## Snapshot policy
 
-Обычный test run не обновляет baselines. При намеренном изменении UI snapshots пересоздаются отдельно:
+A normal test run never updates baselines. For an intentional UI change, regenerate snapshots separately:
 
 ```bash
 pnpm test:ui:update
 ```
 
-Новые изображения принимаются только после проверки layout, текста, focus, loading/error states и обеих карт. Затем повторно запускается `pnpm verify`.
+Accept new images only after inspecting layout, text, focus, loading/error states, and both maps. Then rerun `pnpm verify`.
 
 ## Data pipeline tests
 
-Pipeline tests используют synthetic inputs и не требуют proprietary game files. Они обязаны проверять:
+Pipeline tests use synthetic inputs and do not require proprietary game files. They must verify:
 
-- строгий parser release config и отказ от неизвестных/небезопасных paths;
-- file/tree hashes, case-fold collisions и source identity;
-- точный порядок workflow и остановку после первой ошибки;
-- генерацию нового release без изменения Python-кода под конкретную версию;
-- schema/identity validation manifest и content-addressed artifacts;
-- атомарность активации и сохранение действующего index при ошибке.
+- strict release-config parsing and rejection of unknown/unsafe paths;
+- file/tree hashes, case-fold collisions, and source identity;
+- the exact workflow order and stopping at the first failure;
+- generation of a new release without version-specific Python changes;
+- manifest and content-addressed artifact schema/identity validation;
+- atomic activation and preservation of the active index on failure.
 
-Полный render не выполняется в обычном CI: он требует локальных игровых inputs, Docker/OpenMW и значительного времени.
+Deployment tests also cover the Git source/LFS boundary, trusted-review provenance, dataset staging and validation, and application activation/health rollback with the correct pinned graph.
+
+A full render does not run in ordinary CI: it requires local game inputs, Docker/OpenMW, and substantial time.

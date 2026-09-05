@@ -1,18 +1,27 @@
-# Вклад в готовые datasets
+# Contributing prepared datasets
 
-В Git публикуется готовый active graph, который можно открыть в браузере без OpenMW и игровых файлов. Новый render выполняется локально с собственными игровыми inputs; для TR сначала пройдите [TR_UPDATE.md](TR_UPDATE.md). CI проверяет подготовленный результат, но не рендерит игру.
+The repository publishes the complete active graph, ready to open in a browser without
+OpenMW or game files. Generate new renders locally using your own game inputs; for TR,
+start with [TR_UPDATE.md](TR_UPDATE.md). CI validates prepared outputs and does not render
+the game. Follow [CONTRIBUTING.md](../CONTRIBUTING.md): use a topic branch and a pull request
+into `main`, and write documentation, commit messages, and PR titles/descriptions in English.
 
-## Что хранится в репозитории
+## Repository contents
 
-- Git LFS применяется только к `apps/web/public/datasets/generated/**/*.webp`.
-- Generated JSON catalogs и locales, index, manifests, metadata, audit reports и `tiles.ndjson` хранятся обычными Git blobs.
-- Игровые inputs (`ESM`, `ESP`, `BSA`, `BA2`, `DDS`, `NIF` и другие исходные assets), локальные source trees, renderer checkpoints, промежуточные renders и candidate trees не добавляются ни в Git, ни в LFS.
+- Git LFS applies only to `apps/web/public/datasets/generated/**/*.webp`.
+- Generated JSON catalogs and locales, the index, manifests, metadata, audit reports,
+  and `tiles.ndjson` are regular Git blobs.
+- Game inputs (`ESM`, `ESP`, `BSA`, `BA2`, `DDS`, `NIF`, and other original assets), local
+  source trees, renderer checkpoints, intermediate renders, and candidate trees must
+  never enter Git or LFS.
 
-Старые локальные generated snapshots могут оставаться на диске. Публикуйте только файлы, достижимые из текущего `datasets/index.json`; не добавляйте всё дерево `generated` или весь рабочий каталог одной командой. Не расширяйте LFS rule до всех binary files или JSON.
+Old generated snapshots may remain on your disk. Publish only files reachable from the
+current `datasets/index.json`; do not stage the entire `generated` tree or working directory.
+Do not broaden the LFS rule to all binary files or JSON.
 
-## Подготовка PR
+## Preparing a pull request
 
-Из корня репозитория, после подготовки и локальной активации нужного dataset:
+After preparing and locally activating a dataset, run these commands from the repository root:
 
 ```bash
 git lfs install
@@ -21,9 +30,18 @@ pnpm test:acceptance:prepared
 pnpm datasets:stage
 ```
 
-`deploy:datasets:plan` сверяет active index, manifests, catalogs, locales, audit/inventory metadata и каждый активный WebP по size/hash. План записывается в `artifacts/deployment/dataset-upload-plan.json`; он содержит полный активный graph обеих карт, а не только diff PR. `datasets:stage` снова валидирует graph, намеренно использует `git add -f` только для generated paths из `plan.files`, записывает и добавляет `config/dataset-upload-plan.json`. Общие ignore rules для generated остаются включены. Ранее tracked generated files, больше не входящие в active graph, helper убирает только из Git index, сохраняя локальные файлы. Остальные config/manifests/metadata эта команда не добавляет.
+`deploy:datasets:plan` validates the active index, manifests, catalogs, locales,
+audit/inventory metadata, and each active WebP's size and hash. It writes
+`artifacts/deployment/dataset-upload-plan.json`, describing the complete active graph
+of both maps rather than only the PR diff. `datasets:stage` validates the graph again,
+uses `git add -f` only for generated paths listed in `plan.files`, and writes/stages
+`config/dataset-upload-plan.json`. General generated-file ignore rules stay enabled.
+Previously tracked generated files outside the active graph are removed only from
+the Git index; their local copies remain. The helper does not stage other configuration,
+manifests, or metadata.
 
-Добавьте изменённые contracts явно. Здесь `<datasetId>` — конкретный новый dataset, а список metadata paths берётся из его manifest:
+Add changed contracts explicitly. Replace `<datasetId>` with the new dataset ID and
+get the metadata paths from its manifest:
 
 ```bash
 git add -- config/tr-release.json apps/web/public/datasets/index.json
@@ -31,29 +49,57 @@ git add -- apps/web/public/datasets/manifests/<datasetId>.json
 git add -- apps/web/public/datasets/metadata/<datasetId>/<inventorySha>/map-assets.json
 ```
 
-Последняя строка — пример одного metadata файла: добавьте также каждый актуальный audit, coverage, inventory и catalog metadata файл, на который ссылается пакет. Для ручного staging используйте `git add -f -- <конкретный generated path>` строго для файлов из проверенного плана, добавляя префикс `apps/web/public/datasets/generated/` к `files[].path`; затем сохраните тот же план как `config/dataset-upload-plan.json` и добавьте его обычным `git add`. Helper предпочтительнее, поскольку также удаляет obsolete generated paths из index. Не используйте wildcard, захватывающий старые snapshots.
+The last line is one metadata example: also stage every current audit, coverage,
+inventory, and catalog metadata file referenced by the package. For manual staging,
+use `git add -f -- <exact-generated-path>` only for files in the validated plan,
+prefixing `files[].path` with `apps/web/public/datasets/generated/`. Save that same
+plan as `config/dataset-upload-plan.json` and stage it with regular `git add`.
+Prefer the helper because it also removes obsolete generated paths from the index.
+Do not use wildcards that capture old snapshots.
 
-Просмотрите `git diff --cached --stat` и `git diff --cached --name-only`, выполните `pnpm verify`, затем создайте commit. Для его полного SHA проверьте committed tree:
+Inspect `git diff --cached --stat` and `git diff --cached --name-only`, run `pnpm verify`,
+and then commit with an English message. Check the committed tree using its full SHA:
 
 ```bash
 python3 -m tools.deployment.git_datasets check --repo-root . --revision <fullSHA>
 ```
 
-Этот guard проверяет границу source/generated и LFS-представление файлов в указанной ревизии. Проверка source tree дополняет валидацию скачанных payload bytes. После push убедитесь, что нужные LFS objects доступны; JSON pointer вместо WebP не является подготовленным dataset.
+This guard checks the source/generated boundary and LFS representation at that revision.
+The source-tree check complements validation of downloaded payload bytes. After pushing,
+confirm that the required LFS objects are available: an unresolved LFS pointer is not
+a prepared WebP dataset. Open the PR from your topic branch into `main`.
 
-## Review, привязанный к commit
+## Review tied to a commit
 
-Maintainer вручную запускает `.github/workflows/dataset-review.yml` через Actions → Run workflow, выбирает workflow из `main` и задаёт `pr_number`. PR может быть направлен в `dev` или `main`. Workflow использует доверенный код из `main`, извлекает данные конкретного candidate SHA, не исполняет candidate scripts и не использует deploy environment.
+A maintainer manually runs `.github/workflows/dataset-review.yml` through
+**Actions → Run workflow**, selects `main`, and supplies `pr_number`. The workflow
+uses trusted code from `main` to extract data at the specific candidate SHA. It does
+not run candidate scripts or use the deployment environment.
 
-Результат — Actions artifact `dataset-review-<candidateSHA>`. Скачайте и распакуйте его, откройте `index.html`: он показывает before/after tiles и изменения мест/названий. Полный список изменений находится в `summary.json`; число изображений и строк в HTML ограничено, поэтому отсутствие объекта в preview не означает отсутствие изменения. При первой публикации без базового prepared graph отчёт показывает bootstrap additions.
+Download and extract the `dataset-review-<candidateSHA>` Actions artifact. Open
+`index.html` to inspect before/after tiles and changes to places and names. The full
+change list is in `summary.json`; HTML image and row counts are limited, so an item
+missing from the preview can still be present in the diff. When there is no prepared
+base graph, the report shows bootstrap additions.
 
-Перед merge maintainer сверяет candidate SHA отчёта с текущим head PR, проверяет содержимое отчёта, полный JSON и результаты CI. Отдельный job прикрепляет `Dataset review (trusted)` check к этому SHA; deploy проверяет его provenance для merged PR при data/tool changes. Любое обновление candidate commit требует нового отчёта и нового review. Зелёный check означает успешное построение отчёта; одобрение его содержимого остаётся решением maintainer. После review merge в `main` запускает CI и deploy. Если PR сначала шёл в `dev`, новый PR в `main` также проходит review своего head SHA. Bootstrap первого workflow требует review initial PR после его merge и повторного запуска blocked deploy; порядок описан в [DEPLOYMENT.md](DEPLOYMENT.md).
+Before merging, the maintainer checks that the report's candidate SHA matches the
+current PR head and reviews the report, full JSON, and CI results. A separate job
+attaches `Dataset review (trusted)` to that SHA. For data or deployment tooling changes,
+deployment verifies the check's provenance for the merged PR. Every new candidate
+commit requires another report and review. A green check means the report was generated
+successfully; acceptance of its contents remains the maintainer's decision. After
+review, merging into `main` triggers CI and deployment. The initial workflow bootstrap
+has already completed; new PRs use review before merge.
 
-На момент настройки 2026-09-05 репозиторий private на GitHub Free: запрос branch protection для `main` вернул HTTP 403. Обязательные required checks сейчас **не обеспечены серверной защитой ветки**. До перехода на подходящий план и фактического включения protection maintainer соблюдает review/merge порядок вручную. Доступность защиты private branches описана в [GitHub Docs](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches).
+Branch protection was enabled and verified on 2026-09-05 after the account upgraded
+to GitHub Pro. Required PRs and CI checks are enforced for `main`, including for
+administrators. The repository remains private. The conditional trusted dataset
+report still requires maintainer inspection, and deployment verifies its provenance.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the applied protection and review policy.
 
-## Локальный отчёт
+## Local report
 
-С доверенным tooling и двумя подготовленными public trees выполните:
+Using trusted tooling and two prepared public trees, run:
 
 ```bash
 python3 -m tools.deployment.review_datasets \
@@ -65,14 +111,36 @@ python3 -m tools.deployment.review_datasets \
   --preview-limit 100
 ```
 
-Output directory должен быть новым и находиться вне обоих input trees. Для bootstrap опустите `--base-public-root` и `--base-sha`. Открывайте созданный `index.html` вместе с соседними images и `summary.json`; OpenMW для этого не нужен. Локальный отчёт помогает исследованию, а обязательный maintainer review использует artifact доверенного workflow на точном SHA.
+The output directory must be new and outside both input trees. For bootstrap, omit
+`--base-public-root` and `--base-sha`. Keep `index.html` beside its images and
+`summary.json`; viewing the report does not require OpenMW. Local reports support
+investigation, while maintainer review uses the trusted workflow artifact for the exact SHA.
 
-## CI, публикация и rollback
+## CI, deployment, and rollback
 
-Обычный CI всегда проверяет source/LFS boundary. При изменениях данных, committed plan, TR config, deployment tooling или LFS rules dataset job скачивает payload, пересоздаёт полный план, сравнивает его с `config/dataset-upload-plan.json` и запускает prepared browser acceptance. App-only CI оставляет LFS pointers и не загружает тяжёлые tiles.
+Regular CI always checks the source/LFS boundary. When data, the committed plan,
+TR configuration, deployment tooling, or LFS rules change, the dataset job fetches the
+payload, rebuilds the complete plan, compares it with `config/dataset-upload-plan.json`,
+and runs prepared browser acceptance tests for relevant PRs and `main` runs.
+Duplicate topic-branch push runs skip this heavy job. Application-only CI leaves LFS pointers
+in place without downloading the large tiles.
 
-При deploy из `main` workflow сначала отправляет committed plan серверу через `--probe-plan`. Если graph уже проверен на сервере, LFS download/upload пропускается; только `missing` вызывает получение LFS objects публикуемого commit и uploader в `--stage-only`. Он устанавливает проверенный immutable graph в `/srv/morrowind-map/data/releases/<graphSha256>`, сохраняя предыдущие graphs и legacy `data/generated`. Installer создаёт `datasets/generated` внутри app release как ссылку на этот конкретный graph. Nginx обслуживает данные через `current/datasets/generated`, поэтому переключение `current` и rollback переключают приложение вместе с его данными. Подробности — в [DEPLOYMENT.md](DEPLOYMENT.md) и [DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md).
+Deployment from `main` first sends the committed plan to the server with `--probe-plan`.
+If the graph is already present and validates, LFS download/upload is skipped. Only
+`missing` triggers fetching LFS objects for the deployment commit and uploading with
+`--stage-only`. The uploader installs a verified immutable graph at
+`/srv/morrowind-map/data/releases/<graphSha256>`, preserving previous graphs and legacy
+`data/generated`. The installer pins each application release's `datasets/generated`
+to that graph. Nginx serves data through `current/datasets/generated`, so switching
+`current` or rolling back switches the application and its data together. See
+[DEPLOYMENT.md](DEPLOYMENT.md) and [DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md).
 
-App releases и dataset graphs сохраняются до будущей отдельной процедуры deliberate garbage collection. Ошибка app deploy не удаляет staged graph. Автоматический backup не настроен: сохранение releases на том же сервере обеспечивает rollback, но не восстановление при потере сервера.
+Application releases and dataset graphs remain until a separate future garbage-collection
+procedure is introduced. Failed application deployment does not remove staged graphs.
+No automatic backup is configured: retaining releases on the same server supports
+rollback but does not protect against server loss.
 
-Git LFS имеет отдельные storage/bandwidth quotas; повторные скачивания в Actions расходуют bandwidth владельца репозитория, а новые версии файлов добавляют storage. Перед большим dataset update проверьте usage и budget в аккаунте. Текущие условия и ограничения — в [Git LFS billing](https://docs.github.com/en/billing/concepts/product-billing/git-lfs).
+Git LFS has separate storage and bandwidth quotas. Repeated Actions downloads consume
+the repository owner's bandwidth allowance, and new file versions add storage. Before
+a large dataset update, check account usage and budget. Current terms are documented
+in [Git LFS billing](https://docs.github.com/en/billing/concepts/product-billing/git-lfs).

@@ -1,167 +1,173 @@
-# Публикация приложения
+# Application deployment
 
-Рабочая ветка — `dev`. Изменения попадают в `main` через pull request.
-Репозиторий остаётся private.
+Create a topic branch such as `feature/...`, `fix/...`, or `docs/...` from `main`
+and submit a pull request back to `main`. The repository remains private.
+Use English for documentation, commit messages, and pull request titles and descriptions.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the repository workflow.
 
-Подготовка VPS, nginx, туннеля и восстановление после сбоя описаны в
-[DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md). Рабочие nginx-шаблоны находятся
-в [tools/deployment/nginx](../tools/deployment/nginx/).
+VPS provisioning, nginx, the tunnel, and recovery are covered in
+[DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md). The nginx templates are in
+[tools/deployment/nginx](../tools/deployment/nginx/).
 
-CI сначала проверяет committed Git objects source/LFS guard и определяет изменения
-datasets, publication plan, TR config, deployment tooling и LFS rules. Затем один раз собирает приложение и упаковывает полученный
-`dist` командой `pnpm deploy:package --skip-build --commit-sha "$GITHUB_SHA"`.
-Пакет с SHA-256 сохраняется как artifact текущего workflow run.
+CI first checks committed Git objects with the source/LFS guard and detects changes
+to datasets, the publication plan, TR configuration, deployment tooling, and LFS rules.
+It then builds the application once and packages that `dist` with
+`pnpm deploy:package --skip-build --commit-sha "$GITHUB_SHA"`.
+The package and its SHA-256 checksum become artifacts of that workflow run.
 
-При затронутых data/tool paths отдельный job `datasets` получает LFS objects,
-проверяет полный active graph, сравнивает пересозданный план с
-`config/dataset-upload-plan.json` и запускает `pnpm test:acceptance:prepared`.
-App-only CI не скачивает tiles и оставляет LFS pointers.
+For changes to data or deployment tooling, the separate `datasets` job fetches LFS
+objects, validates the complete active graph, compares the rebuilt plan with
+`config/dataset-upload-plan.json`, and runs `pnpm test:acceptance:prepared`.
+Application-only CI leaves LFS pointers in place and does not download tiles.
+The heavy dataset job runs for relevant PRs and `main` runs; duplicate topic-branch
+push runs skip it.
 
-После успешного `verify` и успешного либо пропущенного `datasets` job `deploy` запускается только для `push` в `main`
-или ручного `workflow_dispatch` на `main`. На `dev`, других ветках и PR
-публикация не выполняется. Job скачивает artifact этого же run; повторной
-сборки или checkout другой версии приложения на сервере нет.
+After `verify` succeeds and `datasets` succeeds or is skipped, `deploy` runs only
+for a push to `main` or a manual `workflow_dispatch` on `main`. Other branches and
+pull requests never deploy. The job downloads the artifact from the same run;
+the server neither rebuilds the application nor checks out another version.
 
-Ручной запуск: **Actions → CI → Run workflow → main**, либо:
+Manual deployment: **Actions → CI → Run workflow → main**, or:
 
 ```bash
 gh workflow run ci.yml --repo omggga/morrowind-map --ref main
 ```
 
-Ручной запуск также проходит все проверки перед публикацией. Если `main`
-успел измениться, устаревший deploy завершится ошибкой до подключения к серверу.
-Публикации выполняются последовательно в группе `morrowind-map-production`.
-`queue: max` сохраняет ожидающие jobs, `cancel-in-progress: false` не отменяет
-работающий deploy. На сервере дополнительный `flock` защищает переключение
-`current`, health checks и возможный откат, включая одновременные ручные
-запуски installer. На всё это время блокируется также смена generated datasets.
+Manual runs pass the same checks before deployment. If `main` has advanced,
+a stale deployment fails before connecting to the server. Deployments run
+sequentially in concurrency group `morrowind-map-production`: `queue: max`
+retains waiting jobs and `cancel-in-progress: false` preserves a running deployment.
+A server-side `flock` also protects the `current` switch, health checks, and rollback,
+including simultaneous manual installer runs. Changes to generated datasets remain
+locked throughout that operation.
 
-## Порядок для владельца
+## Maintainer workflow
 
-1. Подготовьте результат локально, выполните `pnpm deploy:datasets:plan`,
-   `pnpm test:acceptance:prepared`, `pnpm datasets:stage` и `pnpm verify`.
-   Helper добавляет только проверенные active generated files и записывает/stages
-   `config/dataset-upload-plan.json`; contracts добавьте явно по
-   [DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md).
-2. Создайте PR в `dev` или `main`. Для data/tool changes запустите
-   **Actions → Dataset review (trusted) → Run workflow → main**, задав `pr_number`.
-   Workflow получает immutable PR SHA, читает Git objects и LFS data без checkout
-   candidate кода и строит HTML/JSON report доверенными scripts из `main`.
-3. Скачайте `dataset-review-<candidateSHA>`, проверьте `index.html`, полный
-   `summary.json` и SHA текущего head PR. Отдельный job прикрепляет check
-   `Dataset review (trusted)` к этому SHA. Новый commit требует нового отчёта
-   и review; зелёный check подтверждает построение отчёта, а решение принимает maintainer.
-4. После review и CI merge в `main` запускает dataset gate и deploy.
-   Для data/tool changes `require_dataset_review` проверяет доверенное происхождение
-   успешного check и workflow run для head merged PR до подключения к VPS.
-   Review PR в `dev` не заменяет review нового PR, который затем входит в `main`.
+1. Prepare changes on a topic branch. For dataset changes, run
+   `pnpm deploy:datasets:plan`, `pnpm test:acceptance:prepared`,
+   `pnpm datasets:stage`, and `pnpm verify` locally. The staging helper adds only
+   validated active generated files and writes/stages `config/dataset-upload-plan.json`.
+   Add contracts explicitly as described in [DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md).
+   For application or documentation changes, follow the checks in [CONTRIBUTING.md](../CONTRIBUTING.md).
+2. Open a pull request into `main`. For data or deployment tooling changes, run
+   **Actions → Dataset review (trusted) → Run workflow → main** with `pr_number`.
+   The workflow pins the PR SHA, reads Git objects and LFS data without checking
+   out candidate code, and generates an HTML/JSON report using trusted scripts from `main`.
+3. When trusted dataset review is required, download `dataset-review-<candidateSHA>`
+   and inspect `index.html`, the full
+   `summary.json`, and the current PR head SHA. A separate job attaches the
+   `Dataset review (trusted)` check to that SHA. Each new commit requires a new
+   report and review. A green check confirms report generation; the maintainer
+   decides whether the contents are acceptable.
+4. After review and successful CI, merge the PR into `main`. For data or deployment
+   tooling changes, `require_dataset_review` verifies the successful check and its
+   workflow provenance for the merged PR head before any connection to the VPS.
 
-Для первого bootstrap workflow review ещё отсутствует в `main`: первоначальный
-merge устанавливает его, но deploy останавливается на отсутствии trusted review.
-После merge вручную запустите review для номера этого initial PR, проверьте
-SHA-bound artifact и повторите failed deploy в том же CI run. Новый commit
-или другой head PR нельзя одобрить старым отчётом.
+The initial bootstrap is complete: PR #1 installed the trusted review workflow,
+its first deployment was blocked until review succeeded, and the same CI artifact
+was then deployed by rerunning the failed deployment. New changes use the normal
+review-before-merge workflow. An old report cannot approve another commit.
 
-Private репозиторий сейчас на GitHub Free; настройка protection `main` вернула
-HTTP 403. Required checks не обеспечены branch protection до смены плана и
-фактического включения правил. Maintainer соблюдает порядок review/merge вручную;
-проверка provenance внутри deploy остаётся отдельным барьером публикации.
+Branch protection was enabled and verified on 2026-09-05 after the account upgraded
+to GitHub Pro. The repository remains private. GitHub requires a PR, current CI
+checks, an up-to-date branch, and resolved conversations, including for administrators;
+force pushes and deletion of `main` are disabled. The conditional dataset-review
+provenance gate remains an additional publication control. See
+[CONTRIBUTING.md](../CONTRIBUTING.md) for the applied settings and review policy.
 
-## Доступ
+## Access
 
-Environment secrets в **Settings → Environments → production**:
+Store environment secrets under **Settings → Environments → production**:
 
-| Secret | Значение |
+| Secret | Value |
 | --- | --- |
-| `DEPLOY_HOST` | SSH hostname/IP сервера vpsdo |
+| `DEPLOY_HOST` | SSH hostname/IP of vpsdo |
 | `DEPLOY_USER` | `morrowind-map` |
-| `DEPLOY_SSH_KEY` | Отдельный private SSH key для CI, без passphrase |
-| `DEPLOY_KNOWN_HOSTS` | Проверенная запись host key сервера в формате known_hosts |
+| `DEPLOY_SSH_KEY` | Dedicated CI private SSH key without a passphrase |
+| `DEPLOY_KNOWN_HOSTS` | Verified server host key in known_hosts format |
 
-У environment включён режим selected deployment branches: разрешена только
-ветка `main`, без правил для tags и `refs/pull/*/merge`. Эти secrets отсутствуют
-на уровне репозитория. Job `verify` не использует environment или deploy-secrets;
-job `datasets` и доверенный dataset-review также не используют deploy environment.
-Job `deploy` получает secrets только после CI gates и только на `main` при `push`
-или `workflow_dispatch`. `pull_request_target` не используется. Для fork PR
-в настройках private-репозитория запрещены secrets/variables и write-токены;
-их запуск также отключён. Checkout не сохраняет GitHub token в git config.
+The environment uses selected deployment branches, allowing only branch `main`;
+there are no tag or `refs/pull/*/merge` rules. These secrets are not stored at the
+repository level. Neither `verify`, `datasets`, nor trusted dataset review uses
+the deployment environment. `deploy` receives secrets only after CI gates and
+only for a push or `workflow_dispatch` on `main`. No `pull_request_target` workflow
+is used. Private-repository fork PR settings disable workflow runs, secret/variable
+access, and write tokens. Checkout does not persist the GitHub token in Git configuration.
 
-Public key с опцией `restrict` хранится в root-owned файле
-`/etc/ssh/authorized_keys/morrowind-map`. Учётная запись не имеет sudo и
-не может самостоятельно добавить другой разрешённый ключ. Account-level
-ограничения из `tools/deployment/sshd-morrowind-map.conf` запрещают пароли,
-PTY, user rc, agent/X11/TCP forwarding и tunnels. Выполнение команд установки
-и SFTP для SCP остаются доступны от имени пользователя сайта.
+The public key has the `restrict` option and lives in the root-owned
+`/etc/ssh/authorized_keys/morrowind-map`. The deployment account has no sudo access
+and cannot add another authorized key. Account-level restrictions in
+`tools/deployment/sshd-morrowind-map.conf` disable passwords, PTY, user rc,
+agent/X11/TCP forwarding, and tunnels. Installation commands and SFTP for SCP
+remain available as the site user.
 
-SSH принимает только закреплённый Ed25519 host key из `DEPLOY_KNOWN_HOSTS`:
+SSH accepts only the pinned Ed25519 host key from `DEPLOY_KNOWN_HOSTS`:
 `StrictHostKeyChecking yes`, `HostKeyAlgorithms ssh-ed25519`,
-`GlobalKnownHostsFile /dev/null`, `UpdateHostKeys no`. `ssh-keyscan` во время
-deploy не используется. При смене host key требуется сверить новый ключ через
-доверенный административный доступ и обновить environment secret.
+`GlobalKnownHostsFile /dev/null`, and `UpdateHostKeys no`. Deployment does not run
+`ssh-keyscan`. After a host key change, verify the replacement through trusted
+administrative access before updating the environment secret.
 
-GitHub не позволяет прочитать сохранённый private key. При его замене новый
-ключ сначала проверяется, затем сохраняется в production environment; старый
-ключ удаляется из серверного списка. Локальная временная копия уничтожается.
+GitHub does not expose a stored private key. To rotate it, test the new key first,
+store it in the production environment, remove the old server authorization,
+and delete the temporary local private key copy.
 
-## Установка
+## Installation
 
-Существующий nginx на `127.0.0.1:9003` читает
-`/srv/morrowind-map/current`; публичный домен подключён через Cloudflare Tunnel.
+Nginx at `127.0.0.1:9003` serves `/srv/morrowind-map/current`; Cloudflare Tunnel
+connects the public domain.
 
-Сначала deploy отправляет только сохранённый `config/dataset-upload-plan.json`
-через `upload_datasets --probe-plan ... --host production`. Сервер проверяет
-план и содержимое immutable graph. Ответ `already-staged` позволяет продолжить
-без скачивания и передачи примерно 2,3 GB tiles; это обычный app-only путь.
-Только ответ `missing` запускает LFS fetch публикуемого commit, полную локальную
-валидацию, сравнение плана и upload с `--stage-only`. Ошибка проверки или связи
-останавливает deploy, а не считается отсутствующим graph.
+Deployment first sends only the committed `config/dataset-upload-plan.json` with
+`upload_datasets --probe-plan ... --host production`. The server validates the
+plan and immutable graph contents. An `already-staged` result avoids downloading
+and transferring roughly 2.3 GB of tiles; this is the normal application-only path.
+Only `missing` triggers LFS fetch for the deployment commit, full local validation,
+plan comparison, and upload with `--stage-only`. Validation or connection errors
+stop deployment instead of being treated as a missing graph.
 
-Uploader устанавливает `/srv/morrowind-map/data/releases/<graphSha256>` и возвращает
-его путь. Он не меняет legacy `data/generated`, не удаляет другие graphs и
-очищает только временный каталог своей передачи.
+The uploader installs `/srv/morrowind-map/data/releases/<graphSha256>` and returns
+that path. It does not change legacy `data/generated` or delete other graphs;
+it cleans up only its own temporary transfer directory.
 
-Затем job передаёт пакет и Python tooling того же коммита во временный каталог
-`incoming-ci/<run-id>-<attempt>`. Installer проверяет checksum, полный commit SHA,
-содержимое архива, manifests, hashes установленных каталогов и наличие всех
-ожидаемых тайлов с суммарным размером. Тайл-хэши целиком проверяются отдельным
-dataset uploader/probe на сервере; installer проверяет контракты приложения с выбранным graph.
+The job then sends the package and Python tooling from the same commit to
+`incoming-ci/<run-id>-<attempt>`. The installer verifies the checksum, full commit
+SHA, archive contents, manifests, installed catalog hashes, and the presence and
+aggregate size of all expected tiles. The separate dataset uploader/probe validates
+all tile hashes on the server; the installer validates the application contracts
+against the selected graph.
 
-Installer получает `--dataset-graph` из committed plan. После проверки пакет
-устанавливается в `releases/<full-commit-sha>`; его `datasets/generated` ссылается
-на конкретный immutable graph, а `current`
-переключается атомарной заменой symlink. Повторная установка того же пакета
-допускается; изменение уже установленного immutable release отвергается.
-До переключения также проверяется предыдущий релиз с его generated artifacts:
-если он повреждён или его данные отсутствуют, публикация останавливается,
-поскольку рабочего fallback нет.
+The installer receives `--dataset-graph` from the committed plan. After validation,
+it installs the package in `releases/<full-commit-sha>` and pins that release's
+`datasets/generated` to the immutable graph. It switches `current` with an atomic
+symlink replacement. Reinstalling the same package is allowed; modifying an existing
+immutable release is rejected. Before switching, it also validates the previous
+release and its own generated artifacts. Missing or damaged fallback data stops
+deployment because a working rollback would be unavailable.
 
-После переключения installer запускает существующий `deploy:health`
-(`python3 -m tools.deployment.health_check`) для локального nginx и публичного
-HTTPS-сайта. Каждой проверке отводится не более 120 секунд. Ошибка любой
-проверки или таймаут атомарно возвращают прежний symlink `current`; job остаётся
-failed. При первой установке без предыдущего релиза неудачный `current`
-удаляется. Сам каталог неудачного релиза сохраняется для диагностики.
+After switching, the installer runs the existing `deploy:health` implementation
+(`python3 -m tools.deployment.health_check`) against both local nginx and the public
+HTTPS site, with a 120-second limit per check. Any failed check or timeout atomically
+restores the previous `current` symlink and leaves the job failed. On an initial
+installation without a previous release, it removes the failed `current`. The failed
+release directory remains available for diagnosis.
 
-Nginx alias `/datasets/generated/` ведёт через `current/datasets/generated`.
-Откат возвращает приложение и его dataset graph одним переключением symlink.
-Он не создаёт резервных копий и не исправляет
-отказ nginx, туннеля или потерю datasets. При принудительном завершении процесса
-или потере сервера откат не гарантирован — нужен runbook.
+The nginx `/datasets/generated/` alias resolves through `current/datasets/generated`.
+Rollback therefore switches both application and dataset graph together. It creates
+no backups and cannot repair nginx/tunnel failures or lost datasets. Forced process
+termination or server loss can prevent automatic rollback; use the runbook.
 
-До первого запуска этого workflow на существующем VPS требуется однократная
-миграция: закрепить graph существующего current release и сменить nginx alias
-по runbook. `data/generated` остаётся только legacy fallback для первоначальной
-миграции/администрирования. Новые публикации используют явный `--dataset-graph`.
+The one-time migration on vpsdo is complete: the previous current release has a pinned
+graph and nginx uses the release-relative alias. The runbook retains this procedure
+for other legacy installations. `data/generated` is only a legacy migration or
+administration fallback; new deployments always pass `--dataset-graph` explicitly.
 
-Резервное копирование, расписание snapshots и управление retention старых
-релизов в этот workflow не входят. App releases и dataset graphs не удаляются
-автоматически; будущая deliberate garbage collection должна учитывать ссылки
-всех сохраняемых app releases. Ошибка deploy не удаляет staged graph.
-Временные файлы передачи и SSH key удаляются
-после job. Artifacts CI хранятся 7 дней для передачи проверенного пакета между jobs.
+Backups, scheduled snapshots, and old-release retention management are outside this
+workflow. Application releases and dataset graphs are not automatically removed.
+Any future garbage collection must preserve graphs referenced by retained application
+releases. Failed application deployment does not delete a staged graph. The job removes
+its temporary transfer files and SSH key. CI artifacts are retained for seven days
+to pass the verified package between jobs.
 
-Для проверки пакета без переключения сайта у installer есть `--check-only`:
+Use `--check-only` to validate a package without switching the site:
 
 ```bash
 python3 -m tools.deployment.install_release \

@@ -1,83 +1,105 @@
-# Обновление Tamriel Rebuilt
+# Updating Tamriel Rebuilt
 
-Этот runbook применяется только к новому релизу Tamriel Rebuilt. Original GOTY HD в него не входит.
+This runbook covers a new Tamriel Rebuilt release. It does not update Original GOTY HD.
+Work on a topic branch and submit the prepared result through a pull request into `main`.
+Use English for release text, documentation, commit messages, and PR titles/descriptions;
+see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-## Требуемые входы
+## Required inputs
 
-### Зафиксированная база
+### Pinned base
 
-Используются те же шесть base files, что и в текущем профиле:
+Use the same six base files as the current profile:
 
-- `Morrowind.esm`;
-- `Tribunal.esm`;
-- `Bloodmoon.esm`;
-- `Morrowind.bsa`;
-- `Tribunal.bsa`;
-- `Bloodmoon.bsa`.
+- `Morrowind.esm`
+- `Tribunal.esm`
+- `Bloodmoon.esm`
+- `Morrowind.bsa`
+- `Tribunal.bsa`
+- `Bloodmoon.bsa`
 
-Их hashes должны совпасть с release config. Замена base file является отдельным изменением renderer profile, а не обычным обновлением TR.
+Their hashes must match the release configuration. Replacing a base file is a separate
+renderer-profile change, not a routine TR update.
 
 ### Tamriel Data
 
-Нужен полный набор из одного и того же релиза:
+Provide the complete set from one release:
 
-- `Tamriel_Data.esm`;
-- `Tamriel_Data.omwscripts`;
-- полное распакованное дерево Tamriel Data `Data Files` со всеми meshes, textures и другими assets.
+- `Tamriel_Data.esm`
+- `Tamriel_Data.omwscripts`
+- The complete extracted Tamriel Data `Data Files` tree, including all meshes,
+  textures, and other assets.
 
 ### Tamriel Rebuilt Core
 
-Нужен полный matching-набор из одного релиза:
+Provide the complete matching set from one release:
 
-- `TR_Mainland.esm`;
-- `tamrielrebuilt.omwscripts`;
-- полное распакованное дерево TR Core `Data Files` со всеми assets.
+- `TR_Mainland.esm`
+- `tamrielrebuilt.omwscripts`
+- The complete extracted TR Core `Data Files` tree, including all assets.
 
-Нельзя смешивать ESM, scripts и asset trees разных версий или копировать только файлы, которые потребовались отдельному smoke. Optional plugins не входят в канонический profile.
+Do not mix ESM files, scripts, or asset trees from different releases, or copy only
+files needed by an individual smoke test. Optional plugins are outside the canonical profile.
 
-Совместимость версий является входной операторской проверкой: tooling не угадывает номер релиза по содержимому ESM или asset. Берите Tamriel Data и TR Core из официально заявленной matching-пары. После этого pipeline хэширует каждый файл полных mounted trees, запрещает неожиданные ESM/ESP/OMW/BSA/scripts внутри них и связывает все результаты с одним lock; смешать набор после `lock` уже нельзя.
+Release compatibility is an operator check: tooling does not infer a release number
+from ESM or asset contents. Use the officially documented matching Tamriel Data/TR Core
+pair. The pipeline then hashes every file in the complete mounted trees, rejects
+unexpected ESM/ESP/OMW/BSA/scripts in those trees, and binds all outputs to one lock.
+Inputs cannot be mixed after `lock`.
 
-## Порядок загрузки
+## Load order
 
-OpenMW data directories применяются в порядке base assets → Tamriel Data → TR Core, чтобы поздние деревья имели ожидаемый override priority. BSA регистрируются как `Morrowind.bsa` → `Tribunal.bsa` → `Bloodmoon.bsa`.
+OpenMW data directories apply in this order: base assets → Tamriel Data → TR Core.
+Later trees therefore have the expected override priority. Register BSAs in this order:
+`Morrowind.bsa` → `Tribunal.bsa` → `Bloodmoon.bsa`.
 
-Content load order фиксирован:
+Content load order is fixed:
 
-1. `Morrowind.esm`;
-2. `Tribunal.esm`;
-3. `Bloodmoon.esm`;
-4. `Tamriel_Data.esm`;
-5. `TR_Mainland.esm`.
+1. `Morrowind.esm`
+2. `Tribunal.esm`
+3. `Bloodmoon.esm`
+4. `Tamriel_Data.esm`
+5. `TR_Mainland.esm`
 
-Оба `.omwscripts` входят в inventory и provenance, но не добавляются как `content=`.
+Both `.omwscripts` files are included in inventory and provenance, but not added as `content=`.
 
-## Release config и lock
+## Release configuration and lock
 
-`config/tr-release.json` — единственный human-authored профиль активной сборки. Перед новым выпуском:
+`config/tr-release.json` is the single human-authored profile for the active build.
+Before a new release:
 
-1. задайте уникальный versioned `datasetId`, английские title/summary и release name/version/build;
-2. обновите пути Tamriel Data и TR Core относительно `--source-root`;
-3. удалите `adoptedSnapshotId` — он разрешён только точному уже опубликованному seed 26.08;
-4. сохраните неизменяемые hashes шести base inputs;
-5. удалите старые `sha256` у четырёх Tamriel Data/TR inputs: `check` покажет фактические hashes, а `lock` зафиксирует их;
-6. удалите старую MAST exception; добавляйте новую только если parser нового matching-релиза обнаружил конкретное расхождение advertised/actual bytes;
-7. проверьте regions и shard-aligned smoke controls для новой LAND topology.
+1. Choose a unique versioned `datasetId`, English title/summary, and release name/version/build.
+2. Update Tamriel Data and TR Core paths relative to `--source-root`.
+3. Remove `adoptedSnapshotId`; it is permitted only for the exact published 26.08 seed.
+4. Preserve the immutable hashes of the six base inputs.
+5. Remove old `sha256` values for the four Tamriel Data/TR inputs. `check` reports
+   actual hashes and `lock` pins them.
+6. Remove the previous MAST exception. Add a new one only if parsing the new matching
+   release reveals a specific advertised/actual byte-size discrepancy.
+7. Check regions and shard-aligned smoke controls for the new LAND topology.
 
-Нельзя сохранять старый `datasetId` и менять только `snapshotId`: существующие пользовательские записи такого dataset намеренно вызывают snapshot conflict. Новый выпуск всегда получает обе новые identity.
+Do not reuse the old `datasetId` while changing only `snapshotId`: existing user records
+for that dataset intentionally trigger a snapshot conflict. Each release gets both new identities.
 
-Новый `snapshotId` всегда выводится из profile/source fingerprint. Нельзя задавать для будущего релиза произвольный adopted snapshot.
+A new `snapshotId` is always derived from the profile/source fingerprint. Future releases
+cannot specify an arbitrary adopted snapshot.
 
-`local-data/tr-release/release.lock.json` генерируется из config и фактических inputs. Lock содержит нормализованные пути, hashes, tree fingerprints, derived snapshot, LAND extent/plan/topology, catalog counts и renderer/catalog producer fingerprints. Его не редактируют вручную; все последующие команды читают один и тот же lock и fail closed при расхождении входов.
+`local-data/tr-release/release.lock.json` is generated from configuration and actual inputs.
+It contains normalized paths, hashes, tree fingerprints, the derived snapshot, LAND
+extent/plan/topology, catalog counts, and renderer/catalog producer fingerprints. Do not
+edit the lock manually. All subsequent commands read the same lock and fail closed
+if inputs differ.
 
-## Обязательная последовательность
+## Required sequence
 
-Сначала распакуйте matching Tamriel Data и TR Core и обновите `config/tr-release.json`. Затем запустите официальный orchestrator:
+Extract matching Tamriel Data and TR Core releases and update `config/tr-release.json`.
+Then run the supported orchestrator:
 
 ```bash
 pnpm data:tr:release
 ```
 
-Он выполняет следующие публичные этапы строго по порядку:
+It runs these public stages in strict order:
 
 ```bash
 pnpm data:tr:check
@@ -99,72 +121,104 @@ pnpm test:acceptance:prepared:candidate
 pnpm verify
 ```
 
-После последнего зелёного gate orchestrator сам вызывает internal atomic activation. Отдельной публичной команды activation нет.
+After the last successful gate, the orchestrator invokes internal atomic activation.
+There is no separate public activation command.
 
-Назначение этапов:
+The stages perform the following work:
 
-1. `check` валидирует config, layout, identity, exact files и отсутствие неожиданных inputs.
-2. `lock` хэширует файлы и полные trees и создаёт единый immutable input contract.
-3. `plan` вычисляет LAND extent, render cells, shards и output identity из lock.
-4. `smoke` проверяет renderer и representative cells до полного рендера.
-5. `render` создаёт native tiles с checkpoint/resume; `finalize` строит нижние zoom levels.
-6. `stabilize` исправляет только границы render shards; `audit` проверяет весь release и независимые probes.
-7. `dataset:*` проверяет и публикует content-addressed basemap package.
-8. `catalog:*` объединяет пять ESM, проверяет audit и публикует content-addressed catalog package.
-9. `manifest:build` создаёт неактивный manifest-кандидат из фактически опубликованных metadata.
-10. `release:verify`, candidate prepared browser acceptance и repository gate проверяют candidate end to end.
-11. internal activation повторно сверяет каждый опубликованный WebP с `tiles.ndjson`, проверяет candidate bytes и атомарно переключает manifest/index последними filesystem operations.
+1. `check` validates configuration, layout, identities, exact files, and the absence
+   of unexpected inputs.
+2. `lock` hashes files and complete trees to create one immutable input contract.
+3. `plan` derives LAND extent, render cells, shards, and output identity from the lock.
+4. `smoke` checks the renderer and representative cells before a full render.
+5. `render` produces native tiles with checkpoint/resume; `finalize` builds lower zoom levels.
+6. `stabilize` corrects only render-shard boundaries; `audit` checks the entire release
+   and independent probes.
+7. `dataset:*` validates and publishes a content-addressed basemap package.
+8. `catalog:*` merges five ESMs, validates the audit, and publishes a content-addressed
+   catalog package.
+9. `manifest:build` creates an inactive candidate manifest from the metadata actually published.
+10. `release:verify`, candidate prepared browser acceptance, and the repository gate
+    validate the candidate end to end.
+11. Internal activation rechecks every published WebP against `tiles.ndjson`, verifies
+    candidate bytes, and atomically switches the manifest/index as the final filesystem operations.
 
-Если любой шаг завершился ошибкой, orchestrator останавливается до activation. Исправьте input/config или producer и снова запустите `pnpm data:tr:release`; готовые immutable outputs переиспользуются, а `render` продолжится с checkpoint только при неизменном lock и producer identity.
+If a stage fails, the orchestrator stops before activation. Correct the input,
+configuration, or producer and rerun `pnpm data:tr:release`. Completed immutable outputs
+are reused; rendering resumes from a checkpoint only when lock and producer identities
+are unchanged.
 
-## Команды только для изменения toolchain
+## Toolchain-only commands
 
-Обычный content update не пересобирает renderer image. Его собирают отдельно только при изменении OpenMW version, container recipe, rendering parameters или encoder:
+A routine content update does not rebuild the renderer image. Build it separately
+only after changes to the OpenMW version, container recipe, rendering parameters, or encoder:
 
 ```bash
 pnpm data:tr:renderer:build
 ```
 
-После toolchain change требуется новый smoke и весь обязательный release gate, даже если игровые inputs не изменились.
+A toolchain change requires another smoke test and the complete release gate, even
+when game inputs are unchanged.
 
-## Что попадает в Git
+## What enters Git
 
-После локальной activation проверяются и коммитятся актуальные contracts и готовый активный payload:
+After local activation, validate and commit the current contracts and prepared active payload:
 
-- `config/tr-release.json`;
-- `apps/web/public/datasets/index.json`;
-- новый `apps/web/public/datasets/manifests/<datasetId>.json`;
-- компактные integrity/audit metadata в `apps/web/public/datasets/metadata/<datasetId>/`.
-- generated JSON catalogs и locales в обычном Git;
-- активные `apps/web/public/datasets/generated/**/*.webp` в Git LFS.
+- `config/tr-release.json`
+- `apps/web/public/datasets/index.json`
+- The new `apps/web/public/datasets/manifests/<datasetId>.json`
+- Compact integrity/audit metadata under `apps/web/public/datasets/metadata/<datasetId>/`
+- Generated JSON catalogs and locales in regular Git
+- Active `apps/web/public/datasets/generated/**/*.webp` files in Git LFS
 
-`local-data/tr-release/release.lock.json`, candidate tree, renderer checkpoints, промежуточные renders и исходные игровые файлы остаются local artifacts. ESM/ESP/BSA/BA2/DDS/NIF и другие game inputs нельзя добавлять ни в Git, ни в LFS. Original manifest, metadata и generated package не меняются.
+`local-data/tr-release/release.lock.json`, candidate trees, renderer checkpoints,
+intermediate renders, and original game files remain local artifacts. ESM/ESP/BSA/BA2/DDS/NIF
+and other game inputs must never enter Git or LFS. The Original manifest, metadata,
+and generated package remain unchanged.
 
-Перед commit выполните:
+Before committing, run:
 
 ```bash
 git lfs install
 pnpm deploy:datasets:plan
 pnpm test:acceptance:prepared
 pnpm datasets:stage
+pnpm verify
 ```
 
-`datasets:stage` валидирует и добавляет только generated files из полного активного плана обеих карт через ограниченный `git add -f`, записывает/stages `config/dataset-upload-plan.json` и удаляет obsolete generated paths только из Git index. Изменённые TR config/index/manifests/metadata добавляются отдельными `git add -- <конкретные paths>`. Не добавляйте всё локальное дерево generated: там могут оставаться старые snapshots. После commit проверьте его полный SHA:
+`datasets:stage` validates and stages only generated files in the complete active plan
+for both maps, using a restricted `git add -f`. It writes/stages
+`config/dataset-upload-plan.json` and removes obsolete generated paths only from the
+Git index. Stage changed TR configuration/index/manifests/metadata separately with
+`git add -- <exact-paths>`. Do not stage the entire local generated tree: old snapshots
+may remain there. After committing, validate the full commit SHA:
 
 ```bash
 python3 -m tools.deployment.git_datasets check --repo-root . --revision <fullSHA>
 ```
 
-PR может идти в `dev` или `main`. Для review maintainer запускает доверенный `dataset-review.yml` из `main` с input `pr_number`, проверяет artifact `dataset-review-<candidateSHA>` и полный JSON изменений. Каждый новый candidate SHA требует нового review. Branch protection private Free репозитория сейчас не включена (HTTP 403); required checks до смены плана и настройки защиты соблюдаются вручную. Полный порядок — в [DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md).
+Open a pull request from your topic branch into `main`. The maintainer runs trusted
+`dataset-review.yml` from `main` with `pr_number`, then reviews
+`dataset-review-<candidateSHA>` and the complete JSON change list. Every new candidate
+SHA requires a new review. Branch protection now requires PRs and successful CI
+for `main`, including for administrators; the repository remains private on GitHub Pro.
+The maintainer also inspects the conditional dataset report before merge. See
+[DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md) for the full process and
+[CONTRIBUTING.md](../CONTRIBUTING.md) for branch policy.
 
-## Результат активации
+## Activation result
 
-После успешного `activate`:
+After successful internal activation:
 
-- dataset index по-прежнему содержит ровно Original GOTY HD и один активный TR dataset;
-- новый manifest ссылается только на проверенные content-addressed basemap и catalog packages;
-- `datasetId` и `snapshotId` соответствуют lock и всем artifacts;
-- предыдущий пакет не изменён;
-- пользовательские данные нового dataset начинаются в отдельном namespace.
+- The dataset index still contains exactly Original GOTY HD and one active TR dataset.
+- The new manifest references only validated content-addressed basemap and catalog packages.
+- `datasetId` and `snapshotId` match the lock and all artifacts.
+- The previous package is unchanged.
+- User data for the new dataset starts in a separate namespace.
 
-Это локальная activation подготовленных файлов. Production deploy из `main` сначала проверяет committed plan на сервере; только отсутствующий graph требует LFS download и `--stage-only` upload. Installer связывает новый app release с конкретным graph. Nginx читает `current/datasets/generated`; rollback возвращает app и соответствующий graph вместе. Предыдущие releases/graphs сохраняются до отдельной будущей garbage collection; автоматический backup не настроен. См. [DEPLOYMENT.md](DEPLOYMENT.md).
+This activates prepared files locally. Production deployment from `main` first probes
+the committed plan on the server; only a missing graph requires LFS download and
+`--stage-only` upload. The installer pins the new application release to a specific
+graph. Nginx reads `current/datasets/generated`; rollback restores the application
+and its graph together. Previous releases/graphs remain until a separate future
+garbage-collection procedure. No automatic backup is configured. See [DEPLOYMENT.md](DEPLOYMENT.md).

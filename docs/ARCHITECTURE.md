@@ -1,76 +1,82 @@
-# Архитектура
+# Architecture
 
-## Состав системы
+## System components
 
-Morrowind Map состоит из трёх частей:
+Morrowind Map has three core parts:
 
-1. React/Vite web runtime загружает dataset index, manifest, каталог и sparse WebP tile pyramid.
-2. Python tooling извлекает каталог TES3 и строит basemap через зафиксированный headless OpenMW renderer.
-3. Локальное хранилище сохраняет пользовательский прогресс отдельно от read-only игровых datasets.
+1. A React/Vite web runtime loads the dataset index, manifest, catalog, and sparse WebP tile pyramid.
+2. Python tooling extracts the TES3 catalog and builds the basemap with a pinned headless OpenMW renderer.
+3. Browser storage keeps user progress separate from the read-only game datasets.
 
-Runtime не обращается к внешним CDN или API. Шрифты, иконки, manifests и runtime artifacts обслуживаются с того же origin.
+The runtime does not use external CDNs or APIs. Fonts, icons, manifests, and runtime artifacts are served from the same origin. The application and repository prose use English; contribution conventions are defined in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Dataset contract
 
-`apps/web/public/datasets/index.json` перечисляет ровно две видимые карты:
+`apps/web/public/datasets/index.json` lists exactly two visible maps:
 
 - `original-goty-hd`;
-- один активный versioned dataset Tamriel Rebuilt.
+- one active versioned Tamriel Rebuilt dataset.
 
-Index содержит только identity, порядок и URL manifest. Manifest задаёт:
+The index contains only identity, ordering, and the manifest URL. Each manifest defines:
 
-- `datasetId`, `snapshotId`, title и release metadata;
-- точный профиль источников и load order;
-- TES3 world projection, extent, origin и resolutions;
-- content-addressed ссылки и hashes каталога, locale, tile metadata и audit;
-- readiness и доступные regions.
+- `datasetId`, `snapshotId`, title, and release metadata;
+- the exact source profile and load order;
+- the TES3 world projection, extent, origin, and resolutions;
+- content-addressed references and hashes for the catalog, locale, tile metadata, and audit;
+- readiness and available regions.
 
-Loader валидирует JSON schemas, identity и взаимные ссылки до открытия карты. Ошибки index, manifest, catalog, coverage или tile metadata не маскируются пустым состоянием.
+The loader validates JSON schemas, identity, and cross-references before opening a map. Index, manifest, catalog, coverage, and tile-metadata errors are not disguised as empty states.
 
-## Карты
+## Maps
 
 ### Original GOTY HD
 
-Original использует отдельный profile и отдельные producer modules. Его входы ограничены тремя английскими ESM и тремя одноимёнными BSA. Dataset считается зафиксированным: обычные работы с новым Tamriel Rebuilt не запускают Original renderer, catalog или publisher и не меняют его manifest.
+Original uses its own profile and producer modules. Its inputs are limited to the three English ESM files and the three matching BSA files. The dataset is frozen: routine work on a new Tamriel Rebuilt release does not run the Original renderer, catalog pipeline, or publisher, and does not change its manifest.
 
 ### Tamriel Rebuilt
 
-Активная TR-карта собирается из тех же шести base inputs и согласованной пары Tamriel Data / TR Core. Release-specific identity и hashes находятся в release config и сгенерированном lock. Новый релиз получает новый `datasetId` и `snapshotId`; подробный процесс — в [TR_UPDATE.md](TR_UPDATE.md).
+The active TR map is built from the same six base inputs and a matching Tamriel Data / TR Core pair. Release-specific identity and hashes live in the release config and generated lock. Each new release receives a new `datasetId` and `snapshotId`; see [TR_UPDATE.md](TR_UPDATE.md) for the full process.
 
-## Basemap и каталог
+## Basemap and catalog
 
-Basemap — sparse lossless WebP pyramid `z0…z7` с нативным tile size `512×512`. Manifest объявляет top-left XYZ grid и coverage, поэтому координаты вне покрытия не создают лишние HTTP requests. Presentation уже запечён producer-ом; runtime не должен повторно менять цвет или alpha.
+The basemap is a sparse lossless WebP pyramid, `z0…z7`, with a native tile size of `512×512`. The manifest declares a top-left XYZ grid and coverage, so coordinates outside that coverage do not generate unnecessary HTTP requests. Presentation is already baked into the output by the producer; the runtime must not alter color or alpha again.
 
-Каталог объединяет TES3 records по load-order semantics, включая override и deletion. Runtime получает:
+The catalog merges TES3 records according to load-order semantics, including overrides and deletions. The runtime receives:
 
-- стабильные place identifiers и world coordinates;
-- entrances и teleport destinations;
+- stable place identifiers and world coordinates;
+- entrances and teleport destinations;
 - region/type metadata;
-- EN locale;
-- audit, связанный с теми же `datasetId` и `snapshotId`.
+- an English locale;
+- an audit bound to the same `datasetId` and `snapshotId`.
 
-Basemap и каталог публикуются независимо, но manifest не может смешивать artifacts разных release identities.
+The basemap and catalog are published independently, but a manifest must not mix artifacts from different release identities.
 
 ## Content-addressed publication
 
-Generated artifacts публикуются в каталог, имя которого выводится из inventory hash. Готовый пакет не перезаписывается. Manifest-кандидат формируется из повторно прочитанных publication metadata, затем проверяется вместе со схемами и файлами.
+Generated artifacts are published into a directory named from their inventory hash. A completed package is never overwritten. A candidate manifest is assembled from publication metadata read back from disk, then validated against the schemas and files.
 
-Активация — последняя атомарная операция. До неё действующий index и manifest продолжают указывать на предыдущий полностью готовый dataset. Ошибка любого producer или gate оставляет активную карту без изменений.
+Local activation is the final atomic operation in the release workflow. Until then, the active index and manifest continue to reference the previous complete dataset. A producer or gate failure leaves the active map unchanged.
+
+Prepared active WebP tiles are versioned in Git LFS; generated JSON catalogs/locales and metadata are versioned in regular Git. Game inputs and intermediate renderer outputs stay outside Git. `pnpm datasets:stage` validates the complete active graph and stages only its reachable files plus `config/dataset-upload-plan.json`.
+
+Changes enter `main` through topic-branch PRs. CI validates the Git source boundary and application; dataset changes also hydrate the committed LFS objects, verify the recorded plan, and run prepared browser acceptance. A manually dispatched trusted workflow exports the candidate as data, without executing its code, and generates review artifacts pinned to the PR head SHA. Deployment requires the successful trusted review associated with the merged dataset PR.
+
+Actions publishes the application package produced by CI for the same commit. It first probes for the complete immutable dataset graph on the server, uploading a missing graph separately. Each application release pins its graph through `datasets/generated`; nginx serves generated files through `current/datasets/generated`. The installer validates required artifacts before atomically switching `current`, then runs health checks against the origin and public site. Failed health checks restore the previous release and its pinned graph. Application and dataset locks coordinate server-side publication, while Actions queues production deployments sequentially. See [DEPLOYMENT.md](DEPLOYMENT.md) for the exact workflow and [DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md) for recovery procedures.
 
 ## Browser state
 
-URL хранит `dataset`, `region`, `x`, `y`, `z` и выбранное `place`. Входные параметры валидируются и canonicalize-ятся; Back/Forward восстанавливают meaningful navigation state без новых записей от каждого pan/zoom.
+The URL stores `dataset`, `region`, `x`, `y`, `z`, and the selected `place`. Input parameters are validated and canonicalized; Back/Forward restores meaningful navigation state without adding history entries for every pan or zoom.
 
-Переход с landing без явной camera открывает карту в `map.projection.center` из manifest на первом каталожном tier `z=2`. Исключение для выбранного региона `tr-mainland` — Old Ebonheart на `z=4`. Явные валидные `x/y/z` из URL всегда authoritative и не заменяются default или region focus.
+Entering a map from the landing page without an explicit camera uses `map.projection.center` from the manifest at the first catalog tier, `z=2`. The exception is the selected `tr-mainland` region, which opens at Old Ebonheart at `z=4`. Explicit valid `x/y/z` URL coordinates always take precedence over defaults or region focus.
 
-Region, type, status и zoom-tier применяются ко всему каталогу. Список результатов добавляет DOM-строки последовательными batches по мере прокрутки; поиск, facet counts, map markers и общее число совпадений работают с полным отфильтрованным набором, а не только с уже отрисованным batch.
+Region, type, status, and zoom-tier filters apply to the full catalog. The results list appends DOM rows in batches as the user scrolls; search, facet counts, map markers, and the total number of matches use the full filtered set, not just the rendered batch.
 
-Dataset и catalog имеют явные состояния loading, missing, invalid, network error, partial failure и retry. Обычная загрузка tile requests не показывает status, spinner или перекрывающий карту overlay. Missing coverage, tile errors и retry остаются видимыми recovery-состояниями. Abort/generation guards не позволяют позднему ответу старой загрузки заменить новое состояние. Tile retry повторяет только текущий failed set и не пересоздаёт карту, camera, filters или selection.
+Dataset and catalog loading have explicit loading, missing, invalid, network-error, partial-failure, and retry states. Routine tile loading shows no status text, spinner, or overlay over the map. Missing coverage, tile errors, and retry remain visible recovery states. Abort/generation guards prevent a late response from an old request from replacing newer state. Tile retry requests only the current failed set and does not recreate the map, camera, filters, or selection.
 
-## Пользовательские данные
+## User data
 
-IndexedDB хранит progress, notes и personal markers отдельно от read-only dataset files. Каждая запись принадлежит `datasetId`; binding дополнительно проверяет `snapshotId`.
+IndexedDB stores progress, notes, and personal markers separately from read-only dataset files. Every record belongs to a `datasetId`; its binding also checks `snapshotId`.
 
-Новый TR release обязан получить обе новые identity. Это исключает смешивание координат и записей разных snapshots. Старые записи не удаляются и не переносятся автоматически; они остаются привязаны к предыдущему dataset. JSON export/import валидируется до атомарной записи и не изменяет игровые artifacts.
+A new TR release must receive both new identities. This prevents coordinates and records from different snapshots from being mixed. Old records are neither deleted nor migrated automatically; they remain bound to the previous dataset. JSON export/import is validated before an atomic write and does not alter game artifacts.
 
-При недоступном IndexedDB карта остаётся доступной read-only. Ошибка локальной записи сохраняет draft и предлагает повтор операции, не сбрасывая camera или выбранное место.
+If IndexedDB is unavailable, the map remains usable in read-only mode. A local-write failure preserves the draft and offers a retry without resetting the camera or selected place.
