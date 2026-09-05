@@ -9,6 +9,9 @@
 .env.*
 !.env.example
 local-data/
+# Complete local game/mod inputs and renderer workspaces are never published.
+/local-data/inputs/
+/local-data/render/
 data-sources/
 
 # JavaScript
@@ -44,3 +47,15 @@ renders/
 *.tga
 *.nif
 *.kf
+*.omwscripts
+*.pex
+
+# Local credentials and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+id_rsa*
+id_ed25519*

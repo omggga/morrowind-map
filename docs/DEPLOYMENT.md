@@ -19,8 +19,9 @@ For changes to data or deployment tooling, the separate `datasets` job fetches L
 objects, validates the complete active graph, compares the rebuilt plan with
 `config/dataset-upload-plan.json`, and runs `pnpm test:acceptance:prepared`.
 Application-only CI leaves LFS pointers in place and does not download tiles.
-The heavy dataset job runs for relevant PRs and `main` runs; duplicate topic-branch
-push runs skip it.
+Automatic CI runs for pull requests and pushes to `main`; topic-branch pushes do
+not start a second workflow. The heavy dataset job runs only when relevant files
+change. Manual workflow runs remain available.
 
 After `verify` succeeds and `datasets` succeeds or is skipped, `deploy` runs only
 for a push to `main` or a manual `workflow_dispatch` on `main`. Other branches and
@@ -81,7 +82,7 @@ Store environment secrets under **Settings → Environments → production**:
 
 | Secret | Value |
 | --- | --- |
-| `DEPLOY_HOST` | SSH hostname/IP of vpsdo |
+| `DEPLOY_HOST` | Deployment server SSH hostname or IP; never commit the value |
 | `DEPLOY_USER` | `morrowind-map` |
 | `DEPLOY_SSH_KEY` | Dedicated CI private SSH key without a passphrase |
 | `DEPLOY_KNOWN_HOSTS` | Verified server host key in known_hosts format |
@@ -106,6 +107,25 @@ SSH accepts only the pinned Ed25519 host key from `DEPLOY_KNOWN_HOSTS`:
 `GlobalKnownHostsFile /dev/null`, and `UpdateHostKeys no`. Deployment does not run
 `ssh-keyscan`. After a host key change, verify the replacement through trusted
 administrative access before updating the environment secret.
+
+Repository visibility does not grant deployment access. External contributors submit
+issues and fork pull requests; only authorized maintainers can merge protected `main`
+or administer the production environment. Public PR checks run without deployment
+credentials. Review any workflow permission changes before merging them.
+
+Keep private hostnames, origin addresses, private keys, certificate files, and tunnel
+credentials out of tracked files and PR descriptions. Host connection details and the
+CI SSH key belong only in production environment secrets; tunnel credentials and TLS
+private material stay with the hosting provider or administrator. Public site URLs,
+loopback addresses, generic account names, and secret variable names are configuration
+examples, not credentials.
+
+Before changing repository visibility, inspect all Git history, tags, branches, PR
+diffs, and Actions logs/artifacts. Deleting a value from the latest tree does not
+remove older copies. If a credential was committed, revoke or rotate it before any
+history cleanup. Removing non-secret infrastructure identifiers from old history
+also requires a separately coordinated history rewrite or a fresh public history;
+normal commits cannot erase earlier revisions.
 
 GitHub does not expose a stored private key. To rotate it, test the new key first,
 store it in the production environment, remove the old server authorization,
@@ -155,9 +175,8 @@ Rollback therefore switches both application and dataset graph together. It crea
 no backups and cannot repair nginx/tunnel failures or lost datasets. Forced process
 termination or server loss can prevent automatic rollback; use the runbook.
 
-The one-time migration on vpsdo is complete: the previous current release has a pinned
-graph and nginx uses the release-relative alias. The runbook retains this procedure
-for other legacy installations. `data/generated` is only a legacy migration or
+The deployment layout uses pinned graphs and the release-relative nginx alias.
+The runbook retains a one-time migration procedure for legacy installations. `data/generated` is only a legacy migration or
 administration fallback; new deployments always pass `--dataset-graph` explicitly.
 
 Backups, scheduled snapshots, and old-release retention management are outside this

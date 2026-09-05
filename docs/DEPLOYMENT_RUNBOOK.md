@@ -1,10 +1,10 @@
 # Deployment and recovery runbook
 
-Configuration checked on vpsdo on 2026-09-05: Ubuntu 22.04, nginx 1.18.0,
-Python 3.10.12, and system services `nginx` and `cloudflared`.
+Reference platform: Ubuntu 22.04, nginx 1.18, Python 3.10 or newer,
+and system services `nginx` and `cloudflared`.
 See [DEPLOYMENT.md](DEPLOYMENT.md) for CI and access restrictions, and
 [CONTRIBUTING.md](../CONTRIBUTING.md) for the topic-branch → PR → `main` policy.
-Commands using `ssh vpsdo` require administrative access; CI runs as `morrowind-map`.
+Commands using `ssh deploy-admin` require administrative access; CI runs as `morrowind-map`.
 Run local commands from the repository root.
 
 ## Serving the site
@@ -30,11 +30,11 @@ https://morrowindmap.com
 | `/srv/morrowind-map/data/.dataset-upload.lock` | Dataset-change lock |
 | `/etc/nginx/conf.d/morrowind-map.conf` | [Site template](../tools/deployment/nginx/morrowind-map.conf) |
 | `/etc/nginx/snippets/morrowind-map-security.conf` | [Shared HTTP headers](../tools/deployment/nginx/morrowind-map-security.conf) |
-| `/etc/cloudflared/config.yml` | Tunnel routes; shared by several sites on vpsdo |
+| `/etc/cloudflared/config.yml` | Tunnel routes; preserve any unrelated entries |
 | `/etc/ssh/authorized_keys/morrowind-map` | Root-owned authorized public keys |
 
-Nginx listens only on loopback. TLS terminates at Cloudflare. VPS Docker containers
-are not involved in publishing this map. Serving the site requires no Node.js,
+Nginx listens only on loopback. TLS terminates at Cloudflare.
+Serving the site requires no Node.js,
 renderer, or game files on the VPS.
 
 HTML, the dataset index, and manifests require cache revalidation. Assets, versioned
@@ -44,7 +44,21 @@ locations because of nginx 1.18 `add_header` inheritance rules.
 
 ## Provisioning a new VPS
 
-First configure a trusted administrative SSH alias `vpsdo` for the intended server.
+Configure `deploy-admin` as a local administrative SSH alias in `~/.ssh/config`.
+It is an example alias, not a public hostname. Replace the placeholders locally;
+never copy connection details or keys into the repository:
+
+```sshconfig
+Host deploy-admin
+  HostName <YOUR_DEPLOYMENT_HOST>
+  User <YOUR_ADMINISTRATOR_ACCOUNT>
+  IdentityFile <YOUR_LOCAL_ADMINISTRATOR_KEY_PATH>
+  IdentitiesOnly yes
+  StrictHostKeyChecking yes
+```
+
+Provision and verify the host key through a trusted administrative channel before
+connecting. This administrative key is separate from the restricted Actions key.
 Run the following commands **as root on the new server**:
 
 ```bash
@@ -133,25 +147,24 @@ not an upload over a damaged immutable directory. Do not treat SSH/validation er
 
 ### One-time migration of a legacy VPS
 
-This migration is already complete on vpsdo. Retain this procedure for installations
-where nginx still serves `data/generated` directly: migrate **before enabling the new
+Use this procedure only for legacy installations where nginx still serves
+`data/generated` directly: migrate **before enabling the new
 deployment workflow**. Pause new deployments and wait for active installers/uploaders.
 Check the running site and a valid `current/release-manifest.json`, which the installer
 uses to validate its fallback.
 
 ```bash
-ssh vpsdo 'readlink -f /srv/morrowind-map/current; readlink -f /srv/morrowind-map/data/generated'
+ssh deploy-admin 'readlink -f /srv/morrowind-map/current; readlink -f /srv/morrowind-map/data/generated'
 pnpm deploy:health --base-url https://morrowindmap.com/
 ```
 
 Confirm that the first path is an existing `releases/<appSHA>` and the second is a
 real `data/releases/<graphSha256>` matching the current application's manifests.
-The previous release manifest was validated on the existing VPS; repeat validation
-when restoring another server. If `current/datasets/generated` exists, verify its
+Validate the previous release manifest before changing its dataset link. If `current/datasets/generated` exists, verify its
 target without replacing it. If absent, pin the **actual current graph**:
 
 ```bash
-ssh vpsdo 'flock /srv/morrowind-map/.app-deploy.lock sh -eu -c '\''
+ssh deploy-admin 'flock /srv/morrowind-map/.app-deploy.lock sh -eu -c '\''
   graph=$(readlink -f /srv/morrowind-map/data/generated)
   case "$graph" in /srv/morrowind-map/data/releases/*) ;; *) exit 1 ;; esac
   test -d "$graph"
@@ -173,8 +186,8 @@ New deployments always pass `--dataset-graph`.
 Copy the templates from the local machine:
 
 ```bash
-scp tools/deployment/nginx/morrowind-map.conf vpsdo:/tmp/morrowind-map.conf
-scp tools/deployment/nginx/morrowind-map-security.conf vpsdo:/tmp/morrowind-map-security.conf
+scp tools/deployment/nginx/morrowind-map.conf deploy-admin:/tmp/morrowind-map.conf
+scp tools/deployment/nginx/morrowind-map-security.conf deploy-admin:/tmp/morrowind-map-security.conf
 ```
 
 Install them as root on the VPS:
@@ -222,8 +235,7 @@ cloudflared --config /etc/cloudflared/config.yml tunnel ingress rule https://mor
 On a new server, install the systemd service with
 `cloudflared --config /etc/cloudflared/config.yml service install` and start it with
 `systemctl enable --now cloudflared`. On an existing server, after validation, apply
-configuration changes using `systemctl restart cloudflared`. This is a shared tunnel,
-so restarting affects its other routes too.
+configuration changes using `systemctl restart cloudflared`. If the tunnel serves other sites, restarting affects those routes too.
 
 ### First deployment and repeat runs
 
@@ -251,12 +263,12 @@ origin/public URLs. Without a previous release, a failed first deployment remove
 Start with read-only checks:
 
 ```bash
-ssh vpsdo 'readlink /srv/morrowind-map/current; readlink -f /srv/morrowind-map/current/datasets/generated'
-ssh vpsdo 'systemctl is-active nginx cloudflared; nginx -t'
-ssh vpsdo 'curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:9003/'
+ssh deploy-admin 'readlink /srv/morrowind-map/current; readlink -f /srv/morrowind-map/current/datasets/generated'
+ssh deploy-admin 'systemctl is-active nginx cloudflared; nginx -t'
+ssh deploy-admin 'curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:9003/'
 pnpm deploy:health --base-url https://morrowindmap.com/
-ssh vpsdo 'tail -n 60 /var/log/nginx/morrowind-map.error.log'
-ssh vpsdo 'journalctl -u cloudflared -n 60 --no-pager'
+ssh deploy-admin 'tail -n 60 /var/log/nginx/morrowind-map.error.log'
+ssh deploy-admin 'journalctl -u cloudflared -n 60 --no-pager'
 ```
 
 | Symptom | Action |
@@ -294,10 +306,10 @@ tar -czf "$PACKAGE_DIR/deploy-tools.tar.gz" \
   tools/__init__.py tools/deployment/__init__.py tools/deployment/common.py \
   tools/deployment/package_release.py tools/deployment/install_release.py tools/deployment/health_check.py
 REMOTE_DIR="/srv/morrowind-map/incoming-ci/recovery-$RUN_ID"
-ssh vpsdo "install -d -o morrowind-map -g morrowind-map -m 750 '$REMOTE_DIR'"
-scp "$PACKAGE_DIR/$ARCHIVE" "$PACKAGE_DIR/deploy-tools.tar.gz" "vpsdo:$REMOTE_DIR/"
-ssh vpsdo "chown morrowind-map:morrowind-map '$REMOTE_DIR/$ARCHIVE' '$REMOTE_DIR/deploy-tools.tar.gz'"
-ssh vpsdo "runuser -u morrowind-map -- sh -c 'cd $REMOTE_DIR && tar -xzf deploy-tools.tar.gz && \
+ssh deploy-admin "install -d -o morrowind-map -g morrowind-map -m 750 '$REMOTE_DIR'"
+scp "$PACKAGE_DIR/$ARCHIVE" "$PACKAGE_DIR/deploy-tools.tar.gz" "deploy-admin:$REMOTE_DIR/"
+ssh deploy-admin "chown morrowind-map:morrowind-map '$REMOTE_DIR/$ARCHIVE' '$REMOTE_DIR/deploy-tools.tar.gz'"
+ssh deploy-admin "runuser -u morrowind-map -- sh -c 'cd $REMOTE_DIR && tar -xzf deploy-tools.tar.gz && \
   python3 -m tools.deployment.install_release --archive $ARCHIVE --archive-sha256 $ARCHIVE_SHA \
   --commit-sha $COMMIT_SHA --dataset-graph $DATASET_GRAPH --check-only'"
 ```
@@ -305,14 +317,14 @@ ssh vpsdo "runuser -u morrowind-map -- sh -c 'cd $REMOTE_DIR && tar -xzf deploy-
 After a successful `validated` result, activate the same package with both health checks:
 
 ```bash
-ssh vpsdo "runuser -u morrowind-map -- sh -c 'cd $REMOTE_DIR && \
+ssh deploy-admin "runuser -u morrowind-map -- sh -c 'cd $REMOTE_DIR && \
   python3 -m tools.deployment.install_release --archive $ARCHIVE --archive-sha256 $ARCHIVE_SHA \
   --commit-sha $COMMIT_SHA --dataset-graph $DATASET_GRAPH --health-url http://127.0.0.1:9003/ --health-url https://morrowindmap.com/'"
 ```
 
 The installer uses the same locking, validation, and automatic rollback as CI.
 After checking the result, remove only this operation's temporary directories:
-`ssh vpsdo "rm -rf -- '$REMOTE_DIR'"` and `rm -rf -- "$PACKAGE_DIR"`.
+`ssh deploy-admin "rm -rf -- '$REMOTE_DIR'"` and `rm -rf -- "$PACKAGE_DIR"`.
 
 If the old commit predates the committed plan, obtain `DATASET_GRAPH` from the pinned
 target of `/srv/morrowind-map/releases/$COMMIT_SHA/datasets/generated`. Verify its

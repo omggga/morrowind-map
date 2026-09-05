@@ -45,6 +45,8 @@ gh pr create --base main --title "fix: describe the resulting behavior" --body-f
 
 The placeholders must be replaced with the actual paths and description. Keep PR body files outside the repository or leave them untracked. The initial push sets the topic branch's upstream explicitly.
 
+For local game inputs and rerender commands, follow [docs/RENDERING.md](docs/RENDERING.md). Keep inputs in ignored `local-data/inputs/` and review candidates before applying them with `pnpm render:use`. CI runs on pull requests and pushes to `main`; topic branch pushes do not start a second CI run.
+
 Ready dataset changes also require plan validation, prepared browser acceptance, and a trusted report for the current PR head. Follow [docs/DATASET_CONTRIBUTING.md](docs/DATASET_CONTRIBUTING.md). Never commit game source inputs or intermediate renders. Contributors supply the reviewable result through Git/LFS and do not need access to the production host.
 
 ## Review, merge, and publish

@@ -28,7 +28,7 @@ Active prepared WebP pyramids are stored in Git LFS; generated JSON catalogs/loc
 pnpm test:acceptance:prepared
 ```
 
-It opens both current maps with their real data, loads complete catalogs and tiles, and repeats the main workflows and recovery paths. For a new TR release that is not yet active, use the candidate variant below.
+It opens both current maps with their real data, loads complete catalogs and tiles, and repeats the main workflows and recovery paths. For newly rendered isolated candidates, use the rendered-candidate gate below.
 
 Before the browser gate, validate the entire active graph:
 
@@ -42,13 +42,47 @@ This checks the active index, manifests, metadata, and the size/hash of every re
 python3 -m tools.deployment.git_datasets check --repo-root . --revision <fullSHA>
 ```
 
-CI validates dataset payloads when data, the committed plan, TR config, deployment tooling, or LFS rules change: it regenerates the plan, compares it with `config/dataset-upload-plan.json`, and runs prepared acceptance. This job runs for relevant PRs and `main` pushes; topic-branch pushes skip the duplicate heavy job. App-only CI leaves the LFS pointers in place and does not download tiles. Rendering stays local and requires the contributor's own game inputs, but browsing prepared data and running prepared acceptance do not require OpenMW.
+CI validates dataset payloads when data, the committed plan, TR config, deployment tooling, or LFS rules change: it regenerates the plan, compares it with `config/dataset-upload-plan.json`, and runs prepared acceptance. Automatic CI runs for PRs and `main` pushes; topic-branch pushes do not start another workflow. Manual runs remain available. App-only CI leaves the LFS pointers in place and does not download tiles. Rendering stays local and requires the contributor's own game inputs, but browsing prepared data and running prepared acceptance do not require OpenMW.
 
 A dataset PR also requires visual inspection of the `dataset-review-<candidateSHA>` artifact from `dataset-review.yml`, manually dispatched on `main` with the `pr_number` input. It uses trusted scripts, does not execute candidate code, and has no deployment environment. A maintainer checks the HTML preview, complete `summary.json`, and SHA against the current PR head; a new commit requires a new review. See [DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md) for the workflow and local report command.
 
 The deployment gate independently checks that the merged dataset PR has a successful trusted review bound to its exact head and an authentic completed Actions run. This check runs before deployment SSH is configured. Branch protection and the production environment's main-only policy are separate enforced controls; their settings and the conditional review requirement are recorded in [CONTRIBUTING.md](../CONTRIBUTING.md) and [DEPLOYMENT.md](DEPLOYMENT.md).
 
-## Release-specific gate
+## Local rendering and candidate checks
+
+Use the shared [render workflow](RENDERING.md) to validate real inputs and exercise
+the local renderer:
+
+```bash
+pnpm render:check all
+pnpm render:smoke all
+```
+
+A successful smoke run covers only sample tiles. It is not proof that a complete new
+map passes full rendering, quality/coverage audits, or browser checks. Full commands
+`render:original`, `render:tamriel-rebuilt`, and `render:all` produce isolated candidates,
+validate their complete publication plans, and run `test:acceptance:rendered` against
+the result. They do not replace the tracked active dataset.
+
+The rendered browser gate reads actual dataset identities and records from its
+candidate, so it also covers a new Original snapshot or a newly versioned TR release.
+To rerun it directly, use the candidate's recorded `publicRoot`:
+
+```bash
+MORROWIND_RENDER_PUBLIC_ROOT=/absolute/path/to/candidate/apps/web/public pnpm test:acceptance:rendered
+```
+
+`render:preview` validates the graph before serving the candidate. `render:use` repeats
+full graph and rendered-browser validation before adopting prepared files locally.
+After adoption, run `pnpm verify` and the normal dataset contribution checks. Generated
+locks, source inputs, and renderer intermediates remain ignored; synthetic adapter tests
+run in ordinary CI without any game files.
+
+## Legacy release-specific gate
+
+The lower-level release workflow remains compatible with its existing default paths.
+The following commands apply to a profile/lock prepared through that workflow, not
+automatically to the isolated facade candidate.
 
 Before activating a new TR dataset, run:
 
@@ -66,7 +100,9 @@ pnpm test:acceptance:prepared:candidate
 
 The command uses `local-data/tr-release/candidate`, while still reading Original and content-addressed payloads from the normal `apps/web/public` root.
 
-`pnpm data:tr:release` runs both release-specific browser/full gates; no standalone activation command is exposed. Passing local release gates does not deploy production: the prepared dataset must still pass the PR/Actions publication workflow.
+`pnpm data:tr:release` runs both release-specific browser/full gates before its internal
+production activation. The separate `activate-local` CLI stage requires isolated work/public
+roots and cannot activate the tracked public tree. Passing local release gates does not deploy production: the prepared dataset must still pass the PR/Actions publication workflow.
 
 ## Browser matrix
 

@@ -20,6 +20,7 @@
 ## Data and product boundaries
 
 - Keep the repository private until the maintainer explicitly authorizes a visibility change.
+- Keep private host aliases, origin IP addresses, credentials, and local account paths out of repository content. Deployment uses GitHub environment secrets; local rerender inputs belong in ignored `local-data/inputs/`.
 - Never add game source files or archives to Git or LFS: ESM/ESP, BSA/BA2, DDS/NIF, related original assets, local inputs, renderer checkpoints, and intermediate renders stay local.
 - Publish only the validated active dataset graph. Ready generated WebP tiles use Git LFS; runtime JSON and metadata use regular Git. Use `pnpm datasets:stage` instead of broadly force-adding ignored directories.
 - Dataset and deployment changes must follow [docs/DATASET_CONTRIBUTING.md](docs/DATASET_CONTRIBUTING.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Never expose production secrets to PR code.

@@ -1,8 +1,9 @@
 # Contributing prepared datasets
 
 The repository publishes the complete active graph, ready to open in a browser without
-OpenMW or game files. Generate new renders locally using your own game inputs; for TR,
-start with [TR_UPDATE.md](TR_UPDATE.md). CI validates prepared outputs and does not render
+OpenMW or game files. Generate new renders locally using your own game inputs with
+the shared [render workflow](RENDERING.md); [TR_UPDATE.md](TR_UPDATE.md) covers future
+TR release profiles. CI validates prepared outputs and does not render
 the game. Follow [CONTRIBUTING.md](../CONTRIBUTING.md): use a topic branch and a pull request
 into `main`, and write documentation, commit messages, and PR titles/descriptions in English.
 
@@ -21,7 +22,14 @@ Do not broaden the LFS rule to all binary files or JSON.
 
 ## Preparing a pull request
 
-After preparing and locally activating a dataset, run these commands from the repository root:
+First generate an isolated candidate with `render:original`, `render:tamriel-rebuilt`,
+or `render:all`. Preview its recorded `publicRoot`, then adopt it with
+`pnpm render:use --public-root <candidate-public-directory>`. Adoption validates the
+full graph and rendered browser acceptance, updates only local prepared files and
+associated configuration, and stages or deploys nothing. See [RENDERING.md](RENDERING.md)
+for the complete commands and input layout.
+
+After adoption, run these commands from the repository root:
 
 ```bash
 git lfs install
@@ -44,7 +52,9 @@ Add changed contracts explicitly. Replace `<datasetId>` with the new dataset ID 
 get the metadata paths from its manifest:
 
 ```bash
-git add -- config/tr-release.json apps/web/public/datasets/index.json
+git add -- apps/web/public/datasets/index.json
+# For a changed TR profile:
+git add -- config/tr-release.json
 git add -- apps/web/public/datasets/manifests/<datasetId>.json
 git add -- apps/web/public/datasets/metadata/<datasetId>/<inventorySha>/map-assets.json
 ```
@@ -122,8 +132,9 @@ Regular CI always checks the source/LFS boundary. When data, the committed plan,
 TR configuration, deployment tooling, or LFS rules change, the dataset job fetches the
 payload, rebuilds the complete plan, compares it with `config/dataset-upload-plan.json`,
 and runs prepared browser acceptance tests for relevant PRs and `main` runs.
-Duplicate topic-branch push runs skip this heavy job. Application-only CI leaves LFS pointers
-in place without downloading the large tiles.
+Automatic CI runs for pull requests and pushes to `main`; topic-branch pushes do
+not trigger a second workflow. Manual runs remain available. Application-only CI
+leaves LFS pointers in place without downloading the large tiles.
 
 Deployment from `main` first sends the committed plan to the server with `--probe-plan`.
 If the graph is already present and validates, LFS download/upload is skipped. Only

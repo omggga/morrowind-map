@@ -1,11 +1,19 @@
 # Updating Tamriel Rebuilt
 
-This runbook covers a new Tamriel Rebuilt release. It does not update Original GOTY HD.
+This runbook covers the TR-specific input contract and release stages. Start with
+[RENDERING.md](RENDERING.md) for the shared input layout, commands, and isolated preview
+workflow. A TR-only render keeps the current Original baseline; `render:all` composes
+both newly rendered maps.
 Work on a topic branch and submit the prepared result through a pull request into `main`.
 Use English for release text, documentation, commit messages, and PR titles/descriptions;
 see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Required inputs
+
+Use `local-data/inputs/bsa`, `local-data/inputs/tamriel-data`, and
+`local-data/inputs/tamriel-rebuilt/00 Core/Data Files`. Extract complete directories
+as shown in [RENDERING.md](RENDERING.md#input-directory); no external machine-specific
+source path is required. These inputs and all work products stay in ignored `local-data/`.
 
 ### Pinned base
 
@@ -65,17 +73,24 @@ Both `.omwscripts` files are included in inventory and provenance, but not added
 
 ## Release configuration and lock
 
-`config/tr-release.json` is the single human-authored profile for the active build.
+`config/tr-release.json` records the active build. For a new release, copy it to
+`local-data/profiles/next-tr.json` and edit that separate profile before rendering.
+The adapter writes a normalized derived profile under its work root; only explicit
+`render:use` adopts the candidate profile into the active configuration.
+
 Before a new release:
 
 1. Choose a unique versioned `datasetId`, English title/summary, and release name/version/build.
-2. Update Tamriel Data and TR Core paths relative to `--source-root`.
+2. Use the standard extracted input layout. The shared adapter normalizes profile
+   directory paths while retaining their IDs and load order.
 3. Remove `adoptedSnapshotId`; it is permitted only for the exact published 26.08 seed.
 4. Preserve the immutable hashes of the six base inputs.
 5. Remove old `sha256` values for the four Tamriel Data/TR inputs. `check` reports
    actual hashes and `lock` pins them.
-6. Remove the previous MAST exception. Add a new one only if parsing the new matching
-   release reveals a specific advertised/actual byte-size discrepancy.
+6. Reassess the previous MAST exception for the new release. Remove an obsolete one;
+   add a replacement only if parsing the new matching release reveals a specific
+   advertised/actual byte-size discrepancy. A rerender of the current release retains
+   its documented exception unchanged.
 7. Check regions and shard-aligned smoke controls for the new LAND topology.
 
 Do not reuse the old `datasetId` while changing only `snapshotId`: existing user records
@@ -84,85 +99,89 @@ for that dataset intentionally trigger a snapshot conflict. Each release gets bo
 A new `snapshotId` is always derived from the profile/source fingerprint. Future releases
 cannot specify an arbitrary adopted snapshot.
 
-`local-data/tr-release/release.lock.json` is generated from configuration and actual inputs.
+`local-data/render/tamriel-rebuilt/release.lock.json` is generated from the derived
+profile and actual inputs by the shared adapter.
 It contains normalized paths, hashes, tree fingerprints, the derived snapshot, LAND
 extent/plan/topology, catalog counts, and renderer/catalog producer fingerprints. Do not
 edit the lock manually. All subsequent commands read the same lock and fail closed
 if inputs differ.
 
-## Required sequence
+## Supported sequence
 
-Extract matching Tamriel Data and TR Core releases and update `config/tr-release.json`.
-Then run the supported orchestrator:
-
-```bash
-pnpm data:tr:release
-```
-
-It runs these public stages in strict order:
+With matching files and the separate future-release profile prepared:
 
 ```bash
-pnpm data:tr:check
-pnpm data:tr:lock
-pnpm data:tr:plan
-pnpm data:tr:renderer:smoke
-pnpm data:tr:renderer:render
-pnpm data:tr:renderer:finalize
-pnpm data:tr:renderer:stabilize
-pnpm data:tr:renderer:audit
-pnpm data:tr:dataset:validate
-pnpm data:tr:dataset:prepare
-pnpm data:tr:catalog:build
-pnpm data:tr:catalog:validate
-pnpm data:tr:catalog:prepare
-pnpm data:tr:manifest:build
-pnpm data:tr:release:verify
-pnpm test:acceptance:prepared:candidate
-pnpm verify
+pnpm render:check tamriel-rebuilt --profile local-data/profiles/next-tr.json
+pnpm render:smoke tamriel-rebuilt --profile local-data/profiles/next-tr.json
+pnpm render:tamriel-rebuilt --profile local-data/profiles/next-tr.json
 ```
 
-After the last successful gate, the orchestrator invokes internal atomic activation.
-There is no separate public activation command.
+For a rerender of the current release, omit `--profile`: the adapter keeps current
+hashes and exceptions but generates `<active-datasetId>-local` and a fresh snapshot,
+without `adoptedSnapshotId`. `--dataset-id <new-id>` can select another unused ID.
+An explicitly supplied future profile keeps its new identity. Do not change the
+identity between check, smoke, and full-render commands.
 
-The stages perform the following work:
+The facade checks inputs before expensive work, builds or reuses the required renderer
+images, and invokes the existing TR stages in separate Python processes. The full
+render then runs these stages in strict order:
 
-1. `check` validates configuration, layout, identities, exact files, and the absence
-   of unexpected inputs.
-2. `lock` hashes files and complete trees to create one immutable input contract.
-3. `plan` derives LAND extent, render cells, shards, and output identity from the lock.
-4. `smoke` checks the renderer and representative cells before a full render.
-5. `render` produces native tiles with checkpoint/resume; `finalize` builds lower zoom levels.
-6. `stabilize` corrects only render-shard boundaries; `audit` checks the entire release
-   and independent probes.
-7. `dataset:*` validates and publishes a content-addressed basemap package.
-8. `catalog:*` merges five ESMs, validates the audit, and publishes a content-addressed
-   catalog package.
-9. `manifest:build` creates an inactive candidate manifest from the metadata actually published.
-10. `release:verify`, candidate prepared browser acceptance, and the repository gate
-    validate the candidate end to end.
-11. Internal activation rechecks every published WebP against `tiles.ndjson`, verifies
-    candidate bytes, and atomically switches the manifest/index as the final filesystem operations.
+| Stage | Responsibility |
+| --- | --- |
+| `check`, `lock` | Validate exact inputs and hash every file in complete mounted trees |
+| `plan` | Derive LAND extent, render cells, shards, and identity from the lock |
+| `renderer-smoke` | Check all representative controls before the full render |
+| `renderer-render`, `renderer-finalize` | Produce native tiles with checkpoint/resume and build lower zoom levels |
+| `renderer-stabilize`, `renderer-audit` | Correct render-shard boundaries and audit the full release and independent probes |
+| `dataset-validate`, `dataset-prepare` | Validate and prepare the content-addressed basemap in the isolated public root |
+| `catalog-build`, `catalog-validate`, `catalog-prepare` | Merge the five ESMs, validate the catalog, and prepare it in the same isolated root |
+| `manifest-build`, `release-verify` | Assemble a candidate from actual metadata and verify one identity throughout |
+| `activate-local` | Recheck candidate artifacts and switch only the isolated candidate manifest/index |
+| Full-plan and rendered browser gates | Validate the complete two-map candidate and exercise its actual catalogs/tiles |
 
-If a stage fails, the orchestrator stops before activation. Correct the input,
-configuration, or producer and rerun `pnpm data:tr:release`. Completed immutable outputs
-are reused; rendering resumes from a checkpoint only when lock and producer identities
-are unchanged.
+No stage changes tracked active public files. After success, read `publicRoot` from
+`local-data/render/result.json`, preview it, and explicitly adopt it with `render:use`
+as described in [RENDERING.md](RENDERING.md#preview-adopt-locally-and-contribute).
+Local adoption reruns full graph and browser checks, then updates the active local
+contracts/profile. It still does not stage files or publish the website.
 
-## Toolchain-only commands
+If a stage fails, the workflow stops without adoption. Fix the input, configuration,
+or producer and rerun the same full-render command. Compatible immutable outputs and
+renderer checkpoints can be reused only while lock, producer, and baseline identities
+remain unchanged. Use a separate `--work-root local-data/render/next-attempt` when
+changing those inputs; never edit an old lock or output to force compatibility.
 
-A routine content update does not rebuild the renderer image. Build it separately
-only after changes to the OpenMW version, container recipe, rendering parameters, or encoder:
+## Advanced existing entry points
+
+The lower-level `pnpm data:tr:*` commands and legacy `pnpm data:tr:release` orchestrator
+remain available for existing workflows. Their default work layout remains
+`local-data/tr-release`; they do not automatically select the new normalized adapter
+profile or isolated public root. New contributors should use the facade above.
+
+For diagnosis, an individual stage can explicitly use the adapter's profile and roots:
 
 ```bash
-pnpm data:tr:renderer:build
+python3 -m tools.tr_release.cli check \
+  --profile local-data/render/tamriel-rebuilt/profile.json \
+  --lock local-data/render/tamriel-rebuilt/release.lock.json \
+  --source-root local-data/inputs \
+  --work-root local-data/render/tamriel-rebuilt \
+  --public-root local-data/render/tamriel-rebuilt/candidate/apps/web/public
 ```
 
-A toolchain change requires another smoke test and the complete release gate, even
-when game inputs are unchanged.
+Use the same arguments for a later stage and preserve the required order. The public
+`activate-local` stage rejects the tracked public root and requires an isolated public
+directory inside its explicit work root. The legacy production orchestrator still
+uses its full pre-activation browser/repository gates and internal activation callback.
+Neither workflow bypasses the PR and trusted dataset review required for publication.
+
+`pnpm render:build tamriel-rebuilt` checks inputs and builds/reuses the renderer images.
+A renderer/toolchain change requires fresh smoke and full-release checks even when
+game inputs are unchanged. Normal image cache reuse avoids unnecessary rebuilding.
 
 ## What enters Git
 
-After local activation, validate and commit the current contracts and prepared active payload:
+After explicit `render:use`, validate and commit the current contracts and prepared active payload:
 
 - `config/tr-release.json`
 - `apps/web/public/datasets/index.json`
@@ -171,10 +190,11 @@ After local activation, validate and commit the current contracts and prepared a
 - Generated JSON catalogs and locales in regular Git
 - Active `apps/web/public/datasets/generated/**/*.webp` files in Git LFS
 
-`local-data/tr-release/release.lock.json`, candidate trees, renderer checkpoints,
+Generated locks under `local-data/render/` (or the legacy `local-data/tr-release/`),
+candidate trees, renderer checkpoints,
 intermediate renders, and original game files remain local artifacts. ESM/ESP/BSA/BA2/DDS/NIF
-and other game inputs must never enter Git or LFS. The Original manifest, metadata,
-and generated package remain unchanged.
+and other game inputs must never enter Git or LFS. A TR-only contribution leaves
+Original unchanged; a deliberate `render:all` contribution includes both new candidates.
 
 Before committing, run:
 
@@ -208,7 +228,7 @@ The maintainer also inspects the conditional dataset report before merge. See
 
 ## Activation result
 
-After successful internal activation:
+After successful isolated candidate assembly and explicit local adoption:
 
 - The dataset index still contains exactly Original GOTY HD and one active TR dataset.
 - The new manifest references only validated content-addressed basemap and catalog packages.

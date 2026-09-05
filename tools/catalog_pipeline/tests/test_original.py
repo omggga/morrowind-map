@@ -51,15 +51,23 @@ class OriginalCatalogContractTests(unittest.TestCase):
         )
         self.assertEqual(SNAPSHOT_ID, "original:goty:8b2690c0ce1c954e")
 
-    def test_cli_has_no_alternate_content_root_option(self) -> None:
+    def test_cli_accepts_portable_content_root(self) -> None:
         parser = _parser(Path("/repo"))
-        with self.assertRaises(SystemExit):
-            parser.parse_args(["build", "--source-root", "/untrusted"])
+        args = parser.parse_args(["build", "--source-root", "/local/inputs"])
+        self.assertEqual(args.source_root, Path("/local/inputs"))
 
-    def test_source_loader_rejects_any_other_content_root(self) -> None:
+    def test_portable_source_loader_still_requires_pinned_files(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            with self.assertRaisesRegex(ValueError, "refusing alternate content path"):
+            with self.assertRaisesRegex(FileNotFoundError, "Required Original catalog input"):
                 _source_descriptors(Path(directory))
+
+    def test_source_loader_rejects_symlinked_data_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "elsewhere").mkdir()
+            (root / "bsa").symlink_to(root / "elsewhere", target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "cannot be a symlink"):
+                _source_descriptors(root)
 
     def test_pinned_counts_include_full_en_catalog_and_zero_drop_resolution(self) -> None:
         self.assertEqual(EXPECTED_CATALOG_COUNTS["places"], 1036)
