@@ -22,13 +22,31 @@ pnpm verify
 
 ## Полные локальные datasets
 
-Тяжёлые WebP pyramids и игровые каталоги не хранятся в Git, поэтому после их подготовки запускается отдельный gate:
+Активные prepared WebP pyramids хранятся в Git LFS, generated JSON catalogs/locales — в обычном Git. После локальной подготовки или получения реальных LFS payload bytes запускается отдельный gate:
 
 ```bash
 pnpm test:acceptance:prepared
 ```
 
 Он открывает обе текущие реальные карты, загружает полные catalogs и tiles и повторяет основные workflows и recovery paths. Для неактивного нового TR release используется candidate-вариант ниже.
+
+До browser gate проверьте весь активный graph:
+
+```bash
+pnpm deploy:datasets:plan
+```
+
+Он сверяет active index, manifests, metadata и size/hash всех reachable generated files. Git LFS pointers вместо WebP не проходят проверку подготовленного graph. Для committed revision дополнительно выполняется source/LFS guard:
+
+```bash
+python3 -m tools.deployment.git_datasets check --repo-root . --revision <fullSHA>
+```
+
+Обычный CI проверяет dataset payload при изменениях данных, committed plan, TR config, deployment tooling или LFS rules: пересоздаёт план, сравнивает его с `config/dataset-upload-plan.json` и запускает prepared acceptance. App-only CI оставляет LFS pointers и не скачивает tiles. Render остаётся локальным и требует собственных игровых inputs, но просмотр готовых данных в браузере и prepared acceptance не требуют OpenMW.
+
+Dataset PR также требует визуального review artifact `dataset-review-<candidateSHA>` из вручную запущенного на `main` workflow `dataset-review.yml` с input `pr_number`. Он использует доверенные scripts, не исполняет код candidate и не получает deploy environment. Maintainer проверяет HTML preview, полный `summary.json` и соответствие SHA текущему PR; новый commit требует нового review. Порядок и локальная команда отчёта — в [DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md).
+
+В текущем private GitHub Free репозитории branch protection для `main` недоступна (при настройке получен HTTP 403). До смены плана и включения защиты прохождение проверок и review является ручным правилом maintainer; сервером required checks пока не принуждаются.
 
 ## Release-specific gate
 

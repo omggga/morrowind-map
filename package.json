@@ -65,6 +65,7 @@
     "test:ui:update": "playwright test -c playwright.ui.config.ts --update-snapshots",
     "test:watch": "vitest",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:acceptance && pnpm test:ui && pnpm build",
+    "datasets:stage": "python3 -m tools.deployment.stage_dataset_files",
     "deploy:package": "python3 -m tools.deployment.package_release",
     "deploy:datasets:plan": "python3 -m tools.deployment.upload_datasets --plan-output artifacts/deployment/dataset-upload-plan.json",
     "deploy:datasets:upload": "python3 -m tools.deployment.upload_datasets",

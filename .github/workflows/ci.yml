@@ -13,10 +13,33 @@ jobs:
     name: Install, typecheck, lint, unit, browser acceptance, UI, build
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      datasets_changed: ${{ steps.changes.outputs.datasets_changed }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Reject game inputs and invalid dataset Git objects
+        run: python3 -m tools.deployment.git_datasets check --repo-root . --revision "$GITHUB_SHA"
+
+      - name: Detect dataset changes
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ || "$BASE_SHA" == 0000000000000000000000000000000000000000 ]]; then
+            BASE_SHA=$(git rev-parse HEAD^)
+          fi
+          if git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- apps/web/public/datasets config/dataset-upload-plan.json config/tr-release.json tools/deployment .gitattributes; then
+            echo 'datasets_changed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'datasets_changed=true' >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -52,3 +75,172 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Package the verified build
+        run: pnpm deploy:package --skip-build --commit-sha "$GITHUB_SHA"
+
+      - name: Upload application package
+        uses: actions/upload-artifact@v7
+        with:
+          name: application-${{ github.sha }}
+          path: artifacts/deployment/morrowind-map-*.tar.gz*
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+
+  datasets:
+    name: Validate prepared datasets
+    needs: verify
+    if: needs.verify.outputs.datasets_changed == 'true' && (github.event_name != 'push' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Fetch only the committed ready tiles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git -c credential.helper='!gh auth git-credential' \
+            -c lfs.url="https://github.com/$GITHUB_REPOSITORY.git/info/lfs" \
+            lfs fetch --include='apps/web/public/datasets/generated/**/*.webp' --exclude='' origin "$GITHUB_SHA"
+          git lfs checkout
+      - name: Validate the complete graph and recorded publication plan
+        run: |
+          python3 -m tools.deployment.upload_datasets --plan-output artifacts/deployment/dataset-upload-plan.json
+          cmp config/dataset-upload-plan.json artifacts/deployment/dataset-upload-plan.json
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:acceptance:prepared
+
+  deploy:
+    name: Publish verified main to vpsdo
+    needs: [verify, datasets]
+    if: always() && needs.verify.result == 'success' && (needs.datasets.result == 'success' || needs.datasets.result == 'skipped') && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+      actions: read
+    # Environment secrets are additionally protected by a main-only branch policy.
+    environment:
+      name: production
+      url: https://morrowindmap.com/
+    concurrency:
+      group: morrowind-map-production
+      cancel-in-progress: false
+      queue: max
+
+    steps:
+      - name: Checkout deployment tools from the verified commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Download this run's application package
+        uses: actions/download-artifact@v8
+        with:
+          name: application-${{ github.sha }}
+          path: artifacts/deployment
+
+      - name: Require the trusted dataset review for the merged PR
+        if: needs.verify.outputs.datasets_changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -m tools.deployment.require_dataset_review --repo "$GITHUB_REPOSITORY" --commit "$GITHUB_SHA"
+
+      - name: Configure deployment SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_HOST:?Missing DEPLOY_HOST secret}"
+          : "${DEPLOY_USER:?Missing DEPLOY_USER secret}"
+          : "${DEPLOY_SSH_KEY:?Missing DEPLOY_SSH_KEY secret}"
+          : "${DEPLOY_KNOWN_HOSTS:?Missing DEPLOY_KNOWN_HOSTS secret}"
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          umask 077
+          mkdir -p "$RUNNER_TEMP/deploy-ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/deploy-ssh/key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/deploy-ssh/known_hosts"
+          cat > "$RUNNER_TEMP/deploy-ssh/config" <<EOF
+          Host production
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            IdentityFile $RUNNER_TEMP/deploy-ssh/key
+            UserKnownHostsFile $RUNNER_TEMP/deploy-ssh/known_hosts
+            GlobalKnownHostsFile /dev/null
+            StrictHostKeyChecking yes
+            HostKeyAlgorithms ssh-ed25519
+            UpdateHostKeys no
+            IdentitiesOnly yes
+            BatchMode yes
+            ConnectTimeout 15
+          EOF
+          mkdir -p "$RUNNER_TEMP/deploy-bin"
+          cat > "$RUNNER_TEMP/deploy-bin/ssh" <<'EOF'
+          #!/bin/sh
+          exec /usr/bin/ssh -F "$RUNNER_TEMP/deploy-ssh/config" "$@"
+          EOF
+          chmod 700 "$RUNNER_TEMP/deploy-bin/ssh"
+
+      - name: Publish the downloaded package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current_main=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [[ "$current_main" != "$GITHUB_SHA" ]]; then
+            echo 'main has advanced; refusing to publish an outdated run.' >&2
+            exit 1
+          fi
+          archive="morrowind-map-${GITHUB_SHA:0:12}.tar.gz"
+          (cd artifacts/deployment && sha256sum --check "$archive.sha256")
+          archive_sha=$(sha256sum "artifacts/deployment/$archive" | cut -d ' ' -f 1)
+          export PATH="$RUNNER_TEMP/deploy-bin:$PATH"
+          python3 -m tools.deployment.upload_datasets --probe-plan config/dataset-upload-plan.json --host production > "$RUNNER_TEMP/dataset-probe.json"
+          dataset_status=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/dataset-probe.json")
+          if [[ "$dataset_status" == missing ]]; then
+            git -c credential.helper='!gh auth git-credential' \
+              -c lfs.url="https://github.com/$GITHUB_REPOSITORY.git/info/lfs" \
+              lfs fetch --include='apps/web/public/datasets/generated/**/*.webp' --exclude='' origin "$GITHUB_SHA"
+            git lfs checkout
+            python3 -m tools.deployment.upload_datasets --plan-output "$RUNNER_TEMP/actual-plan.json"
+            cmp config/dataset-upload-plan.json "$RUNNER_TEMP/actual-plan.json"
+            python3 -m tools.deployment.upload_datasets --host production --stage-only
+          fi
+          dataset_graph=$(python3 -c 'import json; print(json.load(open("config/dataset-upload-plan.json"))["graphSha256"])')
+          tar -czf "$RUNNER_TEMP/deploy-tools.tar.gz" \
+            tools/__init__.py tools/deployment/__init__.py \
+            tools/deployment/common.py tools/deployment/package_release.py \
+            tools/deployment/install_release.py tools/deployment/health_check.py
+          remote_dir="/srv/morrowind-map/incoming-ci/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          ssh_config="$RUNNER_TEMP/deploy-ssh/config"
+          trap 'ssh -F "$ssh_config" production "rm -rf -- $remote_dir" || true' EXIT
+          ssh -F "$ssh_config" production "umask 077; mkdir -p '$remote_dir'"
+          scp -F "$ssh_config" "artifacts/deployment/$archive" \
+            "$RUNNER_TEMP/deploy-tools.tar.gz" "production:$remote_dir/"
+          ssh -F "$ssh_config" production \
+            "cd '$remote_dir' && tar -xzf deploy-tools.tar.gz && \
+            python3 -m tools.deployment.install_release \
+              --archive '$archive' --archive-sha256 '$archive_sha' --commit-sha '$GITHUB_SHA' --dataset-graph '$dataset_graph' \
+              --health-url http://127.0.0.1:9003/ --health-url https://morrowindmap.com/"
+
+      - name: Remove temporary SSH credentials
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/deploy-ssh" "$RUNNER_TEMP/deploy-bin"

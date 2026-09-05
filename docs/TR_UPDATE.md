@@ -129,14 +129,33 @@ pnpm data:tr:renderer:build
 
 ## Что попадает в Git
 
-После activation проверяются и коммитятся только актуальные tracked contracts:
+После локальной activation проверяются и коммитятся актуальные contracts и готовый активный payload:
 
 - `config/tr-release.json`;
 - `apps/web/public/datasets/index.json`;
 - новый `apps/web/public/datasets/manifests/<datasetId>.json`;
 - компактные integrity/audit metadata в `apps/web/public/datasets/metadata/<datasetId>/`.
+- generated JSON catalogs и locales в обычном Git;
+- активные `apps/web/public/datasets/generated/**/*.webp` в Git LFS.
 
-`local-data/tr-release/release.lock.json`, candidate tree, renderer checkpoints и generated tile/catalog payload остаются ignored local artifacts. Original manifest, metadata и generated package не меняются.
+`local-data/tr-release/release.lock.json`, candidate tree, renderer checkpoints, промежуточные renders и исходные игровые файлы остаются local artifacts. ESM/ESP/BSA/BA2/DDS/NIF и другие game inputs нельзя добавлять ни в Git, ни в LFS. Original manifest, metadata и generated package не меняются.
+
+Перед commit выполните:
+
+```bash
+git lfs install
+pnpm deploy:datasets:plan
+pnpm test:acceptance:prepared
+pnpm datasets:stage
+```
+
+`datasets:stage` валидирует и добавляет только generated files из полного активного плана обеих карт через ограниченный `git add -f`, записывает/stages `config/dataset-upload-plan.json` и удаляет obsolete generated paths только из Git index. Изменённые TR config/index/manifests/metadata добавляются отдельными `git add -- <конкретные paths>`. Не добавляйте всё локальное дерево generated: там могут оставаться старые snapshots. После commit проверьте его полный SHA:
+
+```bash
+python3 -m tools.deployment.git_datasets check --repo-root . --revision <fullSHA>
+```
+
+PR может идти в `dev` или `main`. Для review maintainer запускает доверенный `dataset-review.yml` из `main` с input `pr_number`, проверяет artifact `dataset-review-<candidateSHA>` и полный JSON изменений. Каждый новый candidate SHA требует нового review. Branch protection private Free репозитория сейчас не включена (HTTP 403); required checks до смены плана и настройки защиты соблюдаются вручную. Полный порядок — в [DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md).
 
 ## Результат активации
 
@@ -147,3 +166,5 @@ pnpm data:tr:renderer:build
 - `datasetId` и `snapshotId` соответствуют lock и всем artifacts;
 - предыдущий пакет не изменён;
 - пользовательские данные нового dataset начинаются в отдельном namespace.
+
+Это локальная activation подготовленных файлов. Production deploy из `main` сначала проверяет committed plan на сервере; только отсутствующий graph требует LFS download и `--stage-only` upload. Installer связывает новый app release с конкретным graph. Nginx читает `current/datasets/generated`; rollback возвращает app и соответствующий graph вместе. Предыдущие releases/graphs сохраняются до отдельной будущей garbage collection; автоматический backup не настроен. См. [DEPLOYMENT.md](DEPLOYMENT.md).

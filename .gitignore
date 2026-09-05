@@ -26,7 +26,7 @@ __pycache__/
 .pytest_cache/
 *.py[cod]
 
-# Generated datasets and map tiles
+# Local render outputs stay ignored; datasets:stage adds only the validated active graph.
 generated/
 datasets/generated/
 tiles/

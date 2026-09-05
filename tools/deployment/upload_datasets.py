@@ -417,9 +417,60 @@ def _run(args: list[str], *, input_text: str | None = None) -> subprocess.Comple
     return subprocess.run(args, check=True, capture_output=True, text=True, input=input_text)
 
 
-def upload_dataset_plan(*, public_root: Path, host: str, plan: dict[str, object]) -> dict[str, object]:
+def probe_dataset_plan(*, host: str, plan: dict[str, object]) -> dict[str, object]:
+    """Verify a stored graph on the host without reading local generated payload."""
+
     host = _validate_host(host)
     graph_sha = require_sha256(plan.get("graphSha256"), "graphSha256")
+    plan_bytes = canonical_json_bytes(plan)
+    upload_id = secrets.token_hex(16)
+    stage = f"{_REMOTE_DATA_ROOT}/incoming/{upload_id}"
+    remote_program = _remote_program()
+    _run(["ssh", host, "python3", "-", "prepare", upload_id], input_text=remote_program)
+    try:
+        with tempfile.TemporaryDirectory(prefix="morrowind-dataset-probe-") as temporary:
+            plan_path = Path(temporary) / "plan.json"
+            plan_path.write_bytes(plan_bytes)
+            _run([
+                "rsync", "--archive", "--no-owner", "--no-group",
+                f"--chmod={_RSYNC_PUBLIC_MODES}", str(plan_path), f"{host}:{stage}/plan.json",
+            ])
+            probe = _run(
+                ["ssh", host, "python3", "-", "probe-stage", upload_id],
+                input_text=remote_program,
+            )
+            response = probe.stdout.strip()
+            if response not in {"installed", "upload"}:
+                raise DeploymentError(f"Unexpected remote dataset probe response: {probe.stdout!r}")
+            return {
+                "graphSha256": graph_sha,
+                "releasePath": f"{_REMOTE_DATA_ROOT}/releases/{graph_sha}",
+                "status": "already-staged" if response == "installed" else "missing",
+            }
+    finally:
+        # A successful missing probe leaves its plan staged. Existing-graph
+        # probes already clean it, so abort is intentionally idempotent.
+        failed = sys.exc_info()[0] is not None
+        try:
+            _run(["ssh", host, "python3", "-", "abort", upload_id], input_text=remote_program)
+        except (OSError, subprocess.SubprocessError) as error:
+            if not failed:
+                raise
+            print(f"dataset probe cleanup failed: {error}", file=sys.stderr)
+
+
+def upload_dataset_plan(
+    *, public_root: Path, host: str, plan: dict[str, object], stage_only: bool = False
+) -> dict[str, object]:
+    host = _validate_host(host)
+    graph_sha = require_sha256(plan.get("graphSha256"), "graphSha256")
+    result = {
+        "files": int(plan["fileCount"]),
+        "graphSha256": graph_sha,
+        "releasePath": f"{_REMOTE_DATA_ROOT}/releases/{graph_sha}",
+        "status": "staged" if stage_only else "installed",
+        "totalBytes": int(plan["totalBytes"]),
+    }
     upload_id = secrets.token_hex(16)
     stage = f"{_REMOTE_DATA_ROOT}/incoming/{upload_id}"
     remote_program = _remote_program()
@@ -444,9 +495,10 @@ def upload_dataset_plan(*, public_root: Path, host: str, plan: dict[str, object]
                     f"{host}:{stage}/plan.json",
                 ]
             )
-            probe = _run(["ssh", host, "python3", "-", "probe", upload_id], input_text=remote_program)
+            probe_action = "probe-stage" if stage_only else "probe"
+            probe = _run(["ssh", host, "python3", "-", probe_action, upload_id], input_text=remote_program)
             if probe.stdout.strip() == "installed":
-                return {"files": int(plan["fileCount"]), "graphSha256": graph_sha, "status": "already-installed", "totalBytes": int(plan["totalBytes"])}
+                return {**result, "status": "already-staged" if stage_only else "already-installed"}
             if probe.stdout.strip() != "upload":
                 raise DeploymentError(f"Unexpected remote dataset probe response: {probe.stdout!r}")
             source = str(public_root / "datasets/generated") + os.sep
@@ -463,7 +515,8 @@ def upload_dataset_plan(*, public_root: Path, host: str, plan: dict[str, object]
                     f"{host}:{stage}/payload/",
                 ]
             )
-            installed = _run(["ssh", host, "python3", "-", "install", upload_id], input_text=remote_program)
+            install_action = "install-stage" if stage_only else "install"
+            installed = _run(["ssh", host, "python3", "-", install_action, upload_id], input_text=remote_program)
             if installed.stdout.strip() != "installed":
                 raise DeploymentError(f"Unexpected remote dataset install response: {installed.stdout!r}")
     except BaseException:
@@ -475,7 +528,7 @@ def upload_dataset_plan(*, public_root: Path, host: str, plan: dict[str, object]
         except (OSError, subprocess.SubprocessError):
             pass
         raise
-    return {"files": int(plan["fileCount"]), "graphSha256": graph_sha, "status": "installed", "totalBytes": int(plan["totalBytes"])}
+    return result
 
 
 def _repo_root() -> Path:
@@ -487,20 +540,38 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", type=Path, default=_repo_root())
     parser.add_argument("--host", help="SSH host or alias; omit to build and verify the plan only")
     parser.add_argument("--plan-output", type=Path)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--stage-only",
+        action="store_true",
+        help="Install an immutable graph without switching data/generated; retain all graph releases",
+    )
+    mode.add_argument(
+        "--probe-plan", type=Path,
+        help="Probe a stored plan on --host without reading or transferring local generated files",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.probe_plan is not None and (not args.host or args.plan_output is not None):
+        parser.error("--probe-plan requires --host and cannot be combined with --plan-output")
     try:
         repo_root = absolute_directory(args.repo_root, "repository root")
-        public_root = repo_root / "apps/web/public"
-        plan = build_dataset_plan(public_root=public_root)
-        if args.plan_output is not None:
-            output = args.plan_output if args.plan_output.is_absolute() else repo_root / args.plan_output
-            output.parent.mkdir(parents=True, exist_ok=True)
-            output.write_bytes(canonical_json_bytes(plan))
-        result = upload_dataset_plan(public_root=public_root, host=args.host, plan=plan) if args.host else {"files": plan["fileCount"], "graphSha256": plan["graphSha256"], "status": "verified", "totalBytes": plan["totalBytes"]}
+        if args.probe_plan is not None:
+            plan_path = args.probe_plan if args.probe_plan.is_absolute() else repo_root / args.probe_plan
+            plan = strict_json_object(plan_path.read_bytes(), "stored dataset plan")
+            result = probe_dataset_plan(host=args.host, plan=plan)
+        else:
+            public_root = repo_root / "apps/web/public"
+            plan = build_dataset_plan(public_root=public_root)
+            if args.plan_output is not None:
+                output = args.plan_output if args.plan_output.is_absolute() else repo_root / args.plan_output
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_bytes(canonical_json_bytes(plan))
+            result = upload_dataset_plan(public_root=public_root, host=args.host, plan=plan, stage_only=args.stage_only) if args.host else {"files": plan["fileCount"], "graphSha256": plan["graphSha256"], "status": "verified", "totalBytes": plan["totalBytes"]}
     except (DeploymentError, OSError, subprocess.CalledProcessError) as error:
         print(f"dataset upload failed: {error}", file=sys.stderr)
         return 1

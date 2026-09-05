@@ -12,8 +12,12 @@
 ## Локальный запуск
 
 Требуются Node.js `^20.19.0` либо `>=22.12.0` и pnpm `11.19.0`.
+Для готовых реальных карт установите Git LFS и получите активные tiles; игровые
+файлы и OpenMW для браузерного просмотра не нужны.
 
 ```bash
+git lfs install
+git lfs pull --include='apps/web/public/datasets/generated/**/*.webp' --exclude=''
 pnpm install
 pnpm exec playwright install chromium
 pnpm dev
@@ -35,7 +39,18 @@ pnpm test:acceptance:prepared
 
 ## Данные
 
-Игровые ESM/BSA, mod assets и сгенерированные тайлы не хранятся в Git. Репозиторий содержит приложение, renderer/catalog tooling, схемы, manifests, компактные integrity metadata, синтетические fixtures и документацию. Локальные входы и результаты pipeline находятся вне version control, преимущественно в `../morr-dev` и `local-data/`.
+Готовые активные WebP tiles в `apps/web/public/datasets/generated/**/*.webp` хранятся
+в Git LFS; generated JSON catalogs/locales и metadata — в обычном Git.
+Игровые ESM/ESP/BSA/BA2/DDS/NIF, mod inputs и промежуточные renderer outputs
+остаются локальными, преимущественно в `../morr-dev` и `local-data/`.
+
+Вклад в данные проходит plan validation, prepared browser acceptance и ручной
+review HTML/JSON artifact конкретного PR SHA. `pnpm datasets:stage` добавляет
+только проверенный active graph и его publication plan; stale локальные snapshots
+не попадают в commit. Порядок описан в [docs/DATASET_CONTRIBUTING.md](docs/DATASET_CONTRIBUTING.md).
+App-only CI не скачивает tiles. Deploy из `main` проверяет наличие immutable
+graph на VPS и получает LFS payload только при его отсутствии; app release
+закреплён за своим graph, поэтому rollback возвращает приложение и данные вместе.
 
 Original GOTY HD построена только из шести зафиксированных файлов:
 
@@ -55,6 +70,9 @@ pnpm data:tr:release
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — текущая готовность и границы проекта;
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — runtime, datasets и хранение данных;
 - [docs/TR_UPDATE.md](docs/TR_UPDATE.md) — входы и порядок обновления Tamriel Rebuilt;
+- [docs/DATASET_CONTRIBUTING.md](docs/DATASET_CONTRIBUTING.md) — Git LFS, active graph, PR и доверенный review;
 - [docs/TESTING.md](docs/TESTING.md) — обязательные проверки;
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — CI artifact, автоматическая и ручная публикация `main`;
+- [docs/DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) — nginx-шаблоны, подготовка VPS, диагностика и восстановление;
 - [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) — визуальные и интерактивные контракты;
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — лицензии сторонних компонентов.
