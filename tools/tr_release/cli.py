@@ -35,6 +35,21 @@ class Context:
     source_root: Path
     profile: ReleaseProfile
     lock: dict[str, Any]
+    work_root: Path | None = None
+    public_root: Path | None = None
+    baseline_public_root: Path | None = None
+
+    @property
+    def workspace(self) -> Path:
+        return self.work_root or self.repo_root / "local-data/tr-release"
+
+    @property
+    def public(self) -> Path:
+        return self.public_root or self.repo_root / "apps/web/public"
+
+    @property
+    def baseline_public(self) -> Path:
+        return self.baseline_public_root or self.public
 
     @property
     def dataset_id(self) -> str:
@@ -42,19 +57,19 @@ class Context:
 
     @property
     def production_root(self) -> Path:
-        return self.repo_root / "local-data/tr-release/production" / self.dataset_id
+        return self.workspace / "production" / self.dataset_id
 
     @property
     def release_root(self) -> Path:
-        return self.repo_root / "local-data/tr-release/release" / self.dataset_id
+        return self.workspace / "release" / self.dataset_id
 
     @property
     def catalog_root(self) -> Path:
-        return self.repo_root / "local-data/tr-release/catalog" / self.dataset_id
+        return self.workspace / "catalog" / self.dataset_id
 
     @property
     def candidate_root(self) -> Path:
-        return self.repo_root / "local-data/tr-release/candidate/datasets"
+        return self.workspace / "candidate-manifests/datasets" if self.work_root else self.workspace / "candidate/datasets"
 
 
 def _repo_root() -> Path:
@@ -172,7 +187,15 @@ def _context(args: argparse.Namespace, *, require_lock: bool = True) -> Context:
         repo_root / "apps/web/public/datasets/index.json",
     )
     lock = _read_lock(lock_path, profile) if require_lock else {}
-    return Context(repo_root, profile_path, lock_path, source_root, profile, lock)
+    work = getattr(args, "work_root", None)
+    public = getattr(args, "public_root", None)
+    baseline = getattr(args, "baseline_public_root", None)
+    return Context(
+        repo_root, profile_path, lock_path, source_root, profile, lock,
+        _resolved(repo_root, work) if work is not None else None,
+        _resolved(repo_root, public) if public is not None else None,
+        _resolved(repo_root, baseline) if baseline is not None else None,
+    )
 
 
 def _plugin_paths(
@@ -439,8 +462,14 @@ def _command_renderer_smoke(args: argparse.Namespace) -> int:
     context = _context(args)
     production = _activate_pipeline(context).production
     results: dict[str, int] = {}
-    for control in context.profile.smoke_centers:
-        output = context.repo_root / "local-data/tr-release/smoke" / context.dataset_id / control.id
+    controls = context.profile.smoke_centers
+    selected = getattr(args, "control", None)
+    if selected is not None:
+        controls = tuple(control for control in controls if control.id == selected)
+        if not controls:
+            raise ValueError(f"Unknown smoke control: {selected}")
+    for control in controls:
+        output = context.workspace / "smoke" / context.dataset_id / control.id
         result = int(
             production.main(
                 [
@@ -554,9 +583,9 @@ def _command_dataset_prepare(args: argparse.Namespace) -> int:
                 str(context.release_root),
                 "prepare",
                 "--public-root",
-                str(context.repo_root / "apps/web/public/datasets/generated"),
+                str(context.public / "datasets/generated"),
                 "--metadata-root",
-                str(context.repo_root / "apps/web/public/datasets/metadata" / context.dataset_id),
+                str(context.public / "datasets/metadata" / context.dataset_id),
                 "--copy-mode",
                 args.copy_mode,
             ]
@@ -597,9 +626,9 @@ def _command_catalog_prepare(args: argparse.Namespace) -> int:
                 "--source",
                 str(context.catalog_root),
                 "--public-root",
-                str(context.repo_root / "apps/web/public/datasets/generated"),
+                str(context.public / "datasets/generated"),
                 "--metadata-root",
-                str(context.repo_root / "apps/web/public/datasets/metadata"),
+                str(context.public / "datasets/metadata"),
             ]
         )
     )
@@ -609,9 +638,9 @@ def _candidate_arguments(context: Context) -> dict[str, object]:
     return {
         "profile": context.profile.to_dict(),
         "lock": context.lock,
-        "generated_root": context.repo_root / "apps/web/public/datasets/generated",
-        "metadata_root": context.repo_root / "apps/web/public/datasets/metadata",
-        "active_datasets_root": context.repo_root / "apps/web/public/datasets",
+        "generated_root": context.public / "datasets/generated",
+        "metadata_root": context.public / "datasets/metadata",
+        "active_datasets_root": context.baseline_public / "datasets",
         "candidate_root": context.candidate_root,
     }
 
@@ -660,6 +689,46 @@ def _command_activate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _command_activate_local(args: argparse.Namespace) -> int:
+    """Activate only an isolated preview; published activation keeps its full gates."""
+    from tools.tr_release.candidate import _atomic_write as write_candidate_bytes, verify_candidate
+
+    context = _context(args)
+    if context.work_root is None or context.public_root is None or context.baseline_public_root is None:
+        raise ValueError("Local activation requires --work-root, --public-root and --baseline-public-root")
+    published = (context.repo_root / "apps/web/public").resolve()
+    public = context.public.resolve()
+    work = context.workspace.resolve()
+    if public == published or published in public.parents or public in published.parents:
+        raise ValueError("Local activation cannot modify the published public tree")
+    if work == public or work not in public.parents:
+        raise ValueError("Local activation public root must be inside its work root")
+    baseline = context.baseline_public.resolve()
+    if baseline == public or baseline in public.parents or public in baseline.parents:
+        raise ValueError("Local activation requires a separate immutable baseline")
+    baseline_index = (baseline / "datasets/index.json").read_bytes()
+    bundle = verify_candidate(**_candidate_arguments(context))
+    if (baseline / "datasets/index.json").read_bytes() != baseline_index:
+        raise ValueError("Local baseline changed during candidate verification")
+    index_payload = bundle._verified_index_bytes
+    manifest_payload = bundle._verified_manifest_bytes
+    if not index_payload or not manifest_payload:
+        raise RuntimeError("Candidate verification did not retain exact activation bytes")
+    output = public / "datasets"
+    current_index = (output / "index.json").read_bytes()
+    if current_index not in (baseline_index, index_payload):
+        raise ValueError("Local candidate index differs from its baseline or verified release")
+    index = json.loads(index_payload)
+    original = index["datasets"][0]
+    original_path = Path(original["manifestUrl"].removeprefix("/datasets/"))
+    if (output / original_path).read_bytes() != (baseline / "datasets" / original_path).read_bytes():
+        raise ValueError("Local candidate Original manifest differs from its immutable baseline")
+    write_candidate_bytes(output / "manifests" / f"{bundle.dataset_id}.json", manifest_payload, boundary=output)
+    write_candidate_bytes(output / "index.json", index_payload, boundary=output)
+    _json_output(_candidate_payload(bundle))
+    return 0
+
+
 def activate_after_gates() -> int:
     """Internal activation entry point used only by the full workflow orchestrator."""
 
@@ -677,6 +746,9 @@ def _parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--profile", type=Path, default=DEFAULT_PROFILE)
     common.add_argument("--lock", type=Path, default=DEFAULT_LOCK)
+    common.add_argument("--work-root", type=Path)
+    common.add_argument("--public-root", type=Path)
+    common.add_argument("--baseline-public-root", type=Path)
     common.add_argument("--source-root", type=Path, default=repo_root.parent / "morr-dev")
     parser = argparse.ArgumentParser(description="Tamriel Rebuilt release workflow")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -693,8 +765,10 @@ def _parser() -> argparse.ArgumentParser:
         "catalog-prepare",
         "manifest-build",
         "release-verify",
+        "activate-local",
     ):
         subparsers.add_parser(name, parents=[common])
+    subparsers.choices["renderer-smoke"].add_argument("--control")
     for name in ("renderer-render", "renderer-stabilize"):
         command = subparsers.add_parser(name, parents=[common])
         command.add_argument("--workers", type=int, default=2 if name != "renderer-stabilize" else 4)
@@ -725,6 +799,7 @@ _COMMANDS = {
     "catalog-prepare": _command_catalog_prepare,
     "manifest-build": _command_manifest_build,
     "release-verify": _command_release_verify,
+    "activate-local": _command_activate_local,
 }
 
 

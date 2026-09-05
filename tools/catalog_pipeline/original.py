@@ -20,7 +20,7 @@ DATASET_ID = "original-goty-hd"
 AUDIT_VERSION = "generic-tes3-catalog-v1"
 CATALOG_DIRECTORY = "catalogs"
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SOURCE_ROOT = (REPO_ROOT.parent / "morr-dev").resolve()
+DEFAULT_SOURCE_ROOT = REPO_ROOT / "local-data/inputs"
 MAP_EXTENT = (-229376, -155648, 196608, 237568)
 PLUGIN_REGIONS = {
     "Morrowind.esm": "vvardenfell",
@@ -217,11 +217,8 @@ def _atomic_write(path: Path, payload: bytes) -> None:
 
 def _source_descriptors(source_root: Path) -> tuple[PluginInput, ...]:
     source_root = source_root.resolve()
-    if source_root != DEFAULT_SOURCE_ROOT:
-        raise ValueError(
-            "Original GOTY source root is pinned to "
-            f"{DEFAULT_SOURCE_ROOT}; refusing alternate content path {source_root}"
-        )
+    if (source_root / "bsa").is_symlink():
+        raise ValueError("Original GOTY bsa directory cannot be a symlink")
     expected_data_root = (source_root / "bsa").resolve()
     plugins: list[PluginInput] = []
     for source in PINNED_INPUTS:
@@ -688,6 +685,7 @@ def _parser(repo_root: Path) -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     default_build = repo_root / "local-data/catalog-production" / DATASET_ID
     build = subparsers.add_parser("build")
+    build.add_argument("--source-root", type=Path, default=DEFAULT_SOURCE_ROOT)
     build.add_argument("--output", type=Path, default=default_build)
     validate = subparsers.add_parser("validate")
     validate.add_argument("--source", type=Path, default=default_build)
@@ -706,7 +704,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser(REPO_ROOT).parse_args(argv)
     if args.command == "build":
         result = build_original_catalog(
-            source_root=DEFAULT_SOURCE_ROOT,
+            source_root=args.source_root,
             output_root=args.output,
             repo_root=REPO_ROOT,
         )

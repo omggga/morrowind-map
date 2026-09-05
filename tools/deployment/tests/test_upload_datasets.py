@@ -335,7 +335,7 @@ class DatasetTransportTests(unittest.TestCase):
                         return type("Result", (), {"stdout": stdout})()
 
                     with patch("tools.deployment.upload_datasets._run", side_effect=fake_run):
-                        result = upload_dataset_plan(public_root=public, host="vpsdo", plan=plan, stage_only=True)
+                        result = upload_dataset_plan(public_root=public, host="deploy-admin", plan=plan, stage_only=True)
 
                     self.assertEqual(result["status"], "already-staged" if already_staged else "staged")
                     self.assertEqual(result["releasePath"], f"/srv/morrowind-map/data/releases/{plan['graphSha256']}")
@@ -359,7 +359,7 @@ class DatasetTransportTests(unittest.TestCase):
             with patch("tools.deployment.upload_datasets._run", side_effect=fake_run), patch(
                 "tools.deployment.upload_datasets.secrets.token_hex", return_value="a" * 32
             ):
-                result = upload_dataset_plan(public_root=public, host="vpsdo", plan=plan)
+                result = upload_dataset_plan(public_root=public, host="deploy-admin", plan=plan)
 
             self.assertEqual(result["status"], "installed")
             flattened = [argument for call in calls for argument in call]
@@ -402,9 +402,9 @@ class DatasetTransportTests(unittest.TestCase):
                 "tools.deployment.upload_datasets.secrets.token_hex", return_value="a" * 32
             ):
                 with self.assertRaises(subprocess.CalledProcessError):
-                    upload_dataset_plan(public_root=public, host="vpsdo", plan=plan)
+                    upload_dataset_plan(public_root=public, host="deploy-admin", plan=plan)
 
-            self.assertEqual(calls[-1][0:4], ["ssh", "vpsdo", "python3", "-"])
+            self.assertEqual(calls[-1][0:4], ["ssh", "deploy-admin", "python3", "-"])
             self.assertEqual(calls[-1][-2:], ["abort", "a" * 32])
 
 

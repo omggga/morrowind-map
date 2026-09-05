@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -122,7 +123,7 @@ jobs:
       - run: pnpm test:acceptance:prepared
 
   deploy:
-    name: Publish verified main to vpsdo
+    name: Publish verified main
     needs: [verify, datasets]
     if: always() && needs.verify.result == 'success' && (needs.datasets.result == 'success' || needs.datasets.result == 'skipped') && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
