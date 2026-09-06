@@ -1,15 +1,9 @@
 ## Change
 
-Describe the problem and the resulting behavior in English. Link any relevant issue.
+What changed, and why? Link a relevant issue if there is one.
 
-## Validation
+## Checks
 
-List the commands run and their results. Include `pnpm verify` and any applicable prepared dataset checks. Explain any failures or checks that could not run.
+How did you check the result? Include screenshots for visual changes and note any checks you could not run.
 
-## Review checklist
-
-- [ ] This topic branch targets `main`; the title and repository-authored prose are in English.
-- [ ] The diff contains only the intended change, and relevant documentation is current.
-- [ ] No game source inputs, archives, credentials, or intermediate renders are included.
-- [ ] For dataset changes, the active graph and publication plan are validated, and the maintainer has reviewed the trusted report for the current PR head. Mark this item not applicable in the description for other changes.
-- [ ] The maintainer has reviewed the final diff and authorized merge after applicable checks pass.
+For dataset changes, identify the source release and rendering settings, and follow [the dataset guide](../docs/DATASET_CONTRIBUTING.md). Do not include game inputs or intermediate renders.

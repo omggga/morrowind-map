@@ -7,9 +7,11 @@ it does not modify the website or the tracked active dataset.
 
 ## Prerequisites
 
-Install the development dependencies in [README.md](../README.md), including Git LFS,
-the complete active LFS payload, and Playwright Chromium. Candidates contain both maps,
-so a single-map rerender also needs the other map's prepared baseline.
+Follow [README.md](../README.md) to install dependencies and download the complete active Git LFS payload. Candidates contain both maps, so a single-map rerender also needs the other map's prepared baseline. Install Chromium for candidate browser checks:
+
+```bash
+pnpm exec playwright install chromium
+```
 
 Rendering additionally requires Python 3.10 or newer, a running Docker engine that can
 run Linux AMD64 containers, and ImageMagick with the `magick` executable on `PATH`.
@@ -169,7 +171,7 @@ When satisfied, explicitly adopt the candidate into your local checkout:
 
 ```bash
 pnpm render:use --public-root "$CANDIDATE_PUBLIC"
-pnpm verify
+pnpm test:acceptance:prepared
 pnpm datasets:stage
 ```
 
@@ -182,5 +184,4 @@ explicitly; inspect the staged diff and follow [DATASET_CONTRIBUTING.md](DATASET
 The helper stages only the validated active generated graph and its publication plan.
 
 Open a topic-branch PR into protected `main`. A maintainer reviews the exact prepared
-files and trusted HTML/JSON dataset report. Actions alone publishes the reviewed,
-verified commit. Contributors need no server access or deployment credentials.
+files and trusted HTML/JSON dataset report. Contributors need no server access.

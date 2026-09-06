@@ -59,3 +59,25 @@ renders/
 *.cer
 id_rsa*
 id_ed25519*
+
+# Local maintainer notes and assistant instructions
+/AGENTS.md
+/CLAUDE.md
+/.agents/
+/.claude/
+/.codex/
+/local-data/maintainer/
+
+# Retired operator experiments, retained only in the maintainer checkout
+/tools/openmw_renderer/benchmark.py
+/tools/openmw_renderer/vivec-preview.sh
+
+# Maintainer documentation and server setup stay local at their original paths
+/IMPLEMENTATION_PLAN.md
+/docs/DEPLOYMENT.md
+/docs/DEPLOYMENT_RUNBOOK.md
+/docs/DESIGN_SYSTEM.md
+/.github/main-branch-protection.json
+/tools/deployment/nginx/morrowind-map.conf
+/tools/deployment/nginx/morrowind-map-security.conf
+/tools/deployment/sshd-morrowind-map.conf
