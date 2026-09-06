@@ -105,8 +105,10 @@ describe('DatasetMap loading states', () => {
       />,
     );
 
-    const status = await screen.findByRole('status');
-    expect(status).toHaveTextContent('This map has not been published locally yet');
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('This map has not been published locally yet');
+    });
+    const status = screen.getByRole('status');
     expect(status).toHaveTextContent('Dataset does not contain a location catalog');
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
