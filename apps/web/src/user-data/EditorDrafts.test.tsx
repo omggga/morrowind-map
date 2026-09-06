@@ -247,7 +247,7 @@ describe('editor crash-recovery drafts', () => {
     fireEvent.change(labelInput, { target: { value: 'Edited again' } });
     await waitFor(() => expect(saveMarker).toHaveBeenCalledTimes(3));
 
-    const alert = screen.getByRole('alert');
+    const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Select “Save marker” to try again.');
     expect(alert).not.toHaveAttribute('aria-live');
     expect(await database.customMarkers.get(marker.id)).toMatchObject({
@@ -292,9 +292,18 @@ describe('editor crash-recovery drafts', () => {
       deletedAt: null,
     });
 
-    deleteMarker.mockRejectedValueOnce(new Error('Still unavailable'));
+    const retryOperation = deferred<void>();
+    deleteMarker.mockReturnValueOnce(retryOperation.promise);
     fireEvent.click(confirmButton);
-    await waitFor(() => expect(deleteMarker).toHaveBeenCalledTimes(2));
-    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(deleteMarker).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('button', { name: 'Deleting…' })).toBeDisabled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    retryOperation.reject(new Error('Still unavailable'));
+    const retryFeedback = await screen.findByRole('alert');
+    expect(retryFeedback).toHaveTextContent('Still unavailable');
+    expect(retryFeedback).toHaveTextContent('Select “Yes, delete” to try again.');
+    expect(screen.getAllByRole('alert')).toEqual([retryFeedback]);
+    expect(confirmButton).toBeEnabled();
   });
 });
