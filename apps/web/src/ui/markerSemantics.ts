@@ -22,19 +22,19 @@ const THIN_HOLLOW_SQUARE_PATH = 'M1 1H11V11H1ZM2 2V10H10V2Z';
 
 export const MARKER_SEMANTICS: Readonly<Record<MarkerKind, MarkerSemantic>> = {
   unvisited: {
-    color: '#f6e27d',
+    color: '#f4f1e8',
     shape: 'hollow-square',
     path: THIN_HOLLOW_SQUARE_PATH,
     fillRule: 'evenodd',
   },
   active: {
-    color: '#e88bea',
+    color: '#c59aff',
     shape: 'hollow-square',
     path: THIN_HOLLOW_SQUARE_PATH,
     fillRule: 'evenodd',
   },
   visited: {
-    color: '#e9a15b',
+    color: '#ff9d45',
     shape: 'hollow-square',
     path: THIN_HOLLOW_SQUARE_PATH,
     fillRule: 'evenodd',

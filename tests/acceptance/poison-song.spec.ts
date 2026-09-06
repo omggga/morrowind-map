@@ -271,7 +271,7 @@ const trMainlandLocaleFixture = {
   ],
 };
 
-const ORIGINAL_PAGINATION_PREFIX_COUNT = 80;
+const ORIGINAL_PAGINATION_PREFIX_COUNT = 240;
 const originalPaginationLocations = Array.from(
   { length: ORIGINAL_PAGINATION_PREFIX_COUNT },
   (_, index) => {
@@ -356,7 +356,7 @@ const directUrlFixtures: readonly DirectUrlFixture[] = [
     label: 'Poison Song',
     url:
       `/?dataset=${DATASET_ID}&region=tr-mainland&x=16384&y=-204800&z=4.5&place=${PLACE_ID}`,
-    heading: 'Tamriel Rebuilt 26.08 — Poison Song',
+    heading: 'Tamriel Rebuilt — Poison Song',
     regionName: 'TR Mainland',
     placeName: PLACE_NAME,
     view: [16_384, -204_800, 4.5],
@@ -365,7 +365,7 @@ const directUrlFixtures: readonly DirectUrlFixture[] = [
     label: 'Original GOTY HD',
     url:
       `/?dataset=${ORIGINAL_DATASET_ID}&region=vvardenfell&x=-20000&y=-15000&z=5.25&place=${ORIGINAL_PLACE_ID}`,
-    heading: 'Morrowind Game of the Year — HD',
+    heading: 'Morrowind Game of the Year',
     regionName: 'Vvardenfell',
     placeName: ORIGINAL_PLACE_NAME,
     view: [-20_000, -15_000, 5.25],
@@ -383,13 +383,13 @@ const landingDefaultViewFixtures: readonly LandingDefaultViewFixture[] = [
   {
     label: 'Poison Song',
     cardName: POISON_CARD_NAME,
-    heading: 'Tamriel Rebuilt 26.08 — Poison Song',
+    heading: 'Tamriel Rebuilt — Poison Song',
     view: [90_112, -98_304, 2],
   },
   {
     label: 'Original GOTY HD',
     cardName: ORIGINAL_CARD_NAME,
-    heading: 'Morrowind Game of the Year — HD',
+    heading: 'Morrowind Game of the Year',
     view: [-16_384, 40_960, 2],
   },
 ];
@@ -452,7 +452,7 @@ const filterAcceptanceFixtures: readonly FilterAcceptanceFixture[] = [
   {
     label: 'Poison Song',
     url: `/?dataset=${DATASET_ID}&region=all&x=12288&y=-217088&z=6`,
-    heading: 'Tamriel Rebuilt 26.08 — Poison Song',
+    heading: 'Tamriel Rebuilt — Poison Song',
     primaryPlaceId: PLACE_ID,
     primaryPlaceName: PLACE_NAME,
     queryPlaceId: POISON_CAVE_ID,
@@ -466,7 +466,7 @@ const filterAcceptanceFixtures: readonly FilterAcceptanceFixture[] = [
   {
     label: 'Original GOTY HD',
     url: `/?dataset=${ORIGINAL_DATASET_ID}&region=all&x=-22000&y=-15000&z=6`,
-    heading: 'Morrowind Game of the Year — HD',
+    heading: 'Morrowind Game of the Year',
     primaryPlaceId: ORIGINAL_PLACE_ID,
     primaryPlaceName: ORIGINAL_PLACE_NAME,
     queryPlaceId: ORIGINAL_PLACE_ID,
@@ -677,7 +677,7 @@ async function openPoisonSong(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: POISON_CARD_NAME }).click();
   await expect(
-    page.getByRole('heading', { name: 'Tamriel Rebuilt 26.08 — Poison Song' }),
+    page.getByRole('heading', { name: 'Tamriel Rebuilt — Poison Song' }),
   ).toBeVisible();
   await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
 }
@@ -880,15 +880,26 @@ test('loads Original catalog results beyond the first batch when the ledger is s
   await expect(catalogResults).toHaveCount(80);
   await expect(balFell).toHaveCount(0);
 
-  await resultList.evaluate((element) => {
-    element.scrollTop = element.scrollHeight;
-  });
-  await expect.poll(() => catalogResults.count()).toBeGreaterThan(80);
+  for (let batch = 0; batch < 3; batch += 1) {
+    const count = await catalogResults.count();
+    await resultList.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect.poll(() => catalogResults.count()).toBeGreaterThan(count);
+  }
   await expect(balFell).toHaveCount(1);
   await balFell.scrollIntoViewIfNeeded();
   await expect(balFell).toBeVisible();
+  const scrollBeforeSelection = await resultList.evaluate((element) => element.scrollTop);
   await balFell.click();
   await expect(page.getByRole('heading', { name: BAL_FELL_NAME, exact: true })).toBeVisible();
+  await expect(balFell).toHaveAttribute('aria-current', 'location');
+  await expect.poll(() => resultList.evaluate((element) => element.scrollTop))
+    .toBe(scrollBeforeSelection);
+  await page.getByLabel('Place progress').getByRole('button', { name: 'Visited', exact: true }).click();
+  await expect(balFell.locator('[data-marker-kind="visited"]')).toBeVisible();
+  await expect.poll(() => resultList.evaluate((element) => element.scrollTop))
+    .toBe(scrollBeforeSelection);
   expect(probe.externalRequests).toEqual([]);
   expect(probe.localFailures).toEqual([]);
 });
@@ -900,7 +911,7 @@ test('fits TR Mainland from landing and a no-view URL', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: POISON_CARD_NAME }).click();
   await expect(
-    page.getByRole('heading', { name: 'Tamriel Rebuilt 26.08 — Poison Song' }),
+    page.getByRole('heading', { name: 'Tamriel Rebuilt — Poison Song' }),
   ).toBeVisible();
 
   const mainland = page.getByRole('button', { name: 'TR Mainland', exact: true });
@@ -925,7 +936,7 @@ test('fits TR Mainland from landing and a no-view URL', async ({ page }) => {
 
   await page.goto(`/?dataset=${DATASET_ID}&region=tr-mainland`);
   await expect(
-    page.getByRole('heading', { name: 'Tamriel Rebuilt 26.08 — Poison Song' }),
+    page.getByRole('heading', { name: 'Tamriel Rebuilt — Poison Song' }),
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'TR Mainland', exact: true }),
@@ -970,7 +981,7 @@ test('keeps catalog filters above the growing result list after zoom', async ({ 
   const probe = await installOfflineRoutes(page);
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto(`/?dataset=${ORIGINAL_DATASET_ID}&region=all&x=-22000&y=-15000&z=1`);
-  await expect(page.getByRole('heading', { name: 'Morrowind Game of the Year — HD' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Morrowind Game of the Year' })).toBeVisible();
   await openFilterDrawer(page);
 
   const catalogResults = page.locator('.place-results > button.place-result');
@@ -1209,7 +1220,7 @@ test('canonicalizes invalid region, view and cross-dataset place without crashin
     `/?theme=sepia&dataset=${ORIGINAL_DATASET_ID}&region=unknown&x=123&y=NaN&place=${PLACE_ID}`,
   );
 
-  await expect(page.getByRole('heading', { name: 'Morrowind Game of the Year — HD' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Morrowind Game of the Year' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'All', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -1247,7 +1258,7 @@ test('drops a cross-dataset place while retaining a valid region and camera', as
 
   await page.goto(url);
 
-  await expect(page.getByRole('heading', { name: 'Morrowind Game of the Year — HD' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Morrowind Game of the Year' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Vvardenfell', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',

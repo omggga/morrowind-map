@@ -139,8 +139,8 @@ describe('App dataset workflow', () => {
       'data-dataset-id',
       'original-goty-hd',
     );
-    expect(screen.getByText('Classic')).toHaveClass('dataset-choice__kind');
-    expect(screen.getByText('Tamriel Rebuilt')).toHaveClass('dataset-choice__kind');
+    expect(screen.queryByText('Classic')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tamriel Rebuilt', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('LOCAL CARTOGRAPHIC LOG')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Contact information' })).toBeInTheDocument();
 

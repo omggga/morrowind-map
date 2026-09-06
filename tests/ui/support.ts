@@ -9,14 +9,14 @@ export const POISON_SNAPSHOT_ID = 'tr:poison-song-26.08:6964517551e0fcb0';
 export const POISON_PLACE_ID = 'poison-song-26.08.place-014cd9c0ca05af58dc14';
 export const POISON_PLACE_NAME = 'Pneuma Grove';
 export const POISON_CARD_NAME = 'Open map: Tamriel Rebuilt — Poison Song';
-export const POISON_HEADING = 'Tamriel Rebuilt 26.08 — Poison Song';
+export const POISON_HEADING = 'Tamriel Rebuilt — Poison Song';
 
 export const ORIGINAL_DATASET_ID = 'original-goty-hd';
 export const ORIGINAL_SNAPSHOT_ID = 'original:goty:8b2690c0ce1c954e';
 export const ORIGINAL_PLACE_ID = 'original-goty-hd.place-18680400d24ed6f70770';
 export const ORIGINAL_PLACE_NAME = 'Balmora, Guild of Mages';
 export const ORIGINAL_CARD_NAME = 'Open map: Morrowind Game of the Year';
-export const ORIGINAL_HEADING = 'Morrowind Game of the Year — HD';
+export const ORIGINAL_HEADING = 'Morrowind Game of the Year';
 
 const SYNTHETIC_TILE = Buffer.from(
   'UklGRh4AAABXRUJQVlA4TBEAAAAvB8ABAAfQvK5Vqv+BiOh/AAA=',

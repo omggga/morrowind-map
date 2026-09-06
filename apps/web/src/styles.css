@@ -37,9 +37,9 @@
   --paper-error: #6b281f;
   --focus-dark: #ffe7a3;
   --focus-paper: #233c46;
-  --mim-unvisited: #f6e27d;
-  --mim-active: #e88bea;
-  --mim-visited: #e9a15b;
+  --mim-unvisited: #f4f1e8;
+  --mim-active: #c59aff;
+  --mim-visited: #ff9d45;
   --mim-custom: #78db78;
   --space-1: 4px;
   --space-2: 8px;
@@ -363,7 +363,6 @@ textarea:focus-visible,
   min-width: 0;
   min-height: 82px;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
   align-content: center;
   overflow: hidden;
   isolation: isolate;
@@ -404,20 +403,8 @@ textarea:focus-visible,
   color: var(--text-strong);
 }
 
-.dataset-choice__kind {
-  grid-column: 1;
-  color: var(--text-muted);
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
 .dataset-choice__title {
   grid-column: 1;
-  margin-top: 3px;
   overflow: hidden;
   font-family: var(--font-display);
   font-size: clamp(21px, 3vw, 31px);
@@ -427,7 +414,7 @@ textarea:focus-visible,
 }
 
 .dataset-choice__arrow {
-  grid-row: 1 / span 2;
+  grid-row: 1;
   grid-column: 2;
   align-self: center;
   color: var(--ui-brass);
@@ -1234,6 +1221,7 @@ textarea:focus-visible,
 }
 
 .place-result strong {
+  color: var(--place-status-color);
   overflow: hidden;
   font-family: var(--font-display);
   font-size: 14px;

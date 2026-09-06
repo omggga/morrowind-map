@@ -302,7 +302,7 @@ test('reflows at the 200% desktop equivalent without viewport overflow', async (
   await screenshot(page, 'reflow-200-percent.png');
 });
 
-test('exposes minimum targets and supports touch pan, zoom, and tap', async ({ page }, testInfo) => {
+test('exposes minimum targets and keeps north up during touch pan, pinch, and tap', async ({ page }, testInfo) => {
   test.skip(!hasTouch(testInfo), 'Touch behavior runs only in touch projects.');
   await installOfflineRoutes(page);
   await openDataset(page, POISON_CARD_NAME, POISON_HEADING);
@@ -361,6 +361,28 @@ test('exposes minimum targets and supports touch pan, zoom, and tap', async ({ p
     x: Number(await map.getAttribute('data-view-x')),
     y: Number(await map.getAttribute('data-view-y')),
   })).not.toEqual(beforeCenter);
+  const zoomBeforePinch = Number(await map.getAttribute('data-view-z'));
+  const pinchPoints = (step: number) => {
+    const angle = step * Math.PI / 16;
+    const radius = 24 + step * 4;
+    return [-1, 1].map((direction, id) => ({
+      x: x + direction * radius * Math.cos(angle),
+      y: y + direction * radius * Math.sin(angle),
+      id,
+      radiusX: 1,
+      radiusY: 1,
+      force: 1,
+    }));
+  };
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pinchPoints(0) });
+  for (let step = 1; step <= 8; step += 1) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pinchPoints(step) });
+    await page.waitForTimeout(32);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect.poll(async () => Number(await map.getAttribute('data-view-z')))
+    .toBeGreaterThan(zoomBeforePinch + 0.5);
+  await expect(map).toHaveAttribute('data-view-rotation', '0');
   await page.locator('button.add-marker-tool').tap();
   await page.touchscreen.tap(x, y);
   await expect(page.getByLabel('Custom marker')).toBeVisible();

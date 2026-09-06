@@ -391,7 +391,6 @@ export function App() {
                     }}
                     aria-label={`Open map: ${presentation.title}`}
                   >
-                    <span className="dataset-choice__kind">{presentation.kind}</span>
                     <span className="dataset-choice__title">{presentation.title}</span>
                     <span className="dataset-choice__arrow" aria-hidden="true">→</span>
                   </button>
