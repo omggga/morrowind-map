@@ -52,6 +52,7 @@ import {
   type PlaceFilterState,
 } from '../data/placeFilters';
 import { buildPlaceViews, PlaceSearch, type PlaceView } from '../data/placeSearch';
+import { presentDataset } from '../data/datasetPresentation';
 import type { MapUrlState, MapUrlView } from '../navigation/mapUrlState';
 import { normalizeMapUrlState } from '../navigation/normalizeMapUrlState';
 import { userDatabase } from '../storage/database';
@@ -156,7 +157,7 @@ const MARKER_ICON_SOURCES = new globalThis.Map<MarkerKind, string>(
 
 function createMarkerStyles(kind: MarkerKind, emphasis: MarkerEmphasis): Style[] {
   const baseZIndex = emphasis === 'selected' ? 112 : emphasis === 'hovered' ? 102 : 92;
-  const scale = emphasis === 'selected' ? 0.33 : emphasis === 'hovered' ? 0.29 : 0.25;
+  const scale = emphasis === 'selected' ? 0.45 : emphasis === 'hovered' ? 0.4 : 0.35;
   return [new Style({
     image: new Icon({
       src: MARKER_ICON_SOURCES.get(kind) ?? '',
@@ -190,9 +191,11 @@ function createPlaceLabelStyle(
   name: string,
   selected: boolean,
   searchMatch: boolean,
+  status: ProgressStatus,
+  showAll: boolean,
 ): Style {
   const tone = selected ? 'selected' : searchMatch ? 'match' : 'default';
-  const cacheKey = `${tone}\0${name}`;
+  const cacheKey = `${tone}\0${status}\0${showAll}\0${name}`;
   const cached = PLACE_LABEL_STYLE_CACHE.get(cacheKey);
   if (cached) {
     return cached;
@@ -201,14 +204,14 @@ function createPlaceLabelStyle(
   const style = new Style({
     text: new Text({
       text: name,
-      font: selected
+      font: selected || searchMatch
         ? '600 10px "Atkinson Hyperlegible Next Variable", Arial, sans-serif'
         : '500 10px "Atkinson Hyperlegible Next Variable", Arial, sans-serif',
       offsetY: -11,
       padding: [1, 2, 1, 2],
-      fill: new Fill({ color: selected ? '#fff2b2' : searchMatch ? '#f0dda0' : '#e8dfc2' }),
+      fill: new Fill({ color: MARKER_SEMANTICS[status].color }),
       stroke: new Stroke({ color: '#17130d', width: 2 }),
-      declutterMode: 'declutter',
+      declutterMode: showAll ? 'none' : 'declutter',
       overflow: true,
     }),
     zIndex: 0,
@@ -477,7 +480,7 @@ export function MapTitlebar({ dataset, onBack, tools }: MapTitlebarProps) {
         {t('map.versions')}
       </button>
       <div className="map-title-copy">
-        <h1 id="map-title">{dataset.title.en}</h1>
+        <h1 id="map-title">{presentDataset(dataset).title}</h1>
       </div>
       {tools ? <div className="map-titlebar-tools">{tools}</div> : null}
     </header>
@@ -698,7 +701,7 @@ function DatasetMapReady({
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
   const [placingMarker, setPlacingMarker] = useState(false);
   const [markerError, setMarkerError] = useState<string | null>(null);
-  const [viewState, setViewState] = useState<MapUrlView | null>(normalizedNavigationState.view);
+  const [viewState, setViewState] = useState<(MapUrlView & { readonly rotation?: number }) | null>(normalizedNavigationState.view);
   const [zoom, setZoom] = useState(normalizedNavigationState.view?.zoom ?? 0);
   const [basemapState, setBasemapState] = useState<BasemapRuntimeState>({
     pending: 0,
@@ -750,7 +753,12 @@ function DatasetMapReady({
     count: RESULT_BATCH_SIZE,
   }));
   if (resultWindow.source !== allResults) {
-    setResultWindow({ source: allResults, count: RESULT_BATCH_SIZE });
+    const sameResults = allResults.length === resultWindow.source.length &&
+      allResults.every((place, index) => place.id === resultWindow.source[index]?.id);
+    setResultWindow({
+      source: allResults,
+      count: sameResults ? resultWindow.count : RESULT_BATCH_SIZE,
+    });
   }
   const renderedResultCount = typeof IntersectionObserver === 'undefined'
     ? allResults.length
@@ -1265,7 +1273,7 @@ function DatasetMapReady({
         right.get('placeView') as PlaceView,
         labelPriorityContextRef.current,
       ),
-      style: (feature) => {
+      style: (feature, resolution) => {
         const placeId = feature.get('placeId') as string;
         if (!visiblePlaceIdsRef.current.has(placeId)) {
           return undefined;
@@ -1275,6 +1283,8 @@ function DatasetMapReady({
           place.name,
           placeId === selectedIdRef.current,
           labelPriorityContextRef.current.searchMatchIds.has(placeId),
+          progressByPlaceIdRef.current.get(placeId)?.status ?? 'unvisited',
+          resolution <= view.getResolutionForZoom(view.getMaxZoom()) * 1.001,
         );
       },
       updateWhileAnimating: true,
@@ -1327,6 +1337,7 @@ function DatasetMapReady({
       zoom: initialView?.zoom ?? 1,
       minZoom: minimumZoom,
       maxZoom: maximumZoom,
+      enableRotation: false,
       ...(viewResolutions ? { resolutions: viewResolutions } : {}),
       extent,
       showFullExtent: true,
@@ -1344,6 +1355,8 @@ function DatasetMapReady({
       view,
       controls: [],
       interactions: defaultInteractions({
+        altShiftDragRotate: false,
+        pinchRotate: false,
         onFocusOnly: false,
         zoomDuration: prefersReducedMotion() ? 0 : 250,
       }),
@@ -1392,15 +1405,22 @@ function DatasetMapReady({
     };
     updateCoverageAtCenter();
 
+    // Prefer entrance squares over nearby labels in dense city centers.
+    const featureAtPixel = (pixel: number[]) => {
+      const hitTolerance = (view.getZoom() ?? 0) >= view.getMaxZoom() - 0.01 ? 10 : 6;
+      return map.forEachFeatureAtPixel(pixel, (candidate) => candidate, {
+        hitTolerance,
+        layerFilter: (layer) => layer === markerLayer || layer === customMarkerLayer,
+      }) ?? map.forEachFeatureAtPixel(pixel, (candidate) => candidate, {
+        hitTolerance: 2,
+        layerFilter: (layer) => layer === labelLayer,
+      });
+    };
     const pointerMoveKey = map.on('pointermove', (event) => {
       if (event.dragging) {
         return;
       }
-      const feature = map.forEachFeatureAtPixel(event.pixel, (candidate) => candidate, {
-        hitTolerance: 5,
-        layerFilter: (layer) =>
-          layer === markerLayer || layer === labelLayer || layer === customMarkerLayer,
-      });
+      const feature = featureAtPixel(event.pixel);
       const nextMarkerId = feature?.get('markerId') as string | undefined;
       const nextPlaceId = feature?.get('placeId') as string | undefined;
       const markerId = nextMarkerId ?? null;
@@ -1424,11 +1444,7 @@ function DatasetMapReady({
         createMarkerAt([x, y]);
         return;
       }
-      const feature = map.forEachFeatureAtPixel(event.pixel, (candidate) => candidate, {
-        hitTolerance: 6,
-        layerFilter: (layer) =>
-          layer === markerLayer || layer === labelLayer || layer === customMarkerLayer,
-      });
+      const feature = featureAtPixel(event.pixel);
       if (feature) {
         const markerId = feature.get('markerId') as string | undefined;
         if (markerId) {
@@ -1487,7 +1503,7 @@ function DatasetMapReady({
         center: [currentX, currentY],
         zoom: currentZoom,
       };
-      setViewState(nextView);
+      setViewState({ ...nextView, rotation: view.getRotation() });
       commitNavigation(
         {
           ...navigationStateRef.current,
@@ -1587,8 +1603,14 @@ function DatasetMapReady({
     navigationStateRef.current = normalizedNavigationState;
     selectedIdRef.current = normalizedNavigationState.placeId;
     setRegion(normalizedNavigationState.regionId);
-    setTypeFilters(new Set(normalizedNavigationState.typeFilters));
-    setStatusFilters(new Set(normalizedNavigationState.statusFilters));
+    setTypeFilters((current) =>
+      current.size === normalizedNavigationState.typeFilters.length &&
+      normalizedNavigationState.typeFilters.every((type) => current.has(type))
+        ? current : new Set(normalizedNavigationState.typeFilters));
+    setStatusFilters((current) =>
+      current.size === normalizedNavigationState.statusFilters.length &&
+      normalizedNavigationState.statusFilters.every((status) => current.has(status))
+        ? current : new Set(normalizedNavigationState.statusFilters));
     setSelectedId(normalizedNavigationState.placeId);
 
     if (
@@ -2113,6 +2135,7 @@ function DatasetMapReady({
                     key={place.id}
                     type="button"
                     className={selectedId === place.id ? 'place-result place-result--selected' : 'place-result'}
+                    style={{ '--place-status-color': MARKER_SEMANTICS[status].color } as CSSProperties}
                     aria-current={selectedId === place.id ? 'location' : undefined}
                     onClick={(event) => selectPlace(
                       place,
@@ -2187,6 +2210,7 @@ function DatasetMapReady({
             data-view-x={viewState?.center[0]}
             data-view-y={viewState?.center[1]}
             data-view-z={viewState?.zoom}
+            data-view-rotation={viewState?.rotation ?? 0}
             data-basemap-pending={basemapState.pending}
             data-basemap-loaded={basemapState.loaded}
             data-custom-marker-count={customMarkers.records.length}

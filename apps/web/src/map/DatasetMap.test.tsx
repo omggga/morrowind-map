@@ -30,6 +30,7 @@ const dataset = {
   mapKey: 'tamriel-rebuilt',
   snapshotId: 'tr:poison-song-26.08:test',
   title: { en: 'Poison Song 26.08' },
+  release: { name: 'Poison Song' },
   localization: {
     defaultLocale: 'en',
     locales: [{ locale: 'en', status: 'available', coverage: 1, fallbackLocale: null }],
@@ -57,7 +58,7 @@ describe('MapTitlebar', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Back to maps' })).toBeEnabled();
-    expect(screen.getByRole('heading', { name: 'Poison Song 26.08' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Tamriel Rebuilt — Poison Song' })).toBeVisible();
     expect(screen.getByText('Data actions')).toBeVisible();
     expect(screen.queryByText('TR / TES3:WORLD')).not.toBeInTheDocument();
     expect(screen.queryByText('LOCAL')).not.toBeInTheDocument();
