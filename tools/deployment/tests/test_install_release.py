@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools.deployment.common import DeploymentError
-from tools.deployment.install_release import install_release
+from tools.deployment.install_release import install_release, prune_releases
 from tools.deployment.package_release import package_release
 from tools.deployment.tests.fixtures import write_dist
 from tools.deployment.tests.test_health_check import serve
@@ -114,11 +114,59 @@ class InstallReleaseTests(unittest.TestCase):
                 (self.root / "current/datasets/generated").resolve(),
                 self.root / "data/releases" / old_graph,
             )
+            self.assertTrue((self.root / "releases" / self.old_sha).is_dir())
+            self.assertTrue((self.root / "data/releases" / new_graph).is_dir())
             self.install(self.new, self.new_sha, dataset_graph=new_graph, health_urls=(healthy,))
             self.assertEqual(
                 (self.root / "current/datasets/generated").resolve(),
                 self.root / "data/releases" / new_graph,
             )
+            self.assertFalse((self.root / "releases" / self.old_sha).exists())
+            self.assertFalse((self.root / "data/releases" / old_graph).exists())
+
+    def test_retention_preserves_shared_and_pending_graphs_and_is_repeatable(self) -> None:
+        active, pending = "c" * 64, "d" * 64
+        for graph in (active, pending):
+            shutil.copytree(self.root / "data/generated", self.root / "data/releases" / graph)
+        with patch("tools.deployment.install_release.subprocess.run"):
+            self.install(self.old, self.old_sha, dataset_graph=active)
+            self.install(self.new, self.new_sha, dataset_graph=active)
+            self.install(self.new, self.new_sha, dataset_graph=active)
+        self.assertEqual([p.name for p in (self.root / "releases").iterdir()], [self.new_sha])
+        self.assertTrue((self.root / "data/releases" / active).is_dir())
+        self.assertTrue((self.root / "data/releases" / pending).is_dir())
+
+    def test_retention_dry_run_legacy_alias_and_interrupted_cleanup(self) -> None:
+        old_graph, active = "c" * 64, "d" * 64
+        for graph in (old_graph, active):
+            shutil.copytree(self.root / "data/generated", self.root / "data/releases" / graph)
+        with patch("tools.deployment.install_release.subprocess.run"):
+            self.install(self.old, self.old_sha, dataset_graph=old_graph)
+            with patch("tools.deployment.install_release.prune_releases", return_value={}):
+                self.install(self.new, self.new_sha, dataset_graph=active)
+        shutil.rmtree(self.root / "data/generated")
+        (self.root / "data/generated").symlink_to(Path("releases") / old_graph)
+        plan = prune_releases(self.root, dry_run=True)
+        self.assertEqual(plan, {"applications": [self.old_sha], "graphs": [old_graph]})
+        self.assertTrue((self.root / "data/releases" / old_graph).exists())
+        # A prior cleanup may have deleted the graph before removing its app.
+        shutil.rmtree(self.root / "data/releases" / old_graph)
+        self.assertEqual(prune_releases(self.root), plan)
+        self.assertFalse((self.root / "data/generated").is_symlink())
+        self.assertTrue((self.root / "current/datasets/generated").is_dir())
+
+    def test_retention_rejects_unsafe_release_before_deleting_anything(self) -> None:
+        with patch("tools.deployment.install_release.subprocess.run"):
+            self.install(self.old, self.old_sha)
+            with patch("tools.deployment.install_release.prune_releases", return_value={}):
+                self.install(self.new, self.new_sha)
+        outside = self.workspace / "outside"
+        outside.mkdir()
+        (self.root / "releases" / ("f" * 40)).symlink_to(outside)
+        with self.assertRaises(DeploymentError):
+            prune_releases(self.root)
+        self.assertTrue((self.root / "releases" / self.old_sha).exists())
+        self.assertTrue(outside.is_dir())
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ import fcntl
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -26,6 +27,73 @@ from tools.deployment.package_release import ReleaseBuilder
 
 
 MAX_UNPACKED_BYTES = 100 * 1024 * 1024
+
+
+def prune_releases(root: Path, *, dry_run: bool = False) -> dict[str, list[str]]:
+    """Keep the healthy current release. Caller must hold both deployment locks exclusively.
+
+    Only graphs referenced by retired apps are eligible: an unreferenced graph
+    may have just been staged by the next deployment. Validate the complete plan
+    before deleting anything, and delete apps last so interrupted cleanup retries
+    can still discover their graphs.
+    """
+    root = root.resolve(strict=True)
+    releases = root / "releases"
+    graphs = root / "data/releases"
+    legacy = root / "data/generated"
+    if releases.is_symlink() or graphs.is_symlink() or (root / "data").is_symlink():
+        raise DeploymentError("Retention roots must be real directories")
+    current = (root / "current").resolve(strict=True)
+    if not (root / "current").is_symlink() or current.parent != releases:
+        raise DeploymentError("Retention requires a current application release")
+
+    def graph_for(app: Path) -> Path:
+        link = app / "datasets/generated"
+        source = link if link.is_symlink() else legacy
+        target = source.resolve()
+        if target == legacy and legacy.is_dir() and not legacy.is_symlink():
+            return target  # Legacy physical data is never garbage-collected.
+        if target.parent != graphs or re.fullmatch(r"[a-f0-9]{64}", target.name) is None:
+            raise DeploymentError(f"Dataset link escaped the graph namespace: {app.name}")
+        if (graphs / target.name).is_symlink():
+            raise DeploymentError("Dataset graph must not be a symlink")
+        return target
+
+    active_graph = graph_for(current)
+    active_manifest = strict_json_object(
+        safe_file(current, Path("release-manifest.json"), "active release").read_bytes(), "active release"
+    )
+    _validate(current, active_graph, active_manifest["commitSha"])
+    retired: list[Path] = []
+    obsolete_graphs: set[Path] = set()
+    for app in sorted(releases.iterdir()):
+        if app == current or app.name.startswith(".ci-"):
+            continue
+        if app.is_symlink() or not app.is_dir() or re.fullmatch(r"[a-f0-9]{12}|[a-f0-9]{40}", app.name) is None:
+            raise DeploymentError(f"Unrecognized application release: {app.name}")
+        manifest = strict_json_object(
+            safe_file(app, Path("release-manifest.json"), "retired release").read_bytes(), "retired release"
+        )
+        sha = manifest.get("commitSha")
+        if not isinstance(sha, str) or re.fullmatch(r"[a-f0-9]{40}", sha) is None or not sha.startswith(app.name):
+            raise DeploymentError(f"Retired release identity mismatch: {app.name}")
+        graph = graph_for(app)
+        if graph != active_graph and graph.parent == graphs:
+            obsolete_graphs.add(graph)
+        retired.append(app)
+    plan = {
+        "applications": [app.name for app in retired],
+        "graphs": [graph.name for graph in sorted(obsolete_graphs)],
+    }
+    if not dry_run:
+        for graph in sorted(obsolete_graphs):
+            if graph.exists():
+                shutil.rmtree(graph)
+        for app in retired:
+            shutil.rmtree(app)
+        if legacy.is_symlink() and legacy.resolve() in obsolete_graphs:
+            legacy.unlink()
+    return plan
 
 
 def _unpack(archive_path: Path, stage: Path) -> None:
@@ -137,7 +205,7 @@ def install_release(
         root / "data/.dataset-upload.lock"
     ).open("a") as data_lock:
         fcntl.flock(app_lock, fcntl.LOCK_EX)
-        fcntl.flock(data_lock, fcntl.LOCK_SH)
+        fcntl.flock(data_lock, fcntl.LOCK_EX)
         if current.exists() and not current.is_symlink():
             raise DeploymentError("Refusing to replace a non-symlink current path")
         generated = (root / "data/releases" / dataset_graph if dataset_graph else root / "data/generated").resolve(strict=True)
@@ -202,6 +270,12 @@ def install_release(
                     raise
             finally:
                 link.unlink(missing_ok=True)
+            # Health failures return above without deleting rollback data. Cleanup
+            # failure must not roll back a healthy app after any files were removed.
+            try:
+                print(json.dumps({"retention": prune_releases(root)}), flush=True)
+            except (OSError, DeploymentError) as error:
+                print(f"::warning::Release cleanup incomplete: {error}", file=sys.stderr)
             return destination
 
 
