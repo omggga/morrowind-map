@@ -287,6 +287,7 @@ export function App() {
         dataset={backdropDataset}
       />
       <div className="landing-atmosphere" aria-hidden="true" />
+      <div className="landing-layout">
       <section className="landing-content" aria-labelledby="landing-heading">
         <h1
           id="landing-heading"
@@ -401,6 +402,21 @@ export function App() {
           </>
         ) : null}
       </section>
+      <section className="landing-about" aria-labelledby="landing-about-heading">
+        <h2 id="landing-about-heading">Interactive maps for The Elder Scrolls III: Morrowind</h2>
+        <p>
+          Explore detailed maps, mark places as visited, and add your own markers and notes
+          {' '}— on desktop or phone.
+        </p>
+        <p>
+          Discover high-resolution maps of Morrowind Game of the Year, Tamriel Rebuilt
+          {' '}— Poison Song, and Project Cyrodiil — Abecean Shores.
+        </p>
+        <p>
+          Search for towns, caves, ruins, and dungeon entrances, and find your next destination.
+        </p>
+      </section>
+      </div>
       {navigationState.datasetId === null ? <LandingContact /> : null}
       </main>
       <AnalyticsConsentBanner showSettings={navigationState.datasetId === null} />
