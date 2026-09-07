@@ -164,6 +164,27 @@ describe('App dataset workflow', () => {
     expect(screen.getByRole('region', { name: 'mock map' })).toBeInTheDocument();
   });
 
+  it('opens Lyithdonea as the fifth prepared map', async () => {
+    const cyrodiil = manifestFixture('abecean-shores-25.05', 'project-cyrodiil', 'Project Cyrodiil');
+    const skyrim = manifestFixture('dragonstar-25.05', 'home-of-nords', 'Home of the Nords');
+    skyrim.release.name = 'Dragonstar';
+    const azurian = manifestFixture('azurian-isles-0.3.1', 'azurian-isles', 'Lyithdonea');
+    azurian.release.name = 'The Azurian Isles';
+    const added = [cyrodiil, skyrim, azurian];
+    const index = { ...indexFixture, datasets: [...indexFixture.datasets, ...added.map((dataset, offset) => ({
+      datasetId: dataset.datasetId, manifestUrl: `/datasets/${dataset.datasetId}.json`, order: offset + 2,
+    }))] };
+    const responses = [index, ...manifests, ...added];
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(responses.shift()) })));
+    render(<App />);
+    const card = await screen.findByRole('button', { name: 'Open map: Lyithdonea — The Azurian Isles' });
+    expect(screen.getAllByRole('button', { name: /Open map:/ })[4]).toBe(card);
+    expect(screen.queryByText('Coming soon')).not.toBeInTheDocument();
+    fireEvent.click(card);
+    expect(window.location.search).toBe('?dataset=azurian-isles-0.3.1&region=all');
+    expect(screen.getByRole('region', { name: 'mock map' })).toBeInTheDocument();
+  });
+
   it('loads all manifests, opens a selected map, and returns to the cards', async () => {
     render(<App />);
 

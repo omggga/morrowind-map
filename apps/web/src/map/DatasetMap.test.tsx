@@ -53,6 +53,7 @@ describe('MapTitlebar', () => {
     ['tamriel-rebuilt', 'https://www.nexusmods.com/morrowind/mods/42145'],
     ['project-cyrodiil', 'https://www.nexusmods.com/morrowind/mods/44922'],
     ['home-of-nords', 'https://www.nexusmods.com/morrowind/mods/44921'],
+    ['azurian-isles', 'https://www.nexusmods.com/morrowind/mods/43749'],
   ] as const)('shows navigation, the %s title, its mod link and optional header tools', (mapKey, modUrl) => {
     render(
       <MapTitlebar

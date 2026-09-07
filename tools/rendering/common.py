@@ -15,6 +15,7 @@ RELEASE_PROFILES = {
     "tamriel-rebuilt": "tr-release.json",
     "project-cyrodiil": "pc-release.json",
     "home-of-nords": "shotn-release.json",
+    "azurian-isles": "az-release.json",
 }
 
 

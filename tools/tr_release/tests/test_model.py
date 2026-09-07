@@ -78,6 +78,21 @@ class ReleaseProfileTests(unittest.TestCase):
         self.assertNotIn("Cyr_Main.esm", profile.content_files)
         self.assertNotIn("TR_Mainland.esm", profile.content_files)
 
+    def test_azurian_profile_requires_oaab_and_scopes_land_to_lyithdonea(self) -> None:
+        profile = load_profile(REPO_ROOT / "config/az-release.json")
+        self.assertEqual(parse_profile(profile.to_dict()), profile)
+        self.assertEqual(profile.land_content_files, ("MD_Azurian Isles.esm",))
+        self.assertEqual(profile.catalog_regions, ("azurian-isles",))
+        self.assertEqual(profile.snapshot_prefix, "az")
+        self.assertEqual(profile.content_files, (
+            "Morrowind.esm", "Tribunal.esm", "Bloodmoon.esm", "OAAB_Data.esm",
+            "Tamriel_Data.esm", "MD_Azurian Isles.esm",
+        ))
+        invalid = profile.to_dict()
+        invalid["contentFiles"].remove("OAAB_Data.esm")
+        with self.assertRaises(ProfileError):
+            parse_profile(invalid)
+
     def test_profile_rejects_unknown_keys_at_every_fixed_object_layer(self) -> None:
         cases = []
         root = copy.deepcopy(self.payload)

@@ -15,7 +15,7 @@
     "datasets": {
       "type": "array",
       "minItems": 2,
-      "maxItems": 4,
+      "maxItems": 5,
       "items": {
         "$ref": "#/$defs/datasetIndexEntry"
       }

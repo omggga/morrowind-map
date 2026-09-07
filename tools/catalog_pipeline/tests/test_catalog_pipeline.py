@@ -566,7 +566,7 @@ class CatalogContractTests(unittest.TestCase):
         self.assertEqual(before_place["regionId"], "vvardenfell")
 
     def test_province_scope_keeps_dependency_doors_but_excludes_base_map_places(self) -> None:
-        for plugin_name, region in (("Cyr_Main.esm", "cyrodiil"), ("Sky_Main.esm", "skyrim")):
+        for plugin_name, region in (("Cyr_Main.esm", "cyrodiil"), ("Sky_Main.esm", "skyrim"), ("MD_Azurian Isles.esm", "azurian-isles")):
             with self.subTest(region=region), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 base, patch = self._grouping_stack(root)
@@ -590,6 +590,22 @@ class CatalogContractTests(unittest.TestCase):
                 self.assertEqual(scoped.counts["namedExteriorPlaces"], 1)
                 self.assertEqual({place["regionId"] for place in scoped.locations["places"]}, {region})
                 self.assertNotEqual(scoped.policy_fingerprint, full.policy_fingerprint)
+                stray = write_plugin(root, "Stray.esp", [
+                    cell("Caldera", grid=(27, -52), references=[frmr(
+                        1, base_id="door_a", position=(27 * CELL_SIZE + 100.0, -52 * CELL_SIZE + 100.0, 0.0),
+                        door_destination=(0.0, 0.0, 0.0), destination_cell="Anvil Shop",
+                    )]),
+                ], masters=((base.name, base.path.stat().st_size),))
+                with_stray = merge_plugins((base, patch, province, ocean, stray))
+                scoped_with_stray = build_catalog(
+                    with_stray, dataset_id=self.DATASET, snapshot_id=self.SNAPSHOT,
+                    plugin_regions=regions, allowed_regions=(region,),
+                )
+                self.assertEqual(scoped_with_stray.locations, scoped.locations)
+                with self.assertRaisesRegex(ValueError, "has no effective LAND"):
+                    build_catalog(with_stray, dataset_id=self.DATASET, snapshot_id=self.SNAPSHOT,
+                                  plugin_regions=regions)
+
 
     def test_named_exterior_cells_use_eight_neighbor_components(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

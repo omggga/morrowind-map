@@ -1,6 +1,6 @@
 # Rendering maps locally
 
-Use this workflow to rebuild Original GOTY HD, prepare a new Tamriel Rebuilt, Project Cyrodiil or Home of the Nords release,
+Use this workflow to rebuild Original GOTY HD, prepare a new Tamriel Rebuilt, Project Cyrodiil, Home of the Nords or Lyithdonea release,
 or review different rendering settings. It reuses the existing renderer, catalog,
 quality-audit, and dataset tools. Rendering produces an isolated candidate first;
 it does not modify the website or the tracked active dataset.
@@ -28,7 +28,7 @@ a sufficient estimate of the required free space.
 ## Input directory
 
 Obtain the English GOTY base files from your own game installation and matching Tamriel
-Data / Tamriel Rebuilt / Project Cyrodiil / Home of the Nords releases from their authors. Extract the contents into this layout:
+Data / OAAB Data / Tamriel Rebuilt / Project Cyrodiil / Home of the Nords / Lyithdonea releases from their authors. Extract the contents into this layout:
 
 ```text
 local-data/
@@ -64,6 +64,18 @@ local-data/
         Docs/
       01 Grass for MGEXE and OpenMW/
         Sky_Main_Grass.esp  # optional, excluded from rendering
+    oaab-data/
+      00 Core/
+        OAAB_Data.esm
+        meshes/
+        textures/
+        ...all other Core files...
+    azurian-isles/
+      00 Core/
+        MD_Azurian Isles.esm
+        meshes/
+        textures/
+        ...all other Core files...
   render/
     ...generated profiles, locks, logs, checkpoints, and candidates...
 ```
@@ -73,7 +85,8 @@ extra nested `00 Data Files` directory. Preserve the full TR `00 Core/Data Files
 Do not mix different mod releases or add optional plugins to the canonical load order.
 Original needs only the six files in `bsa`; TR additionally needs Tamriel Data and
 TR Core. Cyrodiil and Home of the Nords each need GOTY, Tamriel Data and their own Core;
-they do not load TR or each other.
+they do not load TR or each other. Lyithdonea additionally requires OAAB Data; mount
+only the complete OAAB and Lyithdonea Core folders, without optional patches.
 Preserve the complete Core package when extracting future releases.
 For `.7z` packages on macOS, `bsdtar` can extract directly into the input directory:
 
@@ -97,11 +110,11 @@ Only validated ready WebP renders and runtime JSON/metadata may be contributed.
 ## Commands
 
 Run commands from the repository root. The target is `original`, `tamriel-rebuilt`,
-`project-cyrodiil`, `home-of-nords`, or `all`; check/build/smoke default to `all`.
+`project-cyrodiil`, `home-of-nords`, `azurian-isles`, or `all`; check/build/smoke default to `all`.
 
 | Command | Result |
 | --- | --- |
-| `pnpm render:check all` | Validate all four input sets and report identities without building or rendering |
+| `pnpm render:check all` | Validate all five input sets and report identities without building or rendering |
 | `pnpm render:build all` | Check inputs and build/reuse the renderer images |
 | `pnpm render:smoke original` | Render and validate the Original sample |
 | `pnpm render:smoke tamriel-rebuilt` | Render every configured TR smoke control |
@@ -115,7 +128,10 @@ Run commands from the repository root. The target is `original`, `tamriel-rebuil
 | `pnpm render:check home-of-nords` | Check Skyrim files, binary structure and master dependencies |
 | `pnpm render:smoke home-of-nords` | Render Dragonstar, Karthwasten and Karthgad controls |
 | `pnpm render:home-of-nords` | Render, audit and prepare Skyrim; preserve all other active maps |
-| `pnpm render:all` | Rebuild Original, TR, Cyrodiil and Skyrim in order, composing one candidate |
+| `pnpm render:check azurian-isles` | Check Lyithdonea, OAAB and Tamriel Data inputs and dependencies |
+| `pnpm render:smoke azurian-isles` | Render Azura, Isles of Dusk and Bnay controls |
+| `pnpm render:azurian-isles` | Render, audit and prepare Lyithdonea; preserve all other active maps |
+| `pnpm render:all` | Rebuild Original, TR, Cyrodiil, Skyrim and Lyithdonea in order, composing one candidate |
 
 `build`, `smoke`, and full render commands ensure the required images are available.
 Verified renderer images are reused when their source and base-image identities match.
@@ -256,7 +272,7 @@ For a single sample, use `pnpm render:smoke home-of-nords --control dragonstar`.
 
 A completed run produces
 `local-data/render/home-of-nords/candidate/apps/web/public`. It preserves the
-current Original, TR and Cyrodiil artifacts. To inspect and then adopt it locally:
+other active maps and their exact artifacts. To inspect and then adopt it locally:
 
 ```bash
 pnpm render:preview --public-root local-data/render/home-of-nords/candidate/apps/web/public
@@ -277,9 +293,50 @@ to keep the new release's intermediate files separate. During preparation the mo
 hash may be omitted; the lock always records exact inputs. Pin the verified mod
 hash before contributing. Updates replace only the Home of the Nords index entry.
 
+## Lyithdonea: The Azurian Isles
+
+`config/az-release.json` describes Lyithdonea 0.3.1 using OAAB Data 2.6.2 and the
+shared Tamriel Data 26.08 tree. Download complete packages from the
+[Lyithdonea authors](https://www.nexusmods.com/morrowind/mods/43749) and
+[OAAB Data authors](https://www.nexusmods.com/morrowind/mods/49042).
+The repository includes this release as the fifth prepared map.
+
+The canonical plugin order is Morrowind, Tribunal, Bloodmoon, OAAB_Data,
+Tamriel_Data, and MD_Azurian Isles. Only the last plugin supplies LAND coverage;
+the catalog includes only locations on Lyithdonea LAND. Base-game travel connections
+remain outside this map. Named cells and entrances without LAND are also excluded
+from the scoped province catalog; the unscoped catalog still rejects them.
+Optional MWSE/OpenMW addons, footsteps, splash art and OAAB
+replacer patches are not mounted for rendering.
+
+The profile uses the same renderer and quality settings as TR Mainland: 512×512
+native tiles, z0–z7, 3×3-cell batches, baked grading, stabilization and full audits.
+Smoke samples cover Azura (87, -75), the Isles of Dusk (87, -72), and Bnay (84, -84).
+Run each command only after the preceding one succeeds:
+
+```bash
+pnpm render:check azurian-isles
+pnpm render:smoke azurian-isles
+pnpm render:azurian-isles --workers 2 --render-workers 2
+```
+
+The complete run produces `local-data/render/azurian-isles/candidate/apps/web/public`.
+Preview it with `pnpm render:preview --public-root` and that path; use `render:use`
+with the same path only after review. Lyithdonea appears as the fifth
+landing choice, opens at z=4 and has no redundant map-section filter. Existing maps
+and explicit camera URLs are preserved.
+
+For future versions, copy the profile into `local-data/profiles/next-az.json`, update
+release metadata, dataset ID and verified input hashes, and replace the complete
+matching input packages. Pass `--profile local-data/profiles/next-az.json` to check,
+smoke and render commands; use a dedicated `--work-root local-data/render/next-az`.
+The initial mod hash pins the clean Nexus 0.3.1 ESM, which matches the author's
+GitHub `0.3.1` tag. Update this pin only after validating a complete new release. Master-size exceptions cover exact dependency
+versions and byte counts, and never permit damaged or truncated plugins.
+
 ## Release identity and future versions
 
-With an active TR, Cyrodiil or Home of the Nords profile, a local rebuild uses
+With an active TR, Cyrodiil, Home of the Nords or Lyithdonea profile, a local rebuild uses
 `<active-datasetId>-local` and a newly
 derived snapshot. Its generated profile removes the published `adoptedSnapshotId`,
 normalizes source paths, and retains all pinned hashes and master-size exceptions.

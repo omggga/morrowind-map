@@ -81,7 +81,8 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm build",
     "preview": "pnpm --filter @morrowind-map/web preview",
     "render:project-cyrodiil": "python3 -m tools.rendering.cli run project-cyrodiil",
-    "render:home-of-nords": "python3 -m tools.rendering.cli run home-of-nords"
+    "render:home-of-nords": "python3 -m tools.rendering.cli run home-of-nords",
+    "render:azurian-isles": "python3 -m tools.rendering.cli run azurian-isles"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

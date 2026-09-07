@@ -17,7 +17,8 @@ Map data, fonts, icons, manifests, and runtime artifacts are served from the sam
 - `original-goty-hd`;
 - one active versioned Tamriel Rebuilt dataset;
 - one active versioned Project Cyrodiil dataset;
-- one active versioned Home of the Nords dataset.
+- one active versioned Home of the Nords dataset;
+- one active versioned Lyithdonea dataset.
 
 The index contains only identity, ordering, and the manifest URL. Each manifest defines:
 
@@ -57,6 +58,14 @@ and Tamriel Data supply dependencies; grass, TR and Cyrodiil plugins are exclude
 The candidate adds or replaces the fourth map while retaining every other active
 map and its immutable artifacts.
 
+### Lyithdonea: The Azurian Isles
+
+The `azurian-isles` map uses `config/az-release.json`, the shared province workflow,
+and an additional OAAB Data dependency. Its `az:` snapshots contain only
+`MD_Azurian Isles.esm` LAND and locations on that LAND. The contract accepts five
+maps; a Lyithdonea addition or update preserves every other active map. Its fifth
+landing choice opens the prepared Lyithdonea manifest.
+
 ## Basemap and catalog
 
 The basemap is a sparse lossless WebP pyramid, `z0…z7`, with a native tile size of `512×512`. The manifest declares a top-left XYZ grid and coverage, so coordinates outside that coverage do not generate unnecessary HTTP requests. Presentation is already baked into the output by the producer; the runtime must not alter color or alpha again.
@@ -86,7 +95,7 @@ Changes enter `main` through topic-branch PRs. CI validates the Git source bound
 
 The URL stores `dataset`, `region`, `x`, `y`, `z`, and the selected `place`. Input parameters are validated and canonicalized; Back/Forward restores meaningful navigation state without adding history entries for every pan or zoom.
 
-Entering a map from the landing page without an explicit camera uses `map.projection.center` from the manifest. Original and TR open at `z=3`; Cyrodiil and Home of the Nords open at `z=4`. The selected `tr-mainland` region opens at Old Ebonheart at `z=4`. Explicit valid `x/y/z` URL coordinates always take precedence over defaults or region focus.
+Entering a map from the landing page without an explicit camera uses `map.projection.center` from the manifest. Original and TR open at `z=3`; Cyrodiil, Home of the Nords and Lyithdonea open at `z=4`. The selected `tr-mainland` region opens at Old Ebonheart at `z=4`. Explicit valid `x/y/z` URL coordinates always take precedence over defaults or region focus.
 
 Region, type, status, and zoom-tier filters apply to the full catalog. The results list appends DOM rows in batches as the user scrolls; search, facet counts, map markers, and the total number of matches use the full filtered set, not just the rendered batch.
 

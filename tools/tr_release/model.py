@@ -16,6 +16,7 @@ MAP_KEY = "tamriel-rebuilt"
 PROVINCE_RELEASES = {
     "project-cyrodiil": ("pc", "project-cyrodiil-core", "Cyr_Main.esm", "cyr-main-esm", "cyrodiil"),
     "home-of-nords": ("shotn", "home-of-nords-core", "Sky_Main.esm", "sky-main-esm", "skyrim"),
+    "azurian-isles": ("az", "azurian-isles-core", "MD_Azurian Isles.esm", "azurian-isles-esm", "azurian-isles"),
 }
 DATA_DIRECTORY_IDS = ("base-game", "tamriel-data", "tamriel-rebuilt-core")
 FALLBACK_ARCHIVES = ("Morrowind.bsa", "Tribunal.bsa", "Bloodmoon.bsa")
@@ -604,6 +605,11 @@ def parse_profile(value: object) -> ReleaseProfile:
         content_order = (*CONTENT_FILES[:4], plugin_name)
         inventory_order = INVENTORY_ONLY_FILES[:1]
         input_layout = (*INPUT_LAYOUT[:8], (input_id, directory_id, plugin_name))
+        if map_key == "azurian-isles":
+            directory_ids = (*DATA_DIRECTORY_IDS[:2], "oaab-data", directory_id)
+            content_order = (*CONTENT_FILES[:3], "OAAB_Data.esm", "Tamriel_Data.esm", plugin_name)
+            input_layout = (*INPUT_LAYOUT[:8], ("oaab-data-esm", "oaab-data", "OAAB_Data.esm"),
+                            (input_id, directory_id, plugin_name))
     title = _localized(root["title"], "title")
     summary = _localized(root["summary"], "summary")
     if {item[0] for item in title} != {item[0] for item in summary}:

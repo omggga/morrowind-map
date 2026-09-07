@@ -1,0 +1,170 @@
+{
+  "contentFiles": [
+    "Morrowind.esm",
+    "Tribunal.esm",
+    "Bloodmoon.esm",
+    "OAAB_Data.esm",
+    "Tamriel_Data.esm",
+    "MD_Azurian Isles.esm"
+  ],
+  "dataDirectories": [
+    {
+      "id": "base-game",
+      "path": "bsa"
+    },
+    {
+      "id": "tamriel-data",
+      "path": "tamriel-data"
+    },
+    {
+      "id": "oaab-data",
+      "path": "oaab-data/00 Core"
+    },
+    {
+      "id": "azurian-isles-core",
+      "path": "azurian-isles/00 Core"
+    }
+  ],
+  "datasetId": "azurian-isles-0.3.1",
+  "excludedOptionalModules": [],
+  "fallbackArchives": [
+    "Morrowind.bsa",
+    "Tribunal.bsa",
+    "Bloodmoon.bsa"
+  ],
+  "inventoryOnlyFiles": [
+    "Tamriel_Data.omwscripts"
+  ],
+  "mapKey": "azurian-isles",
+  "masterSizeExceptions": [
+    {
+      "actualBytes": 1713532,
+      "advertisedBytes": 1700569,
+      "dependentInputId": "azurian-isles-esm",
+      "masterInputId": "oaab-data-esm",
+      "reason": "lyithdonea-0.3.1-with-oaab-data-2.6.2"
+    },
+    {
+      "actualBytes": 17199325,
+      "advertisedBytes": 14887731,
+      "dependentInputId": "azurian-isles-esm",
+      "masterInputId": "tamriel-data-esm",
+      "reason": "lyithdonea-0.3.1-with-tamriel-data-26.08"
+    }
+  ],
+  "pluginRegions": {
+    "Bloodmoon.esm": "solstheim",
+    "MD_Azurian Isles.esm": "azurian-isles",
+    "Morrowind.esm": "vvardenfell",
+    "OAAB_Data.esm": "azurian-isles",
+    "Tamriel_Data.esm": "azurian-isles",
+    "Tribunal.esm": "vvardenfell"
+  },
+  "regions": [
+    {
+      "id": "azurian-isles",
+      "kind": "exterior",
+      "status": "available",
+      "title": {
+        "en": "Azurian Isles"
+      }
+    }
+  ],
+  "release": {
+    "build": "0.3.1",
+    "name": "The Azurian Isles",
+    "version": "0.3.1"
+  },
+  "requiredInputs": [
+    {
+      "directoryId": "base-game",
+      "filename": "Morrowind.esm",
+      "id": "morrowind-esm",
+      "sha256": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647"
+    },
+    {
+      "directoryId": "base-game",
+      "filename": "Tribunal.esm",
+      "id": "tribunal-esm",
+      "sha256": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b"
+    },
+    {
+      "directoryId": "base-game",
+      "filename": "Bloodmoon.esm",
+      "id": "bloodmoon-esm",
+      "sha256": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+    },
+    {
+      "directoryId": "base-game",
+      "filename": "Morrowind.bsa",
+      "id": "morrowind-bsa",
+      "sha256": "3dcd5e6bfa08245521a53374bf733ee5c920df49103898a15aa31144ad64cf48"
+    },
+    {
+      "directoryId": "base-game",
+      "filename": "Tribunal.bsa",
+      "id": "tribunal-bsa",
+      "sha256": "3901e7a146f7a64a4ae9534c80d5974f7ab15adf5c48c4561d9313c0f7831d69"
+    },
+    {
+      "directoryId": "base-game",
+      "filename": "Bloodmoon.bsa",
+      "id": "bloodmoon-bsa",
+      "sha256": "7c20956791400d958cb407f0b7c1c19ceaf46719df7eb724d0b450299360bd7c"
+    },
+    {
+      "directoryId": "tamriel-data",
+      "filename": "Tamriel_Data.esm",
+      "id": "tamriel-data-esm",
+      "sha256": "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f"
+    },
+    {
+      "directoryId": "tamriel-data",
+      "filename": "Tamriel_Data.omwscripts",
+      "id": "tamriel-data-scripts",
+      "sha256": "468251f4f9f23eab9a97e2bfcd9de9c979ba9b4a3d2d8095e3a6317931a8ef45"
+    },
+    {
+      "directoryId": "oaab-data",
+      "filename": "OAAB_Data.esm",
+      "id": "oaab-data-esm",
+      "sha256": "b7e87201c2683415cafc3a23462acd32dd6c9b276b91da2813a6f17ef0412e5f"
+    },
+    {
+      "directoryId": "azurian-isles-core",
+      "filename": "MD_Azurian Isles.esm",
+      "id": "azurian-isles-esm",
+      "sha256": "b22f782563db2c0a343e3e6e2f5db18f4b49283ca5af5b22958d4ac1ab349f42"
+    }
+  ],
+  "schemaVersion": 1,
+  "smokeCenters": [
+    {
+      "cell": [
+        87,
+        -75
+      ],
+      "id": "azura"
+    },
+    {
+      "cell": [
+        87,
+        -72
+      ],
+      "id": "isles-of-dusk"
+    },
+    {
+      "cell": [
+        84,
+        -84
+      ],
+      "id": "bnay"
+    }
+  ],
+  "summary": {
+    "en": "Explore the tropical archipelago of Lyithdonea, including Azura and the Isles of Dusk."
+  },
+  "title": {
+    "en": "Lyithdonea — The Azurian Isles"
+  }
+}

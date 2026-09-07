@@ -244,7 +244,7 @@ function regionNavigationView(
     return {
       center: [...dataset.map.projection.center],
       zoom: clampZoom(DEFAULT_MAP_ZOOM + (
-        dataset.mapKey === 'home-of-nords' || dataset.mapKey === 'project-cyrodiil' ? 1 : 0
+        dataset.mapKey === 'home-of-nords' || dataset.mapKey === 'project-cyrodiil' || dataset.mapKey === 'azurian-isles' ? 1 : 0
       )),
     };
   }

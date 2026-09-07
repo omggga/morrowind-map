@@ -25,7 +25,7 @@ CLASSIFICATION_POLICY_VERSION = "tes3-place-type-v2"
 REGION_POLICY_VERSION = "tes3-effective-land-source-v1"
 ALIAS_POLICY_VERSION = "tes3-effective-spellings-v1"
 CELL_DELETE_POLICY_VERSION = "tes3-cell-tombstone-v1"
-KNOWN_REGIONS = ("vvardenfell", "solstheim", "tr-mainland", "cyrodiil", "skyrim")
+KNOWN_REGIONS = ("vvardenfell", "solstheim", "tr-mainland", "cyrodiil", "skyrim", "azurian-isles")
 PLACE_TYPES = {
     "settlement",
     "guild",
@@ -583,7 +583,10 @@ def build_catalog(
         if containing_grid is None or reference.exterior_cell != containing_grid:
             dropped["positionOutsideEffectiveCell"] += 1
             continue
-        if allowed_regions is not None and _region_for_reference(world, reference, normalized_plugin_regions) not in allowed_regions:
+        if allowed_regions is not None and (
+            containing_grid not in world.land_sources
+            or _region_for_reference(world, reference, normalized_plugin_regions) not in allowed_regions
+        ):
             dropped["outsideMapScope"] += 1
             continue
         entrance_groups[destination_key].append(reference)
@@ -682,7 +685,10 @@ def build_catalog(
     for cell in world.cells.values():
         if cell.is_interior or not cell.name.strip():
             continue
-        if allowed_regions is not None and _region_for_grid(world, cell.grid, normalized_plugin_regions) not in allowed_regions:
+        if allowed_regions is not None and (
+            cell.grid not in world.land_sources
+            or _region_for_grid(world, cell.grid, normalized_plugin_regions) not in allowed_regions
+        ):
             continue
         exterior_buckets[canonical_ref_id(cell.name)].append(cell)
 

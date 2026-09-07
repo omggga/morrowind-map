@@ -564,6 +564,17 @@ class CandidateReleaseTests(unittest.TestCase):
             self.assertEqual(len(updated["datasets"]), 4)
             tr = _candidate_index(dataset_id="tr-next", state=state)
             self.assertEqual(tr["datasets"][2:], skyrim["datasets"][2:])
+            azurian = _candidate_index(dataset_id="azurian-isles-0.3.1", state=state, map_key="azurian-isles")
+            self.assertEqual(azurian["datasets"][:4], skyrim["datasets"])
+            az_manifest = fixture.active_root / "manifests/azurian-isles-0.3.1.json"
+            az_manifest.write_text(json.dumps({"datasetId": "azurian-isles-0.3.1", "mapKey": "azurian-isles"}))
+            (fixture.active_root / "index.json").write_text(json.dumps(azurian))
+            state = _active_state(fixture.active_root)
+            updated = _candidate_index(dataset_id="azurian-isles-next", state=state, map_key="azurian-isles")
+            self.assertEqual(updated["datasets"][:4], skyrim["datasets"])
+            self.assertEqual(updated["datasets"][4]["order"], 4)
+            tr = _candidate_index(dataset_id="tr-next", state=state)
+            self.assertEqual(tr["datasets"][2:], azurian["datasets"][2:])
 
     def test_verify_fails_closed_when_a_bound_artifact_is_tampered(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
