@@ -269,7 +269,7 @@ def _identity(profile: Mapping[str, object], lock: Mapping[str, object]) -> tupl
     profile_id = _identifier(profile.get("datasetId"), "Release profile datasetId")
     if profile_id != dataset_id:
         raise ValueError("Release profile and lock datasetId differ")
-    if profile.get("mapKey") not in ("tamriel-rebuilt", "project-cyrodiil", "home-of-nords"):
+    if profile.get("mapKey") not in ("tamriel-rebuilt", "project-cyrodiil", "home-of-nords", "azurian-isles"):
         raise ValueError("Unsupported release mapKey")
     snapshot_id = _required_string(lock.get("snapshotId"), "Release lock snapshotId")
     profile_snapshot = profile.get("snapshotId")
@@ -654,7 +654,7 @@ def _active_state(active_root: Path) -> _ActiveState:
         canonical=False,
     )
     entries = _sequence(index.get("datasets"), "Active dataset index entries")
-    if len(entries) not in (2, 3, 4):
+    if len(entries) not in (2, 3, 4, 5):
         raise ValueError("Active dataset index must contain Original, TR and optional province maps")
     originals: list[tuple[str, dict[str, Any]]] = []
     rebuilt: list[str] = []
@@ -680,14 +680,14 @@ def _active_state(active_root: Path) -> _ActiveState:
         if manifest.get("datasetId") != dataset_id:
             raise ValueError(f"Active manifest identity differs for {dataset_id}")
         map_key = manifest.get("mapKey")
-        if map_key not in {"original", "tamriel-rebuilt", "project-cyrodiil", "home-of-nords"} or map_key in entries_by_map:
+        if map_key not in {"original", "tamriel-rebuilt", "project-cyrodiil", "home-of-nords", "azurian-isles"} or map_key in entries_by_map:
             raise ValueError("Active map keys must be supported and unique")
         entries_by_map[map_key] = copy.deepcopy(entry)
         if map_key == "original":
             originals.append((dataset_id, copy.deepcopy(entry)))
         elif map_key == "tamriel-rebuilt":
             rebuilt.append(dataset_id)
-        elif map_key not in {"project-cyrodiil", "home-of-nords"}:
+        elif map_key not in {"project-cyrodiil", "home-of-nords", "azurian-isles"}:
             raise ValueError(f"Active manifest has unsupported mapKey: {dataset_id}")
     if len(originals) != 1 or len(rebuilt) != 1:
         raise ValueError("Active index must contain exactly one Original and one TR manifest")
@@ -707,6 +707,8 @@ def _active_state(active_root: Path) -> _ActiveState:
         raise ValueError("Project Cyrodiil dataset entry must have order 2")
     if "home-of-nords" in entries_by_map and entries_by_map["home-of-nords"].get("order") != 3:
         raise ValueError("Home of the Nords dataset entry must have order 3")
+    if "azurian-isles" in entries_by_map and entries_by_map["azurian-isles"].get("order") != 4:
+        raise ValueError("Azurian Isles dataset entry must have order 4")
     return _ActiveState(original_id, rebuilt[0], original_entry, entries_by_map)
 
 
@@ -1406,7 +1408,7 @@ def _candidate_index(
     *, dataset_id: str, state: _ActiveState, map_key: str = "tamriel-rebuilt"
 ) -> dict[str, Any]:
     entries = copy.deepcopy(state.entries_by_map)
-    order = {"original": 0, "tamriel-rebuilt": 1, "project-cyrodiil": 2, "home-of-nords": 3}
+    order = {"original": 0, "tamriel-rebuilt": 1, "project-cyrodiil": 2, "home-of-nords": 3, "azurian-isles": 4}
     entries[map_key] = {
         "datasetId": dataset_id,
         "manifestUrl": f"/datasets/manifests/{dataset_id}.json",

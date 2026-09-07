@@ -61,7 +61,8 @@ function landingChoices(datasets: readonly DatasetManifest[]): readonly DatasetM
   const tamrielRebuilt = datasets.find(({ mapKey }) => mapKey === 'tamriel-rebuilt');
   const projectCyrodiil = datasets.find(({ mapKey }) => mapKey === 'project-cyrodiil');
   const homeOfNords = datasets.find(({ mapKey }) => mapKey === 'home-of-nords');
-  return [original, tamrielRebuilt, projectCyrodiil, homeOfNords].filter(
+  const azurianIsles = datasets.find(({ mapKey }) => mapKey === 'azurian-isles');
+  return [original, tamrielRebuilt, projectCyrodiil, homeOfNords, azurianIsles].filter(
     (dataset): dataset is DatasetManifest => dataset !== undefined,
   );
 }
@@ -411,8 +412,8 @@ export function App() {
         </p>
         <p>
           Discover high-resolution maps of Morrowind Game of the Year, Tamriel Rebuilt
-          {' '}— Poison Song, Project Cyrodiil — Abecean Shores, and Skyrim: Home of the Nords
-          {' '}— Dragonstar.
+          {' '}— Poison Song, Project Cyrodiil — Abecean Shores, Skyrim: Home of the Nords
+          {' '}— Dragonstar, and Lyithdonea — The Azurian Isles.
         </p>
         <p>
           Search for towns, caves, ruins, and dungeon entrances, and find your next destination.

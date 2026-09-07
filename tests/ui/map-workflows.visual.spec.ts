@@ -134,7 +134,9 @@ test('pins both themes and the interactive state matrix', async ({ page }, testI
   await map.focus();
   await map.press('Enter');
   const markerEditor = page.getByLabel('Custom marker');
-  await markerEditor.getByRole('textbox', { name: 'Marker name' }).fill('Field note pin');
+  const markerName = markerEditor.getByRole('textbox', { name: 'Marker name' });
+  await expect(markerName).toBeFocused();
+  await markerName.fill('Field note pin');
   await markerEditor.getByRole('textbox', { name: 'Personal note' }).fill('Hidden cache.');
   await markerEditor.getByRole('button', { name: 'Save marker' }).click();
   await expect(markerEditor.getByRole('status')).toHaveText('Saved.');

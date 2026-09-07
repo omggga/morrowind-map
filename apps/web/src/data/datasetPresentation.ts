@@ -5,6 +5,7 @@ const MAP_TITLES = {
   'tamriel-rebuilt': 'Tamriel Rebuilt',
   'project-cyrodiil': 'Project Cyrodiil',
   'home-of-nords': 'Skyrim: Home of the Nords',
+  'azurian-isles': 'Lyithdonea',
 } satisfies Record<DatasetManifest['mapKey'], string>;
 
 const MOD_URLS = {
@@ -12,6 +13,7 @@ const MOD_URLS = {
   'tamriel-rebuilt': 'https://www.nexusmods.com/morrowind/mods/42145',
   'project-cyrodiil': 'https://www.nexusmods.com/morrowind/mods/44922',
   'home-of-nords': 'https://www.nexusmods.com/morrowind/mods/44921',
+  'azurian-isles': 'https://www.nexusmods.com/morrowind/mods/43749',
 } satisfies Record<DatasetManifest['mapKey'], string | null>;
 
 export interface DatasetPresentation {

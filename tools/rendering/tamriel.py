@@ -18,6 +18,8 @@ NORMALIZED_DIRECTORIES = {
     "tamriel-rebuilt-core": "tamriel-rebuilt/00 Core/Data Files",
     "project-cyrodiil-core": "project-cyrodiil/00 Core",
     "home-of-nords-core": "home-of-nords/00 Core",
+    "oaab-data": "oaab-data/00 Core",
+    "azurian-isles-core": "azurian-isles/00 Core",
 }
 RUN_STAGES = (
     "plan", "renderer-smoke", "renderer-render", "renderer-finalize",

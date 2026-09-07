@@ -24,7 +24,7 @@ const entries = configuredRoot
 test('rendered candidate gate requires an explicit public tree', () => {
   test.skip(!configuredRoot, 'Used by the local render workflow.');
   expect(entries.length).toBeGreaterThanOrEqual(2);
-  expect(entries.length).toBeLessThanOrEqual(4);
+  expect(entries.length).toBeLessThanOrEqual(5);
   const keys = entries.map((entry) => readPublic<DatasetManifest>(entry.manifestUrl).mapKey);
   expect(new Set(keys).size).toBe(entries.length);
   expect(keys).toContain('original');
@@ -86,11 +86,11 @@ for (const entry of entries) {
 }
 
 const provinces = entries.filter((entry) =>
-  ['project-cyrodiil', 'home-of-nords'].includes(readPublic<DatasetManifest>(entry.manifestUrl).mapKey));
+  ['project-cyrodiil', 'home-of-nords', 'azurian-isles'].includes(readPublic<DatasetManifest>(entry.manifestUrl).mapKey));
 
 for (const province of provinces) {
   const manifest = readPublic<DatasetManifest>(province.manifestUrl);
-  const title = `${manifest.mapKey === 'home-of-nords' ? 'Skyrim: Home of the Nords' : 'Project Cyrodiil'} — ${manifest.release.name}`;
+  const title = `${manifest.mapKey === 'home-of-nords' ? 'Skyrim: Home of the Nords' : manifest.mapKey === 'azurian-isles' ? 'Lyithdonea' : 'Project Cyrodiil'} — ${manifest.release.name}`;
   test(`opens ${manifest.mapKey} closer without a redundant region filter and preserves shared views`, async ({ page }, testInfo) => {
     await page.goto('/');
     await page.getByRole('button', {

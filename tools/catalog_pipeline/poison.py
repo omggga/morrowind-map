@@ -200,7 +200,7 @@ def _source_descriptors(source_root: Path) -> tuple[PluginInput, ...]:
         for source in SOURCE_INPUTS
         if source.logical_id in CATALOG_SOURCE_IDS
     }
-    if tuple(selected) != CATALOG_SOURCE_IDS:
+    if len(selected) != len(CATALOG_SOURCE_IDS) or set(selected) != set(CATALOG_SOURCE_IDS):
         raise RuntimeError("Pinned catalog inputs do not match the OpenMW profile")
     plugins: list[PluginInput] = []
     for name, source_id in zip(CONTENT_FILES, CATALOG_SOURCE_IDS, strict=True):

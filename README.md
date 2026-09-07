@@ -1,6 +1,6 @@
 # Morrowind Map
 
-Four English-language interactive maps for The Elder Scrolls III: Morrowind, available at [morrowindmap.com](https://morrowindmap.com/).
+Five English-language interactive maps for The Elder Scrolls III: Morrowind, available at [morrowindmap.com](https://morrowindmap.com/).
 
 | Map | Coverage |
 | --- | --- |
@@ -8,6 +8,7 @@ Four English-language interactive maps for The Elder Scrolls III: Morrowind, ava
 | Tamriel Rebuilt | The base game and TR Mainland; currently 26.08 Poison Song |
 | Project Cyrodiil | Abecean Shores 25.05a |
 | Skyrim: Home of the Nords | Dragonstar 25.05; the Reach, including Dragonstar, Karthwasten and Karthgad |
+| Lyithdonea | The Azurian Isles 0.3.1 |
 
 Search places, filter locations, share map links, and keep progress, notes, and personal markers. Mod titles in the map header link to their Nexus Mods pages in a new tab. Personal data stays in your browser; use JSON export/import to transfer it or keep a backup. Records are associated with a specific map version.
 
@@ -22,7 +23,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open `http://127.0.0.1:5173`. The prepared maps need no game installation, Docker, or OpenMW. Git LFS downloads approximately 2.7 GB of ready map tiles.
+Open `http://127.0.0.1:5173`. The prepared maps need no game installation, Docker, or OpenMW. Git LFS downloads approximately 2.8 GB of ready map tiles.
 
 ## Build
 
@@ -55,7 +56,10 @@ pnpm render:smoke all
 pnpm render:all
 # Or: pnpm render:original / pnpm render:tamriel-rebuilt
 #     pnpm render:project-cyrodiil / pnpm render:home-of-nords
+#     pnpm render:azurian-isles
 ```
+
+Lyithdonea requires OAAB Data in addition to GOTY and Tamriel Data.
 
 Rendering needs Python 3.10+, Docker with Linux AMD64 support, and ImageMagick. Full renders can take hours. The workflow produces a candidate for local preview before you adopt or contribute it.
 

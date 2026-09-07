@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tempfile
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -30,6 +31,29 @@ class CatalogDeterminismTests(unittest.TestCase):
 
         self.assertEqual(forward, reverse)
         self.assertEqual(forward, ["ÄFoo"])
+
+    def test_source_inventory_order_does_not_change_plugin_load_order(self) -> None:
+        from tools.catalog_pipeline import poison
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inputs = []
+            for ident, name in (("td", "Tamriel_Data.esm"), ("oaab", "OAAB_Data.esm")):
+                payload = name.encode()
+                (root / name).write_bytes(payload)
+                inputs.append(SimpleNamespace(logical_id=ident, relative_path=name,
+                                              sha256=_sha256_bytes(payload)))
+            with patch.object(poison, "SOURCE_INPUTS", tuple(inputs)), \
+                 patch.object(poison, "CATALOG_SOURCE_IDS", ("oaab", "td")), \
+                 patch.object(poison, "CONTENT_FILES", ("OAAB_Data.esm", "Tamriel_Data.esm")):
+                plugins = poison._source_descriptors(root)
+                self.assertEqual([plugin.name for plugin in plugins], ["OAAB_Data.esm", "Tamriel_Data.esm"])
+                (root / "OAAB_Data.esm").write_bytes(b"changed")
+                with self.assertRaisesRegex(ValueError, "hash mismatch"):
+                    poison._source_descriptors(root)
+                with patch.object(poison, "SOURCE_INPUTS", tuple(inputs[:1])):
+                    with self.assertRaisesRegex(RuntimeError, "do not match"):
+                        poison._source_descriptors(root)
 
     def test_master_size_exception_is_explicit_and_hash_bound(self) -> None:
         dependent = PluginInput("TR_Mainland.esm", Path("TR_Mainland.esm"), "a" * 64)

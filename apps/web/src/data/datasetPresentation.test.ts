@@ -20,6 +20,7 @@ describe('presentDataset', () => {
     ['tamriel-rebuilt', 'Tamriel Rebuilt 27.01', 'Next Release', 'Tamriel Rebuilt — Next Release'],
     ['project-cyrodiil', 'Project Cyrodiil 25.05', 'Abecean Shores', 'Project Cyrodiil — Abecean Shores'],
     ['home-of-nords', 'Skyrim: Home of the Nords 25.05', 'Dragonstar', 'Skyrim: Home of the Nords — Dragonstar'],
+    ['azurian-isles', 'Lyithdonea 0.3.1', 'The Azurian Isles', 'Lyithdonea — The Azurian Isles'],
   ] as const)('presents %s as a flat landing choice', (mapKey, manifestTitle, releaseName, title) => {
     expect(presentDataset(manifest(mapKey, manifestTitle, releaseName))).toMatchObject({ title });
   });

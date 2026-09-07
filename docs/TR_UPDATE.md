@@ -2,8 +2,8 @@
 
 This guide describes the TR input contract and preparing a new map version. Start with
 [RENDERING.md](RENDERING.md) for the shared input layout, commands, and isolated preview
-workflow. A TR-only render preserves Original, Cyrodiil and Home of the Nords; `render:all`
-composes all four newly rendered maps.
+workflow. A TR-only render preserves Original, Cyrodiil, Home of the Nords and Lyithdonea; `render:all`
+composes all five newly rendered maps.
 Work on a topic branch and submit the prepared result through a pull request into `main`.
 Use English for release text, documentation, commit messages, and PR titles/descriptions;
 see [CONTRIBUTING.md](../CONTRIBUTING.md).

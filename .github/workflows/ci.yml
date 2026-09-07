@@ -36,7 +36,7 @@ jobs:
           if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ || "$BASE_SHA" == 0000000000000000000000000000000000000000 ]]; then
             BASE_SHA=$(git rev-parse HEAD^)
           fi
-          if git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- apps/web/public/datasets config/dataset-upload-plan.json config/tr-release.json config/pc-release.json config/shotn-release.json tools/deployment .gitattributes; then
+          if git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- apps/web/public/datasets config/dataset-upload-plan.json config/tr-release.json config/pc-release.json config/shotn-release.json config/az-release.json tools/deployment .gitattributes; then
             echo 'datasets_changed=false' >> "$GITHUB_OUTPUT"
           else
             echo 'datasets_changed=true' >> "$GITHUB_OUTPUT"
