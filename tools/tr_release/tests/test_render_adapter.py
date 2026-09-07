@@ -26,7 +26,7 @@ class LocalRenderAdapterTests(unittest.TestCase):
             self.assertEqual(candidate["masterSizeExceptions"], current["masterSizeExceptions"])
             self.assertEqual(
                 {item["id"]: item["path"] for item in candidate["dataDirectories"]},
-                {key: value for key, value in tamriel.NORMALIZED_DIRECTORIES.items() if key != "project-cyrodiil-core"},
+                {key: value for key, value in tamriel.NORMALIZED_DIRECTORIES.items() if key in {"base-game", "tamriel-data", "tamriel-rebuilt-core"}},
             )
             self.assertTrue(all(item["relativePath"].startswith("tamriel-rebuilt/") for item in candidate["excludedOptionalModules"]))
         self.assertEqual(original.read_bytes(), before)

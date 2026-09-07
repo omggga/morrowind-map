@@ -552,6 +552,18 @@ class CandidateReleaseTests(unittest.TestCase):
             self.assertEqual(len(updated["datasets"]), 3)
             tr = _candidate_index(dataset_id="tr-next", state=state)
             self.assertEqual(tr["datasets"][2], index["datasets"][2])
+            skyrim = _candidate_index(dataset_id="dragonstar-25.05", state=state, map_key="home-of-nords")
+            self.assertEqual(skyrim["datasets"][:3], index["datasets"])
+            self.assertEqual(skyrim["datasets"][3]["order"], 3)
+            sky_manifest = fixture.active_root / "manifests/dragonstar-25.05.json"
+            sky_manifest.write_text(json.dumps({"datasetId": "dragonstar-25.05", "mapKey": "home-of-nords"}))
+            (fixture.active_root / "index.json").write_text(json.dumps(skyrim))
+            state = _active_state(fixture.active_root)
+            updated = _candidate_index(dataset_id="dragonstar-next", state=state, map_key="home-of-nords")
+            self.assertEqual(updated["datasets"][:3], index["datasets"])
+            self.assertEqual(len(updated["datasets"]), 4)
+            tr = _candidate_index(dataset_id="tr-next", state=state)
+            self.assertEqual(tr["datasets"][2:], skyrim["datasets"][2:])
 
     def test_verify_fails_closed_when_a_bound_artifact_is_tampered(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -25,7 +25,7 @@ CLASSIFICATION_POLICY_VERSION = "tes3-place-type-v2"
 REGION_POLICY_VERSION = "tes3-effective-land-source-v1"
 ALIAS_POLICY_VERSION = "tes3-effective-spellings-v1"
 CELL_DELETE_POLICY_VERSION = "tes3-cell-tombstone-v1"
-KNOWN_REGIONS = ("vvardenfell", "solstheim", "tr-mainland", "cyrodiil")
+KNOWN_REGIONS = ("vvardenfell", "solstheim", "tr-mainland", "cyrodiil", "skyrim")
 PLACE_TYPES = {
     "settlement",
     "guild",
@@ -88,7 +88,7 @@ def policy_descriptor(plugin_regions: Mapping[str, str]) -> dict[str, object]:
         "aliases": ALIAS_POLICY_VERSION,
         "cellDelete": CELL_DELETE_POLICY_VERSION,
         "cellSize": CELL_SIZE,
-        "regions": list(KNOWN_REGIONS if "cyrodiil" in plugin_regions.values() else KNOWN_REGIONS[:3]),
+        "regions": list(KNOWN_REGIONS[:3]) + [region for region in KNOWN_REGIONS[3:] if region in plugin_regions.values()],
         "pluginRegions": _normalized_plugin_regions(plugin_regions),
     }
 

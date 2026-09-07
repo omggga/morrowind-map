@@ -1,4 +1,4 @@
-"""Run a versioned TR or Cyrodiil release in an isolated local workspace."""
+"""Run a versioned province release in an isolated local workspace."""
 from __future__ import annotations
 
 import argparse
@@ -17,6 +17,7 @@ NORMALIZED_DIRECTORIES = {
     "tamriel-data": "tamriel-data",
     "tamriel-rebuilt-core": "tamriel-rebuilt/00 Core/Data Files",
     "project-cyrodiil-core": "project-cyrodiil/00 Core",
+    "home-of-nords-core": "home-of-nords/00 Core",
 }
 RUN_STAGES = (
     "plan", "renderer-smoke", "renderer-render", "renderer-finalize",

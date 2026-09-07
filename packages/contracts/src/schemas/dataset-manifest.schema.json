@@ -28,7 +28,7 @@
       "$ref": "#/$defs/datasetId"
     },
     "mapKey": {
-      "enum": ["original", "tamriel-rebuilt", "project-cyrodiil"]
+      "enum": ["original", "tamriel-rebuilt", "project-cyrodiil", "home-of-nords"]
     },
     "snapshotId": {
       "type": "string",

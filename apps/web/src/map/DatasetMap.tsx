@@ -141,7 +141,7 @@ interface BasemapRuntimeState {
 type MarkerEmphasis = 'default' | 'hovered' | 'selected';
 
 const RESULT_BATCH_SIZE = 80;
-const DEFAULT_MAP_ZOOM = 2;
+const DEFAULT_MAP_ZOOM = 3;
 const OLD_EBONHEART_VIEW: MapUrlView = {
   center: [53_248, -151_552],
   zoom: 4,
@@ -243,7 +243,9 @@ function regionNavigationView(
   if (regionId === 'all') {
     return {
       center: [...dataset.map.projection.center],
-      zoom: clampZoom(DEFAULT_MAP_ZOOM + (dataset.mapKey === 'project-cyrodiil' ? 1 : 0)),
+      zoom: clampZoom(DEFAULT_MAP_ZOOM + (
+        dataset.mapKey === 'home-of-nords' || dataset.mapKey === 'project-cyrodiil' ? 1 : 0
+      )),
     };
   }
   if (dataset.mapKey === 'tamriel-rebuilt' && regionId === 'tr-mainland') {
@@ -473,6 +475,7 @@ export function DatasetMap({
 
 export function MapTitlebar({ dataset, onBack, tools }: MapTitlebarProps) {
   const { t } = useTranslation();
+  const presentation = presentDataset(dataset);
   return (
     <header className="window-titlebar map-titlebar">
       <button className="back-button" type="button" onClick={onBack}>
@@ -480,7 +483,18 @@ export function MapTitlebar({ dataset, onBack, tools }: MapTitlebarProps) {
         {t('map.versions')}
       </button>
       <div className="map-title-copy">
-        <h1 id="map-title">{presentDataset(dataset).title}</h1>
+        <h1 id="map-title">
+          {presentation.modUrl ? (
+            <a
+              href={presentation.modUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View mod on Nexus Mods (opens in a new tab)"
+            >
+              {presentation.title}
+            </a>
+          ) : presentation.title}
+        </h1>
       </div>
       {tools ? <div className="map-titlebar-tools">{tools}</div> : null}
     </header>
@@ -2095,7 +2109,7 @@ function DatasetMapReady({
             </span>
           </label>
 
-          {dataset.mapKey !== 'project-cyrodiil' ? (
+          {availableRegionIds.length > 1 ? (
             <fieldset className="region-filter">
               <legend>{t('map.regions')}</legend>
               {(['all', ...availableRegionIds] as const).map((regionId) => (

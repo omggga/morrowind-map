@@ -13,6 +13,10 @@ from typing import Iterable, Mapping, Sequence
 
 SCHEMA_VERSION = 1
 MAP_KEY = "tamriel-rebuilt"
+PROVINCE_RELEASES = {
+    "project-cyrodiil": ("pc", "project-cyrodiil-core", "Cyr_Main.esm", "cyr-main-esm", "cyrodiil"),
+    "home-of-nords": ("shotn", "home-of-nords-core", "Sky_Main.esm", "sky-main-esm", "skyrim"),
+}
 DATA_DIRECTORY_IDS = ("base-game", "tamriel-data", "tamriel-rebuilt-core")
 FALLBACK_ARCHIVES = ("Morrowind.bsa", "Tribunal.bsa", "Bloodmoon.bsa")
 CONTENT_FILES = (
@@ -189,15 +193,15 @@ class ReleaseProfile:
 
     @property
     def snapshot_prefix(self) -> str:
-        return "pc" if self.map_key == "project-cyrodiil" else "tr"
+        return PROVINCE_RELEASES[self.map_key][0] if self.map_key in PROVINCE_RELEASES else "tr"
 
     @property
     def land_content_files(self) -> tuple[str, ...]:
-        return ("Cyr_Main.esm",) if self.map_key == "project-cyrodiil" else self.content_files
+        return (PROVINCE_RELEASES[self.map_key][2],) if self.map_key in PROVINCE_RELEASES else self.content_files
 
     @property
     def catalog_regions(self) -> tuple[str, ...] | None:
-        return ("cyrodiil",) if self.map_key == "project-cyrodiil" else None
+        return (PROVINCE_RELEASES[self.map_key][4],) if self.map_key in PROVINCE_RELEASES else None
 
     @property
     def localized_title(self) -> dict[str, str]:
@@ -588,17 +592,18 @@ def parse_profile(value: object) -> ReleaseProfile:
         raise ProfileError(f"schemaVersion must be {SCHEMA_VERSION}")
     dataset_id = _slug(root["datasetId"], "datasetId")
     map_key = root["mapKey"]
-    if map_key not in (MAP_KEY, "project-cyrodiil"):
-        raise ProfileError("mapKey must be tamriel-rebuilt or project-cyrodiil")
+    if map_key not in (MAP_KEY, *PROVINCE_RELEASES):
+        raise ProfileError("mapKey must identify a supported release")
     directory_ids = DATA_DIRECTORY_IDS
     content_order = CONTENT_FILES
     inventory_order = INVENTORY_ONLY_FILES
     input_layout = INPUT_LAYOUT
-    if map_key == "project-cyrodiil":
-        directory_ids = (*DATA_DIRECTORY_IDS[:2], "project-cyrodiil-core")
-        content_order = (*CONTENT_FILES[:4], "Cyr_Main.esm")
+    if map_key in PROVINCE_RELEASES:
+        _, directory_id, plugin_name, input_id, _ = PROVINCE_RELEASES[map_key]
+        directory_ids = (*DATA_DIRECTORY_IDS[:2], directory_id)
+        content_order = (*CONTENT_FILES[:4], plugin_name)
         inventory_order = INVENTORY_ONLY_FILES[:1]
-        input_layout = (*INPUT_LAYOUT[:8], ("cyr-main-esm", "project-cyrodiil-core", "Cyr_Main.esm"))
+        input_layout = (*INPUT_LAYOUT[:8], (input_id, directory_id, plugin_name))
     title = _localized(root["title"], "title")
     summary = _localized(root["summary"], "summary")
     if {item[0] for item in title} != {item[0] for item in summary}:
@@ -719,7 +724,7 @@ def parse_profile(value: object) -> ReleaseProfile:
         raise ProfileError("pluginRegions must map every content file exactly once")
     region_ids = {item.id for item in regions}
     # Dependency regions are resolved during merge, but need not be published.
-    if map_key == "project-cyrodiil":
+    if map_key in PROVINCE_RELEASES:
         region_ids |= {"vvardenfell", "solstheim"}
     plugin_regions: list[tuple[str, str]] = []
     for plugin in content_order:

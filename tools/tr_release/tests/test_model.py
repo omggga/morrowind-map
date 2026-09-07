@@ -68,6 +68,16 @@ class ReleaseProfileTests(unittest.TestCase):
         self.assertEqual(len(profile.smoke_centers), 4)
         self.assertEqual(profile.to_dict(), self.payload)
 
+    def test_home_of_nords_keeps_dependency_land_and_grass_out_of_render(self) -> None:
+        profile = load_profile(REPO_ROOT / "config/shotn-release.json")
+        self.assertEqual(parse_profile(profile.to_dict()), profile)
+        self.assertEqual(profile.land_content_files, ("Sky_Main.esm",))
+        self.assertEqual(profile.catalog_regions, ("skyrim",))
+        self.assertEqual(profile.snapshot_prefix, "shotn")
+        self.assertNotIn("Sky_Main_Grass.esp", profile.content_files)
+        self.assertNotIn("Cyr_Main.esm", profile.content_files)
+        self.assertNotIn("TR_Mainland.esm", profile.content_files)
+
     def test_profile_rejects_unknown_keys_at_every_fixed_object_layer(self) -> None:
         cases = []
         root = copy.deepcopy(self.payload)

@@ -8,7 +8,7 @@ Choose checks that match your change. You do not need to run every tool locally 
 | Documentation | Review text and links; `git diff --check` |
 | UI layout or interaction | `pnpm check`, then `pnpm test:ui` |
 | Catalog or renderer | Relevant `pnpm test:catalog`, `test:renderer`, `test:openmw-renderer`, `test:original-renderer`, `test:tr-release`, or `test:rendering`; smoke-render affected maps when renderer behavior changes |
-| Ready datasets | `pnpm deploy:datasets:plan` and `pnpm test:acceptance:prepared` |
+| Ready datasets | `pnpm deploy:datasets:plan`, `pnpm test:acceptance:prepared`, and the all-map browser check below |
 
 `pnpm check` runs type checking, lint, application/contract unit tests, and the production build. It needs no Python, OpenMW, game inputs, or browser-test installation. Individual application tests can be run with `pnpm test:unit <test-file>`.
 
@@ -33,6 +33,16 @@ pnpm test:ui
 ```
 
 Baselines are platform-specific; CI supplies the Linux result. Do not regenerate unrelated screenshots to silence a failure.
+
+## Prepared map checks
+
+Exercise real tiles, search and navigation for every active map after adopting a candidate:
+
+```bash
+MORROWIND_RENDER_PUBLIC_ROOT="$PWD/apps/web/public" pnpm test:acceptance:rendered
+```
+
+CI also runs this check when datasets change.
 
 ## Map quality
 

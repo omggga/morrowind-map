@@ -145,6 +145,25 @@ describe('App dataset workflow', () => {
     expect(screen.getByRole('region', { name: 'mock map' })).toBeInTheDocument();
   });
 
+  it('replaces the Home of the Nords placeholder with the fourth prepared map', async () => {
+    const cyrodiil = manifestFixture('abecean-shores-25.05', 'project-cyrodiil', 'Project Cyrodiil');
+    const skyrim = manifestFixture('dragonstar-25.05', 'home-of-nords', 'Home of the Nords');
+    skyrim.release.name = 'Dragonstar';
+    const added = [cyrodiil, skyrim];
+    const index = { ...indexFixture, datasets: [...indexFixture.datasets, ...added.map((dataset, offset) => ({
+      datasetId: dataset.datasetId, manifestUrl: `/datasets/${dataset.datasetId}.json`, order: offset + 2,
+    }))] };
+    const responses = [index, ...manifests, ...added];
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(responses.shift()) })));
+    render(<App />);
+    const card = await screen.findByRole('button', { name: 'Open map: Skyrim: Home of the Nords — Dragonstar' });
+    expect(screen.getAllByRole('button', { name: /Open map:/ })[3]).toBe(card);
+    expect(screen.queryByText('Coming soon')).not.toBeInTheDocument();
+    fireEvent.click(card);
+    expect(window.location.search).toBe('?dataset=dragonstar-25.05&region=all');
+    expect(screen.getByRole('region', { name: 'mock map' })).toBeInTheDocument();
+  });
+
   it('loads all manifests, opens a selected map, and returns to the cards', async () => {
     render(<App />);
 

@@ -48,17 +48,31 @@ const navigationState = {
 describe('MapTitlebar', () => {
   afterEach(cleanup);
 
-  it('shows only navigation, the dataset title and optional header tools', () => {
+  it.each([
+    ['original', null],
+    ['tamriel-rebuilt', 'https://www.nexusmods.com/morrowind/mods/42145'],
+    ['project-cyrodiil', 'https://www.nexusmods.com/morrowind/mods/44922'],
+    ['home-of-nords', 'https://www.nexusmods.com/morrowind/mods/44921'],
+  ] as const)('shows navigation, the %s title, its mod link and optional header tools', (mapKey, modUrl) => {
     render(
       <MapTitlebar
-        dataset={dataset}
+        dataset={{ ...dataset, mapKey }}
         onBack={vi.fn()}
         tools={<span>Data actions</span>}
       />,
     );
 
     expect(screen.getByRole('button', { name: 'Back to maps' })).toBeEnabled();
-    expect(screen.getByRole('heading', { name: 'Tamriel Rebuilt — Poison Song' })).toBeVisible();
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading).toBeVisible();
+    if (modUrl) {
+      const link = within(heading).getByRole('link');
+      expect(link).toHaveAttribute('href', modUrl);
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    } else {
+      expect(within(heading).queryByRole('link')).not.toBeInTheDocument();
+    }
     expect(screen.getByText('Data actions')).toBeVisible();
     expect(screen.queryByText('TR / TES3:WORLD')).not.toBeInTheDocument();
     expect(screen.queryByText('LOCAL')).not.toBeInTheDocument();

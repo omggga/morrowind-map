@@ -4,6 +4,7 @@ import datasetIndexFixture from "../../../apps/web/public/datasets/index.json";
 import originalFixture from "../../../apps/web/public/datasets/manifests/original-goty-hd.json";
 import poisonSongFixture from "../../../apps/web/public/datasets/manifests/poison-song-26.08.json";
 import cyrodiilFixture from "../../../apps/web/public/datasets/manifests/abecean-shores-25.05a.json";
+import homeOfNordsFixture from "../../../apps/web/public/datasets/manifests/dragonstar-25.05.json";
 import {
   ContractValidationError,
   getDatasetIndexValidationIssues,
@@ -16,13 +17,14 @@ const manifestsByDatasetId: Readonly<Record<string, unknown>> = {
   "original-goty-hd": originalFixture,
   "poison-song-26.08": poisonSongFixture,
   "abecean-shores-25.05a": cyrodiilFixture,
+  "dragonstar-25.05": homeOfNordsFixture,
 };
 
 describe("public dataset fixtures", () => {
-  it("validates the index and all three referenced manifests", () => {
+  it("validates the index and all four referenced manifests", () => {
     const index = parseDatasetIndex(datasetIndexFixture);
 
-    expect(index.datasets).toHaveLength(3);
+    expect(index.datasets).toHaveLength(4);
     for (const entry of index.datasets) {
       const manifest = parseDatasetManifest(manifestsByDatasetId[entry.datasetId]);
       expect(manifest.datasetId).toBe(entry.datasetId);

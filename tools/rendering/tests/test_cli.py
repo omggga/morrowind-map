@@ -45,8 +45,10 @@ class RenderingWorkflowTests(unittest.TestCase):
             self.assertEqual(tr_run[-2:], ["--baseline-public-root", str(root / "original/public")])
             pc_run = next(args for target, args in calls if target == "project-cyrodiil" and args[0] == "run")
             self.assertEqual(pc_run[-2:], ["--baseline-public-root", str(root / "tamriel-rebuilt/public")])
-            self.assertEqual(validate.call_count, 3)
-            self.assertEqual(json.loads((root / "result.json").read_text())["publicRoot"], str(root / "project-cyrodiil/public"))
+            sky_run = next(args for target, args in calls if target == "home-of-nords" and args[0] == "run")
+            self.assertEqual(sky_run[-2:], ["--baseline-public-root", str(root / "project-cyrodiil/public")])
+            self.assertEqual(validate.call_count, 4)
+            self.assertEqual(json.loads((root / "result.json").read_text())["publicRoot"], str(root / "home-of-nords/public"))
 
     def test_work_root_cannot_pollute_inputs_or_tracked_files(self) -> None:
         for path in (cli.REPO_ROOT / "apps/web/public", cli.REPO_ROOT / "local-data/inputs/output"):

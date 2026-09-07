@@ -63,7 +63,7 @@ class CliIdentityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             index = Path(raw) / "index.json"
             index.write_text('{"datasets":[]}', encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "Original.*exactly one TR"):
+            with self.assertRaisesRegex(ValueError, "two to four maps including Original"):
                 _assert_future_dataset_id("tamriel-rebuilt-27.01", index)
 
 

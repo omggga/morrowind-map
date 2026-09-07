@@ -11,11 +11,11 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from tools.rendering.common import REPO_ROOT, atomic_copy, safe_path, write_json
+from tools.rendering.common import RELEASE_PROFILES, REPO_ROOT, atomic_copy, safe_path, write_json
 
 
-TARGETS = ("original", "tamriel-rebuilt", "project-cyrodiil")
-MODULES = {"original": "tools.rendering.original", "tamriel-rebuilt": "tools.rendering.tamriel", "project-cyrodiil": "tools.rendering.tamriel"}
+TARGETS = ("original", *RELEASE_PROFILES)
+MODULES = {"original": "tools.rendering.original", **dict.fromkeys(RELEASE_PROFILES, "tools.rendering.tamriel")}
 BASE_IMAGE = "morrowind-map-openmw:0.51.0-stage45"
 
 
@@ -32,8 +32,8 @@ def adapter_arguments(args: argparse.Namespace, target: str, command: str) -> li
               "--workers", str(args.workers), "--render-workers", str(args.render_workers)]
     if target == "original" and args.settings:
         result += ["--settings", str(args.settings.resolve())]
-    if target in {"tamriel-rebuilt", "project-cyrodiil"}:
-        profile = args.profile or REPO_ROOT / "config" / ("pc-release.json" if target == "project-cyrodiil" else "tr-release.json")
+    if target in RELEASE_PROFILES:
+        profile = args.profile or REPO_ROOT / "config" / RELEASE_PROFILES[target]
         result += ["--profile", str(profile.resolve())]
         if args.dataset_id:
             result += ["--dataset-id", args.dataset_id]
@@ -121,12 +121,11 @@ def use_candidate(public_root: Path) -> None:
     destination = REPO_ROOT / "apps/web/public"
     index = json.loads((source / "datasets/index.json").read_text())
     release_profiles = []
-    for name in ("tr-release.json", "pc-release.json"):
+    for expected_key, name in RELEASE_PROFILES.items():
         release_profile = safe_path(source.parent / name, REPO_ROOT)
         if release_profile.is_file():
             from tools.tr_release.model import load_profile
             profile = load_profile(release_profile)
-            expected_key = "project-cyrodiil" if name == "pc-release.json" else "tamriel-rebuilt"
             if profile.map_key != expected_key:
                 raise ValueError("Candidate release profile has the wrong map identity")
             if profile.dataset_id not in {entry["datasetId"] for entry in index["datasets"]}:
@@ -163,7 +162,7 @@ def use_candidate(public_root: Path) -> None:
     for relative in mutable:
         safe_path(source / relative, source)
         safe_path(destination / relative, REPO_ROOT)
-    for name in ("dataset-upload-plan.json", "tr-release.json", "pc-release.json"):
+    for name in ("dataset-upload-plan.json", *RELEASE_PROFILES.values()):
         safe_path(REPO_ROOT / "config" / name, REPO_ROOT)
     for relative in immutable:
         target = destination / relative
@@ -242,7 +241,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             plan = validate_candidate(baseline)
             receipt["graphSha256"] = plan["graphSha256"]
             if target != "original":
-                profile_name = "pc-release.json" if target == "project-cyrodiil" else "tr-release.json"
+                profile_name = RELEASE_PROFILES[target]
                 write_json(baseline.parent / profile_name, json.loads(Path(str(receipt["profile"])).read_text()))
         receipts[target] = receipt
     result = {"status": "complete", "command": args.command, "maps": receipts}

@@ -384,13 +384,13 @@ const landingDefaultViewFixtures: readonly LandingDefaultViewFixture[] = [
     label: 'Poison Song',
     cardName: POISON_CARD_NAME,
     heading: 'Tamriel Rebuilt — Poison Song',
-    view: [90_112, -98_304, 2],
+    view: [90_112, -98_304, 3],
   },
   {
     label: 'Original GOTY HD',
     cardName: ORIGINAL_CARD_NAME,
     heading: 'Morrowind Game of the Year',
-    view: [-16_384, 40_960, 2],
+    view: [-16_384, 40_960, 3],
   },
 ];
 
