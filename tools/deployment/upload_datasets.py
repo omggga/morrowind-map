@@ -544,7 +544,7 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument(
         "--stage-only",
         action="store_true",
-        help="Install an immutable graph without switching data/generated; retain all graph releases",
+        help="Stage an immutable graph without switching data/generated; app publication handles retention",
     )
     mode.add_argument(
         "--probe-plan", type=Path,
