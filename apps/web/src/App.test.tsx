@@ -128,6 +128,23 @@ describe('App dataset workflow', () => {
 
   afterEach(cleanup);
 
+  it('opens Project Cyrodiil as the third map once its dataset is prepared', async () => {
+    const cyrodiil = manifestFixture('abecean-shores-25.05', 'project-cyrodiil', 'Project Cyrodiil');
+    cyrodiil.release.name = 'Abecean Shores';
+    const index = { ...indexFixture, datasets: [...indexFixture.datasets, {
+      datasetId: cyrodiil.datasetId, manifestUrl: '/datasets/cyrodiil.json', order: 3,
+    }] };
+    const responses = [index, ...manifests, cyrodiil];
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(responses.shift()) })));
+    render(<App />);
+    const card = await screen.findByRole('button', { name: 'Open map: Project Cyrodiil — Abecean Shores' });
+    expect(screen.getAllByRole('button', { name: /Open map:/ })[2]).toBe(card);
+    expect(card).toBeEnabled();
+    fireEvent.click(card);
+    expect(window.location.search).toBe('?dataset=abecean-shores-25.05&region=all');
+    expect(screen.getByRole('region', { name: 'mock map' })).toBeInTheDocument();
+  });
+
   it('loads all manifests, opens a selected map, and returns to the cards', async () => {
     render(<App />);
 

@@ -71,12 +71,12 @@ export function LandingContact() {
               <span>murashkin.alex@proton.me</span>
             </a>
             <a
-              href="https://github.com/omggga"
+              href="https://github.com/omggga/morrowind-map/"
               target="_blank"
               rel="noopener noreferrer"
             >
               <PixelIcon name="github" />
-              <span>github.com/omggga</span>
+              <span>github.com/omggga/morrowind-map</span>
             </a>
           </div>
         </aside>

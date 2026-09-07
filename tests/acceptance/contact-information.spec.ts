@@ -34,8 +34,8 @@ test('opens contact information on the landing page and keeps it off the map', a
   await expect(page.getByRole('link', { name: 'murashkin.alex@proton.me' }))
     .toHaveAttribute('href', 'mailto:murashkin.alex@proton.me');
 
-  const github = page.getByRole('link', { name: 'github.com/omggga' });
-  await expect(github).toHaveAttribute('href', 'https://github.com/omggga');
+  const github = page.getByRole('link', { name: 'github.com/omggga/morrowind-map' });
+  await expect(github).toHaveAttribute('href', 'https://github.com/omggga/morrowind-map/');
   await expect(github).toHaveAttribute('target', '_blank');
   await expect(github).toHaveAttribute('rel', /noopener/);
   await expect(github).toHaveAttribute('rel', /noreferrer/);

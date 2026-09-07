@@ -514,7 +514,7 @@ def validate_source(
         "minZoom": MIN_ZOOM,
         "maxZoom": MAX_ZOOM,
         "extent": list(POISON_WORLD_EXTENT),
-        "origin": [-229376.0, 278528.0],
+        "origin": [POISON_WORLD_EXTENT[0], POISON_WORLD_EXTENT[3]],
     }
     for key, expected in expected_identity.items():
         if inventory.get(key) != expected:
@@ -1321,7 +1321,7 @@ def build_publish_metadata(
         "mediaType": "image/webp",
         "tileSize": TILE_PIXELS,
         "extent": list(POISON_WORLD_EXTENT),
-        "origin": [-229376, 278528],
+        "origin": [POISON_WORLD_EXTENT[0], POISON_WORLD_EXTENT[3]],
         "resolutions": list(TILE_RESOLUTIONS),
         "minZoom": MIN_ZOOM,
         "maxZoom": MAX_ZOOM,

@@ -1,4 +1,4 @@
-"""Run the existing TR release pipeline in an isolated local workspace."""
+"""Run a versioned TR or Cyrodiil release in an isolated local workspace."""
 from __future__ import annotations
 
 import argparse
@@ -16,6 +16,7 @@ NORMALIZED_DIRECTORIES = {
     "base-game": "bsa",
     "tamriel-data": "tamriel-data",
     "tamriel-rebuilt-core": "tamriel-rebuilt/00 Core/Data Files",
+    "project-cyrodiil-core": "project-cyrodiil/00 Core",
 }
 RUN_STAGES = (
     "plan", "renderer-smoke", "renderer-render", "renderer-finalize",
@@ -95,6 +96,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     stage("check")
     result: dict[str, object] = {
         "datasetId": load_profile(profile).dataset_id,
+        "mapKey": load_profile(profile).map_key,
         "profile": str(profile), "workRoot": str(work), "valid": True,
     }
     if args.command == "check":

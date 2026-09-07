@@ -18,6 +18,7 @@ describe('presentDataset', () => {
   it.each([
     ['original', 'Morrowind Game of the Year — HD', 'GOTY', 'Morrowind Game of the Year'],
     ['tamriel-rebuilt', 'Tamriel Rebuilt 27.01', 'Next Release', 'Tamriel Rebuilt — Next Release'],
+    ['project-cyrodiil', 'Project Cyrodiil 25.05', 'Abecean Shores', 'Project Cyrodiil — Abecean Shores'],
   ] as const)('presents %s as a flat landing choice', (mapKey, manifestTitle, releaseName, title) => {
     expect(presentDataset(manifest(mapKey, manifestTitle, releaseName))).toEqual({ title });
   });

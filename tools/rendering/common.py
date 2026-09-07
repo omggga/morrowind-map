@@ -111,4 +111,9 @@ def copy_public_tree(source_public: Path, target_public: Path) -> None:
         atomic_copy(source / relative, destination)
     (target / "datasets").mkdir(exist_ok=True)
     write_json(receipt, {"graphSha256": plan["graphSha256"]})
+    for name in ("tr-release.json", "pc-release.json"):
+        profile = source.parent / name
+        if profile.is_file():
+            safe_path(profile, source.parent)
+            atomic_copy(profile, target.parent / name)
     atomic_copy(source / "datasets/index.json", safe_path(target / "datasets/index.json", target))

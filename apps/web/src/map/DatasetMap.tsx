@@ -243,7 +243,7 @@ function regionNavigationView(
   if (regionId === 'all') {
     return {
       center: [...dataset.map.projection.center],
-      zoom: clampZoom(DEFAULT_MAP_ZOOM),
+      zoom: clampZoom(DEFAULT_MAP_ZOOM + (dataset.mapKey === 'project-cyrodiil' ? 1 : 0)),
     };
   }
   if (dataset.mapKey === 'tamriel-rebuilt' && regionId === 'tr-mainland') {
@@ -604,10 +604,11 @@ function DatasetMapReady({
     return dataset.regions
       .filter(
         ({ id, kind, status }) =>
-          kind === 'exterior' && status === 'available' && placeRegions.has(id),
+          kind === 'exterior' && status === 'available' && placeRegions.has(id) &&
+          !(dataset.mapKey === 'tamriel-rebuilt' && id === 'solstheim'),
       )
       .map(({ id }) => id);
-  }, [bundle.locations.places, dataset.regions]);
+  }, [bundle.locations.places, dataset.mapKey, dataset.regions]);
 
   const places = useMemo(
     () =>
@@ -2094,21 +2095,23 @@ function DatasetMapReady({
             </span>
           </label>
 
-          <fieldset className="region-filter">
-            <legend>{t('map.regions')}</legend>
-            {(['all', ...availableRegionIds] as const).map((regionId) => (
-              <button
-                key={regionId}
-                type="button"
-                aria-pressed={region === regionId}
-                onClick={() => selectRegion(regionId)}
-              >
-                {regionId === 'all'
-                  ? t('map.allRegions')
-                  : regionTitle(dataset, regionId)}
-              </button>
-            ))}
-          </fieldset>
+          {dataset.mapKey !== 'project-cyrodiil' ? (
+            <fieldset className="region-filter">
+              <legend>{t('map.regions')}</legend>
+              {(['all', ...availableRegionIds] as const).map((regionId) => (
+                <button
+                  key={regionId}
+                  type="button"
+                  aria-pressed={region === regionId}
+                  onClick={() => selectRegion(regionId)}
+                >
+                  {regionId === 'all'
+                    ? t('map.allRegions')
+                    : regionTitle(dataset, regionId)}
+                </button>
+              ))}
+            </fieldset>
+          ) : null}
 
           <PlaceFilterControls
             availableTypes={availableTypes}

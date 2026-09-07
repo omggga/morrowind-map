@@ -356,6 +356,32 @@ class BatchProcessContractTests(unittest.TestCase):
         self.assertIn('runtime_root="/out/runtime/${MWMAP_EXPORT_BATCH_ID}"', entrypoint)
         self.assertNotIn("exec xvfb-run", entrypoint)
 
+    def test_build_reuses_verified_image_but_rebuilds_when_parent_changes(self) -> None:
+        from dataclasses import replace
+        from types import SimpleNamespace
+        from tools.openmw_renderer import production
+
+        image = production.ProductionImageInfo(
+            image="test-renderer", image_id="sha256:" + "2" * 64,
+            repo_digests=(), os="linux", architecture="amd64",
+            labels={"io.morrowind-map.stage45-image-id": "sha256:" + "1" * 64},
+            contract_errors=(),
+        )
+        base = SimpleNamespace(contract_passes=True, image_id="sha256:" + "1" * 64)
+        with patch.object(production, "stage45_docker_image_info", return_value=base), \
+             patch.object(production, "production_image_info", return_value=image), \
+             patch.object(production.subprocess, "run") as run:
+            self.assertEqual(production.main(["build", "--image", "test-renderer"]), 0)
+            run.assert_not_called()
+        for stale in (replace(image, contract_errors=("source mismatch",)),
+                      replace(image, labels={"io.morrowind-map.stage45-image-id": "sha256:" + "3" * 64})):
+            with self.subTest(stale=stale), \
+                 patch.object(production, "stage45_docker_image_info", return_value=base), \
+                 patch.object(production, "production_image_info", side_effect=[stale, image]), \
+                 patch.object(production.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run:
+                self.assertEqual(production.main(["build", "--image", "test-renderer"]), 0)
+                self.assertTrue(any(call.args[0][:2] == ["docker", "build"] for call in run.call_args_list))
+
     def test_build_command_pins_the_base_tag_and_current_source_fingerprint(self) -> None:
         repo_root = Path(__file__).resolve().parents[3]
         command = docker_build_command(repo_root=repo_root)

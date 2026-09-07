@@ -565,6 +565,31 @@ class CatalogContractTests(unittest.TestCase):
         self.assertEqual(before.english["places"][0]["name"], "Ald-ruhn, Manor District")
         self.assertEqual(before_place["regionId"], "vvardenfell")
 
+    def test_cyrodiil_scope_keeps_dependency_doors_but_excludes_base_map_places(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            base, patch = self._grouping_stack(root)
+            cyrodiil = write_plugin(root, "Cyr_Main.esm", [
+                land((3, 3)), cell("Anvil Shop", interior=True),
+                cell("Anvil", grid=(3, 3), references=[frmr(
+                    1, base_id="door_a", position=(3 * CELL_SIZE + 100.0, 3 * CELL_SIZE + 100.0, 0.0),
+                    door_destination=(0.0, 0.0, 0.0), destination_cell="Anvil Shop",
+                )]),
+            ], masters=((base.name, base.path.stat().st_size),))
+            ocean = write_plugin(root, "Ocean.esp", [cell("", grid=(-19, 15), references=[
+                frmr(1, base_id="door_a", position=(-19 * CELL_SIZE + 100.0, 15 * CELL_SIZE + 100.0, 0.0)),
+            ])], masters=((base.name, base.path.stat().st_size),))
+            world = merge_plugins((base, patch, cyrodiil, ocean))
+            regions = {**self.REGIONS, cyrodiil.name: "cyrodiil", ocean.name: "vvardenfell"}
+            full = build_catalog(world, dataset_id=self.DATASET, snapshot_id=self.SNAPSHOT, plugin_regions=regions)
+            scoped = build_catalog(world, dataset_id=self.DATASET, snapshot_id=self.SNAPSHOT,
+                                   plugin_regions=regions, allowed_regions=("cyrodiil",))
+            self.assertLess(scoped.counts["places"], full.counts["places"])
+            self.assertEqual(scoped.counts["entrances"], 1)
+            self.assertEqual(scoped.counts["namedExteriorPlaces"], 1)
+            self.assertEqual({place["regionId"] for place in scoped.locations["places"]}, {"cyrodiil"})
+            self.assertNotEqual(scoped.policy_fingerprint, full.policy_fingerprint)
+
     def test_named_exterior_cells_use_eight_neighbor_components(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -2,6 +2,7 @@
   "name": "morrowind-map",
   "version": "0.1.0",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
   "packageManager": "pnpm@11.19.0",
   "engines": {
@@ -78,7 +79,8 @@
     "test:rendering": "python3 -m unittest discover -s tools/rendering/tests -t . -v",
     "test:acceptance:rendered": "playwright test -c playwright.acceptance.config.ts tests/acceptance/rendered-candidate.spec.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm build",
-    "preview": "pnpm --filter @morrowind-map/web preview"
+    "preview": "pnpm --filter @morrowind-map/web preview",
+    "render:project-cyrodiil": "python3 -m tools.rendering.cli run project-cyrodiil"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

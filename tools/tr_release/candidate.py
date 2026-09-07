@@ -53,6 +53,7 @@ class _ActiveState:
     original_id: str
     current_tr_id: str
     original_entry: dict[str, Any]
+    entries_by_map: dict[str, dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -268,8 +269,8 @@ def _identity(profile: Mapping[str, object], lock: Mapping[str, object]) -> tupl
     profile_id = _identifier(profile.get("datasetId"), "Release profile datasetId")
     if profile_id != dataset_id:
         raise ValueError("Release profile and lock datasetId differ")
-    if profile.get("mapKey") != "tamriel-rebuilt":
-        raise ValueError("TR release profile mapKey must be 'tamriel-rebuilt'")
+    if profile.get("mapKey") not in ("tamriel-rebuilt", "project-cyrodiil"):
+        raise ValueError("Unsupported release mapKey")
     snapshot_id = _required_string(lock.get("snapshotId"), "Release lock snapshotId")
     profile_snapshot = profile.get("snapshotId")
     if profile_snapshot is not None and profile_snapshot != snapshot_id:
@@ -653,10 +654,11 @@ def _active_state(active_root: Path) -> _ActiveState:
         canonical=False,
     )
     entries = _sequence(index.get("datasets"), "Active dataset index entries")
-    if len(entries) != 2:
-        raise ValueError("Active dataset index must contain exactly Original and one TR entry")
+    if len(entries) not in (2, 3):
+        raise ValueError("Active dataset index must contain Original, TR and optionally Cyrodiil")
     originals: list[tuple[str, dict[str, Any]]] = []
     rebuilt: list[str] = []
+    entries_by_map: dict[str, dict[str, Any]] = {}
     for position, raw_entry in enumerate(entries):
         entry = dict(_mapping(raw_entry, f"Active dataset index entry {position}"))
         dataset_id = _identifier(entry.get("datasetId"), "Active dataset entry datasetId")
@@ -678,11 +680,14 @@ def _active_state(active_root: Path) -> _ActiveState:
         if manifest.get("datasetId") != dataset_id:
             raise ValueError(f"Active manifest identity differs for {dataset_id}")
         map_key = manifest.get("mapKey")
+        if map_key not in {"original", "tamriel-rebuilt", "project-cyrodiil"} or map_key in entries_by_map:
+            raise ValueError("Active map keys must be supported and unique")
+        entries_by_map[map_key] = copy.deepcopy(entry)
         if map_key == "original":
             originals.append((dataset_id, copy.deepcopy(entry)))
         elif map_key == "tamriel-rebuilt":
             rebuilt.append(dataset_id)
-        else:
+        elif map_key != "project-cyrodiil":
             raise ValueError(f"Active manifest has unsupported mapKey: {dataset_id}")
     if len(originals) != 1 or len(rebuilt) != 1:
         raise ValueError("Active index must contain exactly one Original and one TR manifest")
@@ -698,14 +703,16 @@ def _active_state(active_root: Path) -> _ActiveState:
     )
     if tr_entry.get("order") != 1:
         raise ValueError("Active TR dataset entry must have order 1")
-    return _ActiveState(original_id, rebuilt[0], original_entry)
+    if "project-cyrodiil" in entries_by_map and entries_by_map["project-cyrodiil"].get("order") != 2:
+        raise ValueError("Project Cyrodiil dataset entry must have order 2")
+    return _ActiveState(original_id, rebuilt[0], original_entry, entries_by_map)
 
 
 def _assert_future_identity(dataset_id: str, state: _ActiveState) -> None:
-    if dataset_id in {state.original_id, state.current_tr_id}:
+    if dataset_id in {entry["datasetId"] for entry in state.entries_by_map.values()}:
         raise ValueError(
-            "A future Tamriel Rebuilt activation requires a new datasetId; "
-            "it cannot reuse Original or the current active TR datasetId"
+            "A future map release requires a new datasetId; "
+            "it cannot reuse an active datasetId"
         )
 
 
@@ -1311,7 +1318,7 @@ def _manifest(
     return {
         "schemaVersion": 1,
         "datasetId": dataset_id,
-        "mapKey": "tamriel-rebuilt",
+        "mapKey": profile["mapKey"],
         "snapshotId": snapshot_id,
         "title": _localized(profile.get("title"), "Release title"),
         "summary": _localized(profile.get("summary"), "Release summary"),
@@ -1394,20 +1401,19 @@ def _manifest(
 
 
 def _candidate_index(
-    *, dataset_id: str, state: _ActiveState
+    *, dataset_id: str, state: _ActiveState, map_key: str = "tamriel-rebuilt"
 ) -> dict[str, Any]:
-    original_entry = copy.deepcopy(state.original_entry)
+    entries = copy.deepcopy(state.entries_by_map)
+    order = {"original": 0, "tamriel-rebuilt": 1, "project-cyrodiil": 2}
+    entries[map_key] = {
+        "datasetId": dataset_id,
+        "manifestUrl": f"/datasets/manifests/{dataset_id}.json",
+        "order": order[map_key],
+    }
     return {
         "schemaVersion": 1,
         "defaultDatasetId": state.original_id,
-        "datasets": [
-            original_entry,
-            {
-                "datasetId": dataset_id,
-                "manifestUrl": f"/datasets/manifests/{dataset_id}.json",
-                "order": 1,
-            },
-        ],
+        "datasets": sorted(entries.values(), key=lambda entry: entry["order"]),
     }
 
 
@@ -1542,7 +1548,7 @@ def _expected(
         generated_root=generated_root,
         metadata_root=metadata_root,
     )
-    index = _candidate_index(dataset_id=dataset_id, state=state)
+    index = _candidate_index(dataset_id=dataset_id, state=state, map_key=str(profile["mapKey"]))
     return dataset_id, snapshot_id, manifest, index
 
 
@@ -1633,15 +1639,7 @@ def verify_candidate(
     if manifest != expected_manifest:
         raise ValueError("Candidate manifest differs from the release lock or prepared artifacts")
     if index != expected_index:
-        raise ValueError("Candidate index differs from Original plus the candidate TR release")
-    entries = _sequence(index.get("datasets"), "Candidate index entries")
-    if len(entries) != 2:
-        raise ValueError("Candidate index must contain exactly two entries")
-    if [entry.get("datasetId") for entry in entries if isinstance(entry, Mapping)] != [
-        expected_index["datasets"][0]["datasetId"],
-        dataset_id,
-    ]:
-        raise ValueError("Candidate index must contain unchanged Original then candidate TR")
+        raise ValueError("Candidate index differs from the preserved maps plus the new release")
     return CandidateBundle(
         dataset_id,
         snapshot_id,
@@ -1714,7 +1712,7 @@ def activate_candidate(
     if not manifest_payload or not index_payload:
         raise RuntimeError("Candidate verification did not retain exact activation bytes")
     if index_payload != canonical_json_bytes(
-        _candidate_index(dataset_id=bundle.dataset_id, state=state)
+        _candidate_index(dataset_id=bundle.dataset_id, state=state, map_key=str(profile["mapKey"]))
     ):
         raise ValueError("Active datasets changed after candidate verification")
 

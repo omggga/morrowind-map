@@ -1,16 +1,1 @@
-{
-  "schemaVersion": 1,
-  "defaultDatasetId": "original-goty-hd",
-  "datasets": [
-    {
-      "datasetId": "original-goty-hd",
-      "manifestUrl": "/datasets/manifests/original-goty-hd.json",
-      "order": 0
-    },
-    {
-      "datasetId": "poison-song-26.08",
-      "manifestUrl": "/datasets/manifests/poison-song-26.08.json",
-      "order": 1
-    }
-  ]
-}
+{"datasets":[{"datasetId":"original-goty-hd","manifestUrl":"/datasets/manifests/original-goty-hd.json","order":0},{"datasetId":"poison-song-26.08","manifestUrl":"/datasets/manifests/poison-song-26.08.json","order":1},{"datasetId":"abecean-shores-25.05a","manifestUrl":"/datasets/manifests/abecean-shores-25.05a.json","order":2}],"defaultDatasetId":"original-goty-hd","schemaVersion":1}

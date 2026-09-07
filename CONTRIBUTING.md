@@ -28,3 +28,11 @@ Use [docs/RENDERING.md](docs/RENDERING.md) to build locally and [docs/DATASET_CO
 Never commit game source files, archives, meshes, textures, credentials, or intermediate renders. Only validated ready WebP tiles, runtime JSON, and relevant metadata belong in a dataset PR.
 
 Maintainers review the final diff and CI results before merging. Dataset changes also receive a review report for the exact PR commit. Keep unrelated changes out of the PR and resolve review feedback before merge.
+
+## Licensing contributions
+
+Submit original code and documentation under the same
+[PolyForm Noncommercial License 1.0.0](LICENSE), and only contribute material you
+have the right to submit. Preserve existing third-party notices and licenses.
+Dataset contributions must respect the rights in their underlying game and mod
+content; the project license does not relicense that content.

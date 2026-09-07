@@ -14,8 +14,8 @@ from typing import Sequence
 from tools.rendering.common import REPO_ROOT, atomic_copy, safe_path, write_json
 
 
-TARGETS = ("original", "tamriel-rebuilt")
-MODULES = {"original": "tools.rendering.original", "tamriel-rebuilt": "tools.rendering.tamriel"}
+TARGETS = ("original", "tamriel-rebuilt", "project-cyrodiil")
+MODULES = {"original": "tools.rendering.original", "tamriel-rebuilt": "tools.rendering.tamriel", "project-cyrodiil": "tools.rendering.tamriel"}
 BASE_IMAGE = "morrowind-map-openmw:0.51.0-stage45"
 
 
@@ -32,8 +32,9 @@ def adapter_arguments(args: argparse.Namespace, target: str, command: str) -> li
               "--workers", str(args.workers), "--render-workers", str(args.render_workers)]
     if target == "original" and args.settings:
         result += ["--settings", str(args.settings.resolve())]
-    if target == "tamriel-rebuilt":
-        result += ["--profile", str(args.profile.resolve())]
+    if target in {"tamriel-rebuilt", "project-cyrodiil"}:
+        profile = args.profile or REPO_ROOT / "config" / ("pc-release.json" if target == "project-cyrodiil" else "tr-release.json")
+        result += ["--profile", str(profile.resolve())]
         if args.dataset_id:
             result += ["--dataset-id", args.dataset_id]
         if args.control and command == "smoke":
@@ -119,12 +120,18 @@ def use_candidate(public_root: Path) -> None:
     plan = validate_candidate(source)
     destination = REPO_ROOT / "apps/web/public"
     index = json.loads((source / "datasets/index.json").read_text())
-    release_profile = safe_path(source.parent / "tr-release.json", REPO_ROOT)
-    if release_profile.is_file():
-        from tools.tr_release.model import load_profile
-        profile = load_profile(release_profile)
-        if profile.dataset_id not in {entry["datasetId"] for entry in index["datasets"]}:
-            raise ValueError("Candidate release profile does not match its dataset index")
+    release_profiles = []
+    for name in ("tr-release.json", "pc-release.json"):
+        release_profile = safe_path(source.parent / name, REPO_ROOT)
+        if release_profile.is_file():
+            from tools.tr_release.model import load_profile
+            profile = load_profile(release_profile)
+            expected_key = "project-cyrodiil" if name == "pc-release.json" else "tamriel-rebuilt"
+            if profile.map_key != expected_key:
+                raise ValueError("Candidate release profile has the wrong map identity")
+            if profile.dataset_id not in {entry["datasetId"] for entry in index["datasets"]}:
+                raise ValueError("Candidate release profile does not match its dataset index")
+            release_profiles.append(release_profile)
     immutable = {Path("datasets/generated") / entry["path"]: entry["sha256"] for entry in plan["files"]}
     # Copy only active metadata packages, never the entire local output tree.
     packages = set()
@@ -156,7 +163,7 @@ def use_candidate(public_root: Path) -> None:
     for relative in mutable:
         safe_path(source / relative, source)
         safe_path(destination / relative, REPO_ROOT)
-    for name in ("dataset-upload-plan.json", "tr-release.json"):
+    for name in ("dataset-upload-plan.json", "tr-release.json", "pc-release.json"):
         safe_path(REPO_ROOT / "config" / name, REPO_ROOT)
     for relative in immutable:
         target = destination / relative
@@ -165,8 +172,8 @@ def use_candidate(public_root: Path) -> None:
     for relative in mutable:
         atomic_copy(source / relative, destination / relative)
     atomic_copy(source.parent / "dataset-upload-plan.json", REPO_ROOT / "config/dataset-upload-plan.json")
-    if release_profile.is_file():
-        atomic_copy(release_profile, REPO_ROOT / "config/tr-release.json")
+    for release_profile in release_profiles:
+        atomic_copy(release_profile, REPO_ROOT / "config" / release_profile.name)
     print("Candidate is active locally. Review the diff, run pnpm verify, then pnpm datasets:stage and open a PR.")
 
 
@@ -178,10 +185,10 @@ def parser() -> argparse.ArgumentParser:
         command.add_argument("target", nargs="?", choices=(*TARGETS, "all"), default="all")
         command.add_argument("--source-root", type=Path, default=REPO_ROOT / "local-data/inputs")
         command.add_argument("--work-root", type=Path, default=REPO_ROOT / "local-data/render")
-        command.add_argument("--profile", type=Path, default=REPO_ROOT / "config/tr-release.json")
+        command.add_argument("--profile", type=Path, default=None)
         command.add_argument("--dataset-id")
         command.add_argument("--settings", type=Path)
-        command.add_argument("--control", help="One named TR smoke control; default runs every configured control")
+        command.add_argument("--control", help="One named release smoke control; default runs every configured control")
         command.add_argument("--workers", type=positive, default=2)
         command.add_argument("--render-workers", type=positive, default=2)
     for name in ("preview", "use"):
@@ -200,6 +207,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "use":
         use_candidate(args.public_root)
         return 0
+    if args.target == "all" and (args.profile or args.dataset_id):
+        raise ValueError("--profile and --dataset-id require a single release target")
     targets = TARGETS if args.target == "all" else (args.target,)
     work = safe_path(args.work_root, REPO_ROOT)
     local = (REPO_ROOT / "local-data").resolve()
@@ -211,6 +220,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     logs = safe_path(work / "logs", REPO_ROOT)
     # Check every requested input set before starting either expensive renderer.
     receipts = {target: run_adapter(target, adapter_arguments(args, target, "check"), logs) for target in targets}
+    for target, receipt in receipts.items():
+        if target != "original" and receipt.get("mapKey") != target:
+            raise ValueError(f"The selected profile does not describe {target}")
     if args.command == "check":
         print(json.dumps({"status": "valid", "maps": receipts}, sort_keys=True))
         return 0
@@ -222,15 +234,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "build":
             continue
         options = adapter_arguments(args, target, args.command)
-        if baseline is not None and target == "tamriel-rebuilt":
+        if baseline is not None and target != "original":
             options += ["--baseline-public-root", str(baseline)]
         receipt = run_adapter(target, options, logs)
         if args.command == "run":
             baseline = Path(str(receipt["publicRoot"]))
             plan = validate_candidate(baseline)
             receipt["graphSha256"] = plan["graphSha256"]
-            if target == "tamriel-rebuilt":
-                write_json(baseline.parent / "tr-release.json", json.loads(Path(str(receipt["profile"])).read_text()))
+            if target != "original":
+                profile_name = "pc-release.json" if target == "project-cyrodiil" else "tr-release.json"
+                write_json(baseline.parent / profile_name, json.loads(Path(str(receipt["profile"])).read_text()))
         receipts[target] = receipt
     result = {"status": "complete", "command": args.command, "maps": receipts}
     if baseline is not None:

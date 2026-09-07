@@ -120,7 +120,7 @@ def _assert_future_dataset_id(dataset_id: str, index_path: Path) -> None:
         if not isinstance(item, dict) or not isinstance(item.get("datasetId"), str):
             raise ValueError("Active dataset index contains an invalid dataset entry")
         identifiers.append(item["datasetId"])
-    if len(identifiers) != 2 or identifiers.count(ORIGINAL_DATASET_ID) != 1:
+    if len(identifiers) not in (2, 3) or identifiers.count(ORIGINAL_DATASET_ID) != 1:
         raise ValueError("Active dataset index must contain Original and exactly one TR release")
     if dataset_id in identifiers:
         raise ValueError(
@@ -164,7 +164,7 @@ def _read_lock(path: Path, profile: ReleaseProfile) -> dict[str, Any]:
         "source": value.get("source"),
     }
     fingerprint = canonical_json_sha256(fingerprint_payload)
-    derived_snapshot = f"tr:{profile.dataset_id}:{fingerprint[:16]}"
+    derived_snapshot = f"{profile.snapshot_prefix}:{profile.dataset_id}:{fingerprint[:16]}"
     if value.get("profileFingerprint") != fingerprint:
         raise ValueError("TR release lock profile fingerprint is invalid")
     if value.get("derivedSnapshotId") != derived_snapshot:
@@ -217,7 +217,9 @@ def _derive_renderer_contract(
     from tools.land_renderer.tiles import TileGrid
     from tools.openmw_renderer import production
 
-    cells = production.derive_effective_land_cells(_plugin_paths(profile, source_root))
+    cells = production.derive_effective_land_cells(tuple(
+        path for path in _plugin_paths(profile, source_root) if path.name in profile.land_content_files
+    ))
     topology = derive_land_topology(cells, probe_count=16)
     if topology.native_cross_shard_adjacencies < 16 or len(topology.probes) < 16:
         raise ValueError("TR LAND topology must provide at least 16 cross-shard audit probes")
@@ -302,6 +304,26 @@ def _master_exceptions(
     )
 
 
+def _validated_world(profile: ReleaseProfile, source_root: Path, source: Mapping[str, Any]):
+    """Validate binary structure and dependencies before Docker or rendering work."""
+    from tools.catalog_pipeline import poison as catalog
+    from tools.catalog_pipeline.tes3 import PluginInput
+
+    inputs = {str(item["filename"]).casefold(): item for item in source["inputs"]}
+    plugins = tuple(
+        PluginInput(name, source_root / str(inputs[name.casefold()]["relativePath"]),
+                    str(inputs[name.casefold()]["sha256"]))
+        for name in profile.content_files
+    )
+    catalog.MASTER_SIZE_EXCEPTIONS = _master_exceptions(profile, source)
+    try:
+        world = catalog.merge_plugins(plugins)
+        catalog._input_audit(world, source_root)
+    except ValueError as error:
+        raise ValueError(f"Invalid game/mod input in {profile.map_key} load order: {error}") from error
+    return world
+
+
 def _derive_catalog_contract(
     *,
     profile: ReleaseProfile,
@@ -310,32 +332,18 @@ def _derive_catalog_contract(
     extent: Sequence[int],
 ) -> dict[str, Any]:
     from tools.catalog_pipeline import poison as catalog
-    from tools.catalog_pipeline.tes3 import PluginInput
 
-    source = release_lock["source"]
-    locked_by_filename = {
-        str(item["filename"]).casefold(): item for item in source["inputs"]
-    }
-    plugins = tuple(
-        PluginInput(
-            name,
-            source_root / str(locked_by_filename[name.casefold()]["relativePath"]),
-            str(locked_by_filename[name.casefold()]["sha256"]),
-        )
-        for name in profile.content_files
-    )
     catalog.DATASET_ID = profile.dataset_id
     catalog.SNAPSHOT_ID = str(release_lock["snapshotId"])
     catalog.PLUGIN_REGIONS = profile.plugin_region_map
     catalog.MAP_EXTENT = tuple(int(value) for value in extent)
-    catalog.MASTER_SIZE_EXCEPTIONS = _master_exceptions(profile, source)
-    world = catalog.merge_plugins(plugins)
-    catalog._input_audit(world, source_root)
+    world = _validated_world(profile, source_root, release_lock["source"])
     build = catalog.build_catalog(
         world,
         dataset_id=profile.dataset_id,
         snapshot_id=str(release_lock["snapshotId"]),
         plugin_regions=profile.plugin_region_map,
+        allowed_regions=profile.catalog_regions,
     )
     diagnostics = catalog._catalog_artifact_metrics(build.locations, build.english)
     if diagnostics.get("allCoordinatesWithinManifestExtent") is not True:
@@ -375,6 +383,7 @@ def _derive_catalog_contract(
 def _command_check(args: argparse.Namespace) -> int:
     context = _context(args, require_lock=False)
     audit = check_source(context.profile, context.source_root)
+    _validated_world(context.profile, context.source_root, audit.to_dict())
     _json_output(
         {
             "datasetId": context.profile.dataset_id,
@@ -468,8 +477,12 @@ def _command_renderer_smoke(args: argparse.Namespace) -> int:
         controls = tuple(control for control in controls if control.id == selected)
         if not controls:
             raise ValueError(f"Unknown smoke control: {selected}")
+    provenance = production.resolve_production_provenance(
+        repo_root=context.repo_root, source_root=context.source_root, image=PRODUCTION_IMAGE,
+    )
+    output_root = context.workspace / "smoke" / context.dataset_id / provenance.fingerprint
     for control in controls:
-        output = context.workspace / "smoke" / context.dataset_id / control.id
+        output = output_root / control.id
         result = int(
             production.main(
                 [
@@ -478,10 +491,10 @@ def _command_renderer_smoke(args: argparse.Namespace) -> int:
                     str(context.source_root),
                     "--output",
                     str(output),
-                    "--center",
-                    f"{control.cell[0]},{control.cell[1]}",
+                    f"--center={control.cell[0]},{control.cell[1]}",
                     "--image",
                     PRODUCTION_IMAGE,
+                    "--provenance-fingerprint", provenance.fingerprint,
                     "--retain-raw",
                 ]
             )
@@ -489,7 +502,7 @@ def _command_renderer_smoke(args: argparse.Namespace) -> int:
         results[control.id] = result
         if result != 0:
             return result
-    _json_output({"controls": results, "datasetId": context.dataset_id, "passes": True})
+    _json_output({"controls": results, "datasetId": context.dataset_id, "outputRoot": str(output_root), "passes": True})
     return 0
 
 
@@ -719,10 +732,12 @@ def _command_activate_local(args: argparse.Namespace) -> int:
     if current_index not in (baseline_index, index_payload):
         raise ValueError("Local candidate index differs from its baseline or verified release")
     index = json.loads(index_payload)
-    original = index["datasets"][0]
-    original_path = Path(original["manifestUrl"].removeprefix("/datasets/"))
-    if (output / original_path).read_bytes() != (baseline / "datasets" / original_path).read_bytes():
-        raise ValueError("Local candidate Original manifest differs from its immutable baseline")
+    for entry in index["datasets"]:
+        if entry["datasetId"] == bundle.dataset_id:
+            continue
+        relative = Path(entry["manifestUrl"].removeprefix("/datasets/"))
+        if (output / relative).read_bytes() != (baseline / "datasets" / relative).read_bytes():
+            raise ValueError("An unchanged manifest differs from its immutable baseline")
     write_candidate_bytes(output / "manifests" / f"{bundle.dataset_id}.json", manifest_payload, boundary=output)
     write_candidate_bytes(output / "index.json", index_payload, boundary=output)
     _json_output(_candidate_payload(bundle))

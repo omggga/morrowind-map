@@ -534,6 +534,25 @@ class CandidateReleaseTests(unittest.TestCase):
             )
             self.assertEqual(fixture.verify(), bundle)
 
+    def test_add_cyrodiil_preserves_original_and_tr_and_can_be_updated(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = CandidateFixture(Path(directory))
+            baseline = json.loads((fixture.active_root / "index.json").read_bytes())
+            fixture.profile["mapKey"] = "project-cyrodiil"
+            bundle = fixture.build()
+            index = json.loads(bundle.index_path.read_bytes())
+            self.assertEqual(index["datasets"][:2], baseline["datasets"])
+            self.assertEqual(index["datasets"][2]["datasetId"], fixture.dataset_id)
+            self.assertEqual(json.loads(bundle.manifest_path.read_bytes())["mapKey"], "project-cyrodiil")
+            fixture.activate()
+            from tools.tr_release.candidate import _active_state, _candidate_index
+            state = _active_state(fixture.active_root)
+            updated = _candidate_index(dataset_id="cyrodiil-next", state=state, map_key="project-cyrodiil")
+            self.assertEqual(updated["datasets"][:2], baseline["datasets"])
+            self.assertEqual(len(updated["datasets"]), 3)
+            tr = _candidate_index(dataset_id="tr-next", state=state)
+            self.assertEqual(tr["datasets"][2], index["datasets"][2])
+
     def test_verify_fails_closed_when_a_bound_artifact_is_tampered(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             fixture = CandidateFixture(Path(directory))

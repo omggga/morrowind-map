@@ -596,11 +596,14 @@ def plan_fingerprint(targets: Sequence[NativeTarget]) -> str:
     return _sha256_bytes(_canonical_json_bytes(payload))
 
 
+LAND_CONTENT_FILES = CONTENT_FILES
+
+
 def pinned_poison_plugin_paths(source_root: Path) -> tuple[Path, ...]:
-    """Resolve the exact pinned ESM load order without filesystem guessing."""
+    """Resolve the profile's LAND plugins; all dependencies remain loaded by OpenMW."""
 
     result: list[Path] = []
-    for content in CONTENT_FILES:
+    for content in LAND_CONTENT_FILES:
         candidates = [
             source_root / relative_root / content
             for relative_root in DATA_DIRECTORIES
@@ -2052,6 +2055,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "Stage 4.5 base image identity check failed: "
                 + "; ".join(base_info.contract_errors)
             )
+        # A build can get a new image ID even when its inputs are unchanged.
+        # Reuse only a verified image with the exact current base-image identity.
+        try:
+            existing_image = production_image_info(
+                args.image,
+                expected_source_fingerprint=production_source_fingerprint(repo_root),
+            )
+        except subprocess.CalledProcessError:
+            existing_image = None
+        if (
+            existing_image is not None
+            and existing_image.contract_passes
+            and existing_image.labels.get("io.morrowind-map.stage45-image-id") == base_info.image_id
+        ):
+            print(json.dumps(asdict(existing_image), ensure_ascii=False, sort_keys=True))
+            return 0
         immutable_base = (
             "morrowind-map-openmw:stage45-parent-"
             + base_info.image_id.removeprefix("sha256:")[:16]

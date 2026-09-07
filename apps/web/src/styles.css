@@ -215,19 +215,59 @@ textarea:focus-visible,
   pointer-events: none;
 }
 
-.landing-content {
+.landing-layout {
   position: relative;
   z-index: 2;
-  display: flex;
-  width: min(680px, calc(100% - 64px));
+  display: grid;
+  grid-template-columns: minmax(0, 620px) minmax(0, 420px);
+  align-content: start;
+  align-items: start;
+  gap: clamp(40px, 6vw, 96px);
+  width: min(1280px, calc(100% - 2 * clamp(32px, 9vw, 150px)));
   min-height: 100dvh;
-  flex-direction: column;
-  justify-content: center;
   margin-left: clamp(32px, 9vw, 150px);
   padding:
-    max(40px, var(--safe-top))
+    max(clamp(48px, 12vh, 120px), var(--safe-top))
     0
-    max(40px, var(--safe-bottom));
+    max(56px, var(--safe-bottom));
+}
+
+.landing-content {
+  min-width: 0;
+}
+
+.landing-about {
+  max-width: 44ch;
+  padding-top: 8px;
+  color: var(--text-strong);
+  font-size: 17px;
+  line-height: 1.65;
+  text-shadow: 0 2px 10px var(--ui-void), 0 0 24px var(--ui-void);
+}
+
+.landing-about h2 {
+  margin: 0 0 24px;
+  font-family: var(--font-display);
+  font-size: clamp(26px, 2.5vw, 34px);
+  font-weight: 600;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.landing-about p {
+  margin: 0 0 18px;
+}
+
+.landing-about p:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 1100px) {
+  .landing-layout {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 680px;
+    gap: 40px;
+  }
 }
 
 .landing-heading {
@@ -276,7 +316,7 @@ textarea:focus-visible,
   top: 50%;
   right: max(18px, calc(var(--safe-right) + 10px));
   display: grid;
-  width: min(376px, calc(100% - 88px));
+  width: min(440px, calc(100% - 88px));
   min-height: 220px;
   max-height: calc(100dvh - 36px - var(--safe-top) - var(--safe-bottom));
   place-items: center;
@@ -1753,13 +1793,13 @@ textarea:focus-visible,
       radial-gradient(circle at 50% 28%, transparent 0 14%, rgba(9, 8, 6, 0.5) 76%);
   }
 
-  .landing-content {
+  .landing-layout {
     width: calc(100% - 32px);
     margin: 0 16px;
     padding:
-      max(30px, var(--safe-top))
+      max(64px, 10vh, var(--safe-top))
       0
-      max(30px, var(--safe-bottom));
+      max(56px, var(--safe-bottom));
   }
 
   .landing-heading {

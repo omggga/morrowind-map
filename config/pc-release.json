@@ -1,0 +1,151 @@
+{
+  "contentFiles": [
+    "Morrowind.esm",
+    "Tribunal.esm",
+    "Bloodmoon.esm",
+    "Tamriel_Data.esm",
+    "Cyr_Main.esm"
+  ],
+  "dataDirectories": [
+    {
+      "id": "base-game",
+      "path": "bsa"
+    },
+    {
+      "id": "tamriel-data",
+      "path": "tamriel-data"
+    },
+    {
+      "id": "project-cyrodiil-core",
+      "path": "project-cyrodiil/00 Core"
+    }
+  ],
+  "datasetId": "abecean-shores-25.05a",
+  "excludedOptionalModules": [],
+  "fallbackArchives": [
+    "Morrowind.bsa",
+    "Tribunal.bsa",
+    "Bloodmoon.bsa"
+  ],
+  "inventoryOnlyFiles": [
+    "Tamriel_Data.omwscripts"
+  ],
+  "mapKey": "project-cyrodiil",
+  "masterSizeExceptions": [
+    {
+      "actualBytes": 17199325,
+      "advertisedBytes": 14887395,
+      "dependentInputId": "cyr-main-esm",
+      "masterInputId": "tamriel-data-esm",
+      "reason": "cyrodiil-25.05-with-tamriel-data-26.08"
+    }
+  ],
+  "pluginRegions": {
+    "Bloodmoon.esm": "solstheim",
+    "Cyr_Main.esm": "cyrodiil",
+    "Morrowind.esm": "vvardenfell",
+    "Tamriel_Data.esm": "cyrodiil",
+    "Tribunal.esm": "vvardenfell"
+  },
+  "regions": [
+    {
+      "id": "cyrodiil",
+      "kind": "exterior",
+      "status": "available",
+      "title": {
+        "en": "Cyrodiil"
+      }
+    }
+  ],
+  "release": {
+    "build": "2025-05-15",
+    "name": "Abecean Shores",
+    "version": "25.05a"
+  },
+  "requiredInputs": [
+    {
+      "directoryId": "base-game",
+      "filename": "Morrowind.esm",
+      "id": "morrowind-esm",
+      "sha256": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647"
+    },
+    {
+      "directoryId": "base-game",
+      "filename": "Tribunal.esm",
+      "id": "tribunal-esm",
+      "sha256": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b"
+    },
+    {
+      "directoryId": "base-game",
+      "filename": "Bloodmoon.esm",
+      "id": "bloodmoon-esm",
+      "sha256": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+    },
+    {
+      "directoryId": "base-game",
+      "filename": "Morrowind.bsa",
+      "id": "morrowind-bsa",
+      "sha256": "3dcd5e6bfa08245521a53374bf733ee5c920df49103898a15aa31144ad64cf48"
+    },
+    {
+      "directoryId": "base-game",
+      "filename": "Tribunal.bsa",
+      "id": "tribunal-bsa",
+      "sha256": "3901e7a146f7a64a4ae9534c80d5974f7ab15adf5c48c4561d9313c0f7831d69"
+    },
+    {
+      "directoryId": "base-game",
+      "filename": "Bloodmoon.bsa",
+      "id": "bloodmoon-bsa",
+      "sha256": "7c20956791400d958cb407f0b7c1c19ceaf46719df7eb724d0b450299360bd7c"
+    },
+    {
+      "directoryId": "tamriel-data",
+      "filename": "Tamriel_Data.esm",
+      "id": "tamriel-data-esm",
+      "sha256": "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f"
+    },
+    {
+      "directoryId": "tamriel-data",
+      "filename": "Tamriel_Data.omwscripts",
+      "id": "tamriel-data-scripts",
+      "sha256": "468251f4f9f23eab9a97e2bfcd9de9c979ba9b4a3d2d8095e3a6317931a8ef45"
+    },
+    {
+      "directoryId": "project-cyrodiil-core",
+      "filename": "Cyr_Main.esm",
+      "id": "cyr-main-esm",
+      "sha256": "cccbfcd590b5e9adfbf204a1c290d7ebe2e197a3e0cd9964c8882de444f49d0b"
+    }
+  ],
+  "schemaVersion": 1,
+  "smokeCenters": [
+    {
+      "cell": [
+        -120,
+        -57
+      ],
+      "id": "anvil"
+    },
+    {
+      "cell": [
+        -114,
+        -48
+      ],
+      "id": "brina-cross"
+    },
+    {
+      "cell": [
+        -120,
+        -54
+      ],
+      "id": "anvil-marina"
+    }
+  ],
+  "summary": {
+    "en": "Explore western Cyrodiil, including Anvil and Stirk."
+  },
+  "title": {
+    "en": "Project Cyrodiil — Abecean Shores"
+  }
+}

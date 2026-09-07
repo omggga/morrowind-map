@@ -188,6 +188,18 @@ class ReleaseProfile:
     adopted_snapshot_id: str | None = None
 
     @property
+    def snapshot_prefix(self) -> str:
+        return "pc" if self.map_key == "project-cyrodiil" else "tr"
+
+    @property
+    def land_content_files(self) -> tuple[str, ...]:
+        return ("Cyr_Main.esm",) if self.map_key == "project-cyrodiil" else self.content_files
+
+    @property
+    def catalog_regions(self) -> tuple[str, ...] | None:
+        return ("cyrodiil",) if self.map_key == "project-cyrodiil" else None
+
+    @property
     def localized_title(self) -> dict[str, str]:
         return dict(self.title)
 
@@ -575,8 +587,18 @@ def parse_profile(value: object) -> ReleaseProfile:
     if isinstance(root["schemaVersion"], bool) or root["schemaVersion"] != SCHEMA_VERSION:
         raise ProfileError(f"schemaVersion must be {SCHEMA_VERSION}")
     dataset_id = _slug(root["datasetId"], "datasetId")
-    if root["mapKey"] != MAP_KEY:
-        raise ProfileError(f"mapKey must be {MAP_KEY!r}")
+    map_key = root["mapKey"]
+    if map_key not in (MAP_KEY, "project-cyrodiil"):
+        raise ProfileError("mapKey must be tamriel-rebuilt or project-cyrodiil")
+    directory_ids = DATA_DIRECTORY_IDS
+    content_order = CONTENT_FILES
+    inventory_order = INVENTORY_ONLY_FILES
+    input_layout = INPUT_LAYOUT
+    if map_key == "project-cyrodiil":
+        directory_ids = (*DATA_DIRECTORY_IDS[:2], "project-cyrodiil-core")
+        content_order = (*CONTENT_FILES[:4], "Cyr_Main.esm")
+        inventory_order = INVENTORY_ONLY_FILES[:1]
+        input_layout = (*INPUT_LAYOUT[:8], ("cyr-main-esm", "project-cyrodiil-core", "Cyr_Main.esm"))
     title = _localized(root["title"], "title")
     summary = _localized(root["summary"], "summary")
     if {item[0] for item in title} != {item[0] for item in summary}:
@@ -603,8 +625,8 @@ def parse_profile(value: object) -> ReleaseProfile:
                 _safe_relative_path(item["path"], f"dataDirectories[{index}].path"),
             )
         )
-    if tuple(item.id for item in directories) != DATA_DIRECTORY_IDS:
-        raise ProfileError(f"dataDirectories ids/order must be {DATA_DIRECTORY_IDS!r}")
+    if tuple(item.id for item in directories) != directory_ids:
+        raise ProfileError(f"dataDirectories ids/order must be {directory_ids!r}")
     _ensure_unique((item.path for item in directories), "dataDirectories paths")
     directory_parts = [PurePosixPath(item.path).parts for item in directories]
     for index, first in enumerate(directory_parts):
@@ -620,8 +642,8 @@ def parse_profile(value: object) -> ReleaseProfile:
         raise ProfileError(f"fallbackArchives must exactly equal {FALLBACK_ARCHIVES!r}")
     content_files = _string_list(root["contentFiles"], "contentFiles")
     inventory_only = _string_list(root["inventoryOnlyFiles"], "inventoryOnlyFiles")
-    if inventory_only != INVENTORY_ONLY_FILES:
-        raise ProfileError(f"inventoryOnlyFiles must exactly equal {INVENTORY_ONLY_FILES!r}")
+    if inventory_only != inventory_order:
+        raise ProfileError(f"inventoryOnlyFiles must exactly equal {inventory_order!r}")
 
     excluded_raw = root["excludedOptionalModules"]
     if not isinstance(excluded_raw, list):
@@ -652,8 +674,8 @@ def parse_profile(value: object) -> ReleaseProfile:
     included_optional = [item for item in content_files if _casefold_key(item) in excluded_names]
     if included_optional:
         raise ProfileError(f"Excluded optional modules cannot be in contentFiles: {included_optional}")
-    if content_files != CONTENT_FILES:
-        raise ProfileError(f"contentFiles must exactly equal {CONTENT_FILES!r}")
+    if content_files != content_order:
+        raise ProfileError(f"contentFiles must exactly equal {content_order!r}")
     if {_casefold_key(item) for item in content_files} & {
         _casefold_key(item) for item in inventory_only
     }:
@@ -693,11 +715,14 @@ def parse_profile(value: object) -> ReleaseProfile:
     if not isinstance(plugin_regions_raw, dict):
         raise ProfileError("pluginRegions must be an object")
     _ensure_unique(plugin_regions_raw.keys(), "pluginRegions keys")
-    if set(plugin_regions_raw) != set(CONTENT_FILES):
+    if set(plugin_regions_raw) != set(content_order):
         raise ProfileError("pluginRegions must map every content file exactly once")
     region_ids = {item.id for item in regions}
+    # Dependency regions are resolved during merge, but need not be published.
+    if map_key == "project-cyrodiil":
+        region_ids |= {"vvardenfell", "solstheim"}
     plugin_regions: list[tuple[str, str]] = []
-    for plugin in CONTENT_FILES:
+    for plugin in content_order:
         region_id = _slug(plugin_regions_raw[plugin], f"pluginRegions.{plugin}")
         if region_id not in region_ids:
             raise ProfileError(f"pluginRegions.{plugin} references unknown region {region_id!r}")
@@ -726,10 +751,10 @@ def parse_profile(value: object) -> ReleaseProfile:
             )
         )
     actual_layout = tuple((item.id, item.directory_id, item.filename) for item in inputs)
-    if actual_layout != INPUT_LAYOUT:
+    if actual_layout != input_layout:
         raise ProfileError("requiredInputs must follow the exact canonical id/directory/file layout")
     full_input_paths = [
-        str(PurePosixPath(directories[DATA_DIRECTORY_IDS.index(item.directory_id)].path) / item.filename)
+        str(PurePosixPath(directories[directory_ids.index(item.directory_id)].path) / item.filename)
         for item in inputs
     ]
     _ensure_unique((item.id for item in inputs), "requiredInputs ids")
@@ -813,7 +838,7 @@ def parse_profile(value: object) -> ReleaseProfile:
     return ReleaseProfile(
         SCHEMA_VERSION,
         dataset_id,
-        MAP_KEY,
+        map_key,
         title,
         summary,
         release,
@@ -980,7 +1005,7 @@ def generate_release_lock(
     }
     profile_fingerprint = canonical_json_sha256(fingerprint_payload)
     derived_snapshot_id = (
-        f"tr:{profile.dataset_id}:{profile_fingerprint[:SNAPSHOT_FINGERPRINT_LENGTH]}"
+        f"{profile.snapshot_prefix}:{profile.dataset_id}:{profile_fingerprint[:SNAPSHOT_FINGERPRINT_LENGTH]}"
     )
     return ReleaseLock(
         profile,

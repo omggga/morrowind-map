@@ -6,6 +6,7 @@ An English-language interactive map of Morrowind, available at [morrowindmap.com
 | --- | --- |
 | Original GOTY HD | Vvardenfell and Solstheim from Morrowind, Tribunal, and Bloodmoon |
 | Tamriel Rebuilt | The base game and TR Mainland; currently 26.08 Poison Song |
+| Project Cyrodiil | Abecean Shores; the local render workflow is prepared, initial tiles pending |
 
 Search places, filter locations, share map links, and keep progress, notes, and personal markers. Personal data stays in your browser; use JSON export/import to transfer it or keep a backup. Records are associated with a specific map version.
 
@@ -51,7 +52,7 @@ Supply your own matching inputs in ignored `local-data/inputs/`, then use:
 pnpm render:check all
 pnpm render:smoke all
 pnpm render:all
-# Or: pnpm render:original / pnpm render:tamriel-rebuilt
+# Or: pnpm render:original / pnpm render:tamriel-rebuilt / pnpm render:project-cyrodiil
 ```
 
 Rendering needs Python 3.10+, Docker with Linux AMD64 support, and ImageMagick. Full renders can take hours. The workflow produces a candidate for local preview before you adopt or contribute it.
@@ -62,3 +63,17 @@ Rendering needs Python 3.10+, Docker with Linux AMD64 support, and ImageMagick. 
 - [Architecture](docs/ARCHITECTURE.md): runtime, data formats, and browser storage.
 - [Testing](docs/TESTING.md): choosing checks for your change.
 - [Third-party notices](THIRD_PARTY_NOTICES.md).
+
+## License
+
+Original project code and documentation are source-available under the
+[PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify and
+redistribute them for purposes permitted by that license. Commercial products
+and services based on this code require separate permission from the relevant
+rights holders; the license is not an OSI-approved open-source license.
+
+Required Notice: Copyright (c) 2026 Morrowind Map contributors.
+
+This license does not cover third-party components or underlying game and mod
+content, including content depicted in generated maps. Their respective rights
+and licenses remain in effect; see [Third-party notices](THIRD_PARTY_NOTICES.md).

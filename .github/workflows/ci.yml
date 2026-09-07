@@ -36,7 +36,7 @@ jobs:
           if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ || "$BASE_SHA" == 0000000000000000000000000000000000000000 ]]; then
             BASE_SHA=$(git rev-parse HEAD^)
           fi
-          if git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- apps/web/public/datasets config/dataset-upload-plan.json config/tr-release.json tools/deployment .gitattributes; then
+          if git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- apps/web/public/datasets config/dataset-upload-plan.json config/tr-release.json config/pc-release.json tools/deployment .gitattributes; then
             echo 'datasets_changed=false' >> "$GITHUB_OUTPUT"
           else
             echo 'datasets_changed=true' >> "$GITHUB_OUTPUT"
@@ -121,6 +121,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:acceptance:prepared
+      - name: Check rendering and navigation for every prepared map
+        env:
+          MORROWIND_RENDER_PUBLIC_ROOT: ${{ github.workspace }}/apps/web/public
+        run: pnpm test:acceptance:rendered
 
   deploy:
     name: Publish verified main
