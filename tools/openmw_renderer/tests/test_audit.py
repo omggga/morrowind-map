@@ -25,6 +25,7 @@ from tools.openmw_renderer.audit import (
     _select_raw_probe_records,
     _stabilization_rgba_gate,
     _validate_checkpoint_identity,
+    _validate_target_markers,
     _visual_difference,
     build_adjacencies,
     main as audit_main,
@@ -462,6 +463,37 @@ class AuditTopologyTests(unittest.TestCase):
         self.assertEqual(marker["pixels"], 544)
         tile = native_tile_for_cell(cell)
         self.assertEqual((marker["z"], marker["x"], marker["y"]), (tile.z, tile.x, tile.y))
+
+    def test_runtime_markers_accept_renderer_notation_but_reject_wrong_targets(self) -> None:
+        # Actual Cyrodiil marker: bounds lose two world units when logged.
+        marker = (
+            "MWMAP export target -128,-59: 544px over 8704 world units; "
+            "center=(-1.04448e+06,-479232); "
+            "bounds=[-1.04883e+06,-1.04013e+06]x[-483584,-474880]; "
+            "raster=top-left,+x,-y,flipVertical=false -> /out/raw/7/11/21.png"
+        )
+        with mock.patch.object(audit_module, "native_tile_for_cell", return_value=TileKey(7, 11, 21)):
+            rounding = _validate_target_markers(marker, expected_cells={(-128, -59)}, shard_key="test")
+            self.assertEqual(rounding, 0.125)
+            for invalid in (
+                marker.replace("-1.04883e+06", "-1.04884e+06"),
+                marker.replace("-479232", "-479231"),
+                marker.replace("-1.04448e+06", "nan"),
+                marker.replace("/11/21.png", "/12/21.png"),
+                marker.replace("-128,-59:", "-127,-59:"),
+                marker + "\n" + marker,
+                "",
+            ):
+                with self.subTest(invalid=invalid), self.assertRaisesRegex(ValueError, "mismatch"):
+                    _validate_target_markers(invalid, expected_cells={(-128, -59)}, shard_key="test")
+
+    def test_runtime_markers_keep_exact_integer_coordinates(self) -> None:
+        marker = (
+            "MWMAP export target -2,-41: 544px over 8704 world units; "
+            "center=(-12288,-331776); bounds=[-16640,-7936]x[-336128,-327424]; "
+            "raster=top-left,+x,-y,flipVertical=false -> /out/raw/7/26/74.png"
+        )
+        self.assertEqual(_validate_target_markers(marker, expected_cells={(-2, -41)}, shard_key="test"), 0.0)
 
     def test_migration_checkpoint_identity_is_exact(self) -> None:
         checkpoint = {

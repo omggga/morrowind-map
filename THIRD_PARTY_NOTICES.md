@@ -1,5 +1,17 @@
 # Third-party notices
 
+## Scope of the project license
+
+The [project license](LICENSE) applies to original Morrowind Map code and
+documentation. It does not replace the licenses of dependencies, fonts, OpenMW,
+third-party patches or other upstream material.
+
+Morrowind, its expansions, and community mods contain material belonging to
+their respective rights holders. Generated map images and extracted game or mod
+data do not become original project code merely because they are included in a
+dataset. The project license grants no rights to that underlying material.
+Game input files remain outside Git and Git LFS.
+
 ## Fonts
 
 The web application self-hosts the following Fontsource packages. Only local WOFF2 assets are emitted by Vite; the runtime does not contact a font CDN.

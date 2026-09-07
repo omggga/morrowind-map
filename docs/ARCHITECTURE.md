@@ -12,10 +12,11 @@ The runtime does not use external CDNs or APIs. Fonts, icons, manifests, and run
 
 ## Dataset contract
 
-`apps/web/public/datasets/index.json` lists exactly two visible maps:
+`apps/web/public/datasets/index.json` lists prepared maps in this order:
 
 - `original-goty-hd`;
-- one active versioned Tamriel Rebuilt dataset.
+- one active versioned Tamriel Rebuilt dataset;
+- one active versioned Project Cyrodiil dataset, after its first render is adopted.
 
 The index contains only identity, ordering, and the manifest URL. Each manifest defines:
 
@@ -36,6 +37,15 @@ Original uses its own profile and producer modules. Its inputs are limited to th
 ### Tamriel Rebuilt
 
 The active TR map is built from the same six base inputs and a matching Tamriel Data / TR Core pair. Release-specific identity and hashes live in the release config and generated lock. Each new release receives a new `datasetId` and `snapshotId`; see [TR_UPDATE.md](TR_UPDATE.md) for the full process.
+
+### Project Cyrodiil
+
+Cyrodiil uses the same OpenMW renderer, tile geometry, presentation, seam audits and
+release adapter as TR. `config/pc-release.json` supplies its version, load order,
+source hashes and smoke controls. GOTY and Tamriel Data remain loaded dependencies;
+LAND coverage and the published location catalog are restricted to Cyrodiil.
+A Cyrodiil update preserves Original and TR, and a TR update preserves Cyrodiil.
+The landing page reads the prepared manifest and opens Cyrodiil as its third choice.
 
 ## Basemap and catalog
 

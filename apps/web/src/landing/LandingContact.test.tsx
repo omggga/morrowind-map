@@ -25,8 +25,8 @@ describe('LandingContact', () => {
     expect(email).toHaveAttribute('rel', expect.stringContaining('noopener'));
     expect(email).toHaveAttribute('rel', expect.stringContaining('noreferrer'));
 
-    const github = screen.getByRole('link', { name: 'github.com/omggga' });
-    expect(github).toHaveAttribute('href', 'https://github.com/omggga');
+    const github = screen.getByRole('link', { name: 'github.com/omggga/morrowind-map' });
+    expect(github).toHaveAttribute('href', 'https://github.com/omggga/morrowind-map/');
     expect(github).toHaveAttribute('target', '_blank');
     expect(github).toHaveAttribute('rel', expect.stringContaining('noopener'));
     expect(github).toHaveAttribute('rel', expect.stringContaining('noreferrer'));

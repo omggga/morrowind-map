@@ -25,7 +25,7 @@ CLASSIFICATION_POLICY_VERSION = "tes3-place-type-v2"
 REGION_POLICY_VERSION = "tes3-effective-land-source-v1"
 ALIAS_POLICY_VERSION = "tes3-effective-spellings-v1"
 CELL_DELETE_POLICY_VERSION = "tes3-cell-tombstone-v1"
-KNOWN_REGIONS = ("vvardenfell", "solstheim", "tr-mainland")
+KNOWN_REGIONS = ("vvardenfell", "solstheim", "tr-mainland", "cyrodiil")
 PLACE_TYPES = {
     "settlement",
     "guild",
@@ -88,7 +88,7 @@ def policy_descriptor(plugin_regions: Mapping[str, str]) -> dict[str, object]:
         "aliases": ALIAS_POLICY_VERSION,
         "cellDelete": CELL_DELETE_POLICY_VERSION,
         "cellSize": CELL_SIZE,
-        "regions": list(KNOWN_REGIONS),
+        "regions": list(KNOWN_REGIONS if "cyrodiil" in plugin_regions.values() else KNOWN_REGIONS[:3]),
         "pluginRegions": _normalized_plugin_regions(plugin_regions),
     }
 
@@ -532,10 +532,16 @@ def build_catalog(
     dataset_id: str,
     snapshot_id: str,
     plugin_regions: Mapping[str, str],
+    allowed_regions: tuple[str, ...] | None = None,
 ) -> CatalogBuild:
     normalized_plugin_regions = _normalized_plugin_regions(plugin_regions)
     descriptor = policy_descriptor(normalized_plugin_regions)
     descriptor_fingerprint = policy_fingerprint(normalized_plugin_regions)
+    if allowed_regions is not None:
+        if not allowed_regions or set(allowed_regions) - set(normalized_plugin_regions.values()):
+            raise ValueError("Catalog scope must contain known plugin regions")
+        descriptor["allowedRegions"] = sorted(allowed_regions)
+        descriptor_fingerprint = hashlib.sha256(_canonical_bytes(descriptor)).hexdigest()
     dropped: Counter[str] = Counter()
     resolution: Counter[str] = Counter()
     entrance_groups: dict[CellKey, list[ReferenceVersion]] = defaultdict(list)
@@ -576,6 +582,9 @@ def build_catalog(
         containing_grid = reference.effective_cell.grid
         if containing_grid is None or reference.exterior_cell != containing_grid:
             dropped["positionOutsideEffectiveCell"] += 1
+            continue
+        if allowed_regions is not None and _region_for_reference(world, reference, normalized_plugin_regions) not in allowed_regions:
+            dropped["outsideMapScope"] += 1
             continue
         entrance_groups[destination_key].append(reference)
         destination_spellings[destination_key].add(reference.destination_cell)
@@ -672,6 +681,8 @@ def build_catalog(
     exterior_buckets: dict[str, list[EffectiveCell]] = defaultdict(list)
     for cell in world.cells.values():
         if cell.is_interior or not cell.name.strip():
+            continue
+        if allowed_regions is not None and _region_for_grid(world, cell.grid, normalized_plugin_regions) not in allowed_regions:
             continue
         exterior_buckets[canonical_ref_id(cell.name)].append(cell)
 

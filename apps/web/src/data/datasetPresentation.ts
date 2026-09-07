@@ -8,6 +8,6 @@ export function presentDataset(manifest: DatasetManifest): DatasetPresentation {
   return {
     title: manifest.mapKey === 'original'
       ? 'Morrowind Game of the Year'
-      : `Tamriel Rebuilt — ${manifest.release.name}`,
+      : `${manifest.mapKey === 'project-cyrodiil' ? 'Project Cyrodiil' : 'Tamriel Rebuilt'} — ${manifest.release.name}`,
   };
 }

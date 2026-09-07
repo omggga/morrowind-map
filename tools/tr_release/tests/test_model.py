@@ -35,6 +35,21 @@ class ReleaseProfileTests(unittest.TestCase):
     def setUp(self) -> None:
         self.payload = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
 
+    def test_cyrodiil_profile_uses_shared_engine_with_its_own_land_scope(self) -> None:
+        profile = load_profile(REPO_ROOT / "config/pc-release.json")
+        self.assertEqual(parse_profile(profile.to_dict()), profile)
+        self.assertEqual(profile.land_content_files, ("Cyr_Main.esm",))
+        self.assertEqual(profile.catalog_regions, ("cyrodiil",))
+        self.assertEqual(profile.snapshot_prefix, "pc")
+        self.assertNotIn("TR_Mainland.esm", profile.content_files)
+        future = profile.to_dict()
+        future["datasetId"] = "abecean-shores-next"
+        future["requiredInputs"][-1].pop("sha256", None)
+        self.assertEqual(parse_profile(future).dataset_id, "abecean-shores-next")
+        future["contentFiles"][-1] = "unexpected.esp"
+        with self.assertRaises(ProfileError):
+            parse_profile(future)
+
     def test_seed_profile_is_current_strict_contract_and_round_trips(self) -> None:
         profile = load_profile(PROFILE_PATH)
 

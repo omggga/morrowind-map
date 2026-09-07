@@ -59,7 +59,8 @@ function mapUrlStatesEqual(left: MapUrlState, right: MapUrlState): boolean {
 function landingChoices(datasets: readonly DatasetManifest[]): readonly DatasetManifest[] {
   const original = datasets.find(({ mapKey }) => mapKey === 'original');
   const tamrielRebuilt = datasets.find(({ mapKey }) => mapKey === 'tamriel-rebuilt');
-  return [original, tamrielRebuilt].filter(
+  const projectCyrodiil = datasets.find(({ mapKey }) => mapKey === 'project-cyrodiil');
+  return [original, tamrielRebuilt, projectCyrodiil].filter(
     (dataset): dataset is DatasetManifest => dataset !== undefined,
   );
 }

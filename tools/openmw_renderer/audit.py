@@ -160,12 +160,14 @@ EXPECTED_REPORT_KEYS = {
 
 ProgressCallback = Callable[[str], None]
 
+_LOG_COORDINATE = r"-?\d+(?:\.\d+)?(?:e[+-]?\d+)?"
+_COORDINATE_FIELDS = frozenset({"center_x", "center_y", "min_x", "max_x", "min_y", "max_y"})
 _TARGET_RE = re.compile(
     r"MWMAP export target (?P<cell_x>-?\d+),(?P<cell_y>-?\d+): "
     r"(?P<pixels>\d+)px over (?P<world_units>\d+) world units; "
-    r"center=\((?P<center_x>-?\d+),(?P<center_y>-?\d+)\); "
-    r"bounds=\[(?P<min_x>-?\d+),(?P<max_x>-?\d+)\]x"
-    r"\[(?P<min_y>-?\d+),(?P<max_y>-?\d+)\]; "
+    rf"center=\((?P<center_x>{_LOG_COORDINATE}),(?P<center_y>{_LOG_COORDINATE})\); "
+    rf"bounds=\[(?P<min_x>{_LOG_COORDINATE}),(?P<max_x>{_LOG_COORDINATE})\]x"
+    rf"\[(?P<min_y>{_LOG_COORDINATE}),(?P<max_y>{_LOG_COORDINATE})\]; "
     r"raster=top-left,\+x,-y,flipVertical=false -> "
     r"/out/raw/(?P<z>\d+)/(?P<x>\d+)/(?P<y>\d+)\.png"
 )
@@ -1159,6 +1161,36 @@ def _expected_target(cell: tuple[int, int]) -> dict[str, int]:
     }
 
 
+
+def _validate_target_markers(
+    text: str,
+    *,
+    expected_cells: set[tuple[int, int]],
+    shard_key: str,
+) -> float:
+    parsed = [match.groupdict() for match in _TARGET_RE.finditer(text)]
+    if len(parsed) != len(expected_cells):
+        raise ValueError(f"Shard {shard_key} target marker count mismatch")
+    parsed_cells = {(int(item["cell_x"]), int(item["cell_y"])) for item in parsed}
+    if parsed_cells != expected_cells:
+        raise ValueError(f"Shard {shard_key} target marker cells mismatch")
+    maximum_log_rounding = 0.0
+    for item in parsed:
+        cell = (int(item["cell_x"]), int(item["cell_y"]))
+        for field, expected in _expected_target(cell).items():
+            # OpenMW logs floats with defaultfloat's six significant digits.
+            # Compare the exact expected representation, not an error tolerance:
+            # Cyrodiil's million-unit coordinates are rounded in these logs.
+            expected_text = format(expected, ".6g") if field in _COORDINATE_FIELDS else str(expected)
+            if item[field] != expected_text:
+                raise ValueError(
+                    f"Shard {shard_key} target {cell} {field} mismatch: "
+                    f"{item[field]} != {expected_text}"
+                )
+            if field in _COORDINATE_FIELDS:
+                maximum_log_rounding = max(maximum_log_rounding, abs(float(item[field]) - expected) / 16)
+    return maximum_log_rounding
+
 def audit_runtime(
     source_root: Path,
     *,
@@ -1195,7 +1227,7 @@ def audit_runtime(
             if isinstance(old_source, str):
                 allowed_production_sources.add(old_source)
     target_count = 0
-    maximum_coordinate_error = 0.0
+    maximum_log_rounding = 0.0
     total_elapsed = 0
     maximum_elapsed = 0
     maximum_memory = 0
@@ -1269,41 +1301,16 @@ def audit_runtime(
             if isinstance(warning, dict) and isinstance(warning.get("line"), str):
                 ignored_warning_lines.add(str(warning["line"]))
 
-        text = wrapper.read_text(encoding="utf-8", errors="replace")
-        parsed = [
-            {name: int(value) for name, value in match.groupdict().items()}
-            for match in _TARGET_RE.finditer(text)
-        ]
         expected_cells = {
             (int(cell[0]), int(cell[1])) for cell in shard["cells"]
         }
-        if len(parsed) != len(expected_cells):
-            raise ValueError(f"Shard {key} target marker count mismatch")
-        parsed_cells = {(item["cell_x"], item["cell_y"]) for item in parsed}
-        if parsed_cells != expected_cells:
-            raise ValueError(f"Shard {key} target marker cells mismatch")
-        for item in parsed:
-            cell = (item["cell_x"], item["cell_y"])
-            expected = _expected_target(cell)
-            for field, expected_value in expected.items():
-                difference = abs(item[field] - expected_value)
-                if field in {
-                    "center_x",
-                    "center_y",
-                    "min_x",
-                    "max_x",
-                    "min_y",
-                    "max_y",
-                }:
-                    maximum_coordinate_error = max(
-                        maximum_coordinate_error, difference / 16
-                    )
-                if item[field] != expected_value:
-                    raise ValueError(
-                        f"Shard {key} target {cell} {field} mismatch: "
-                        f"{item[field]} != {expected_value}"
-                    )
-        target_count += len(parsed)
+        log_rounding = _validate_target_markers(
+            wrapper.read_text(encoding="utf-8", errors="replace"),
+            expected_cells=expected_cells,
+            shard_key=key,
+        )
+        maximum_log_rounding = max(maximum_log_rounding, log_rounding)
+        target_count += len(expected_cells)
         if progress is not None and (index == total or index % 25 == 0):
             progress(f"[audit:runtime {index}/{total}]")
     if len(normalized_build_hashes) != 1 or target_count != EXPECTED_NATIVE_TILES:
@@ -1312,7 +1319,10 @@ def audit_runtime(
         "passes": True,
         "shards": len(shard_keys),
         "targetMarkers": target_count,
-        "maximumCoordinateErrorPixels": _round(maximum_coordinate_error),
+        # Every marker must match the renderer's expected logged representation.
+        "maximumCoordinateErrorPixels": 0.0,
+        "coordinateComparison": "openmw-defaultfloat-6",
+        "maximumCoordinateLogRoundingPixels": _round(maximum_log_rounding),
         "resourceReports": len(shard_keys),
         "actionableMissingResources": 0,
         "ignoredCompatibilityWarningEvents": len(ignored_warning_lines),

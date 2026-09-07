@@ -601,6 +601,29 @@ def _fixture(
     new=_fixture_validated_stabilization,
 )
 class CoverageTests(unittest.TestCase):
+    def test_release_origin_is_validated_and_published_from_its_extent(self) -> None:
+        extent = (-1138688, -557056, -876544, -303104)
+        origin = [extent[0], extent[3]]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = _fixture(root)
+            quality = validate_quality_report(root, validate_source(root))
+            payload["extent"] = list(extent)
+            payload["origin"] = origin
+            payload["inventorySha256"] = _sha256(_canonical({
+                key: value for key, value in payload.items() if key != "inventorySha256"
+            }))
+            _write_json(root / "inventory.json", payload)
+            with mock.patch.object(publish_module, "POISON_WORLD_EXTENT", extent):
+                inventory = validate_source(root)
+                with mock.patch.object(publish_module, "validate_quality_report", return_value=quality):
+                    metadata = build_publish_metadata(root, inventory)
+                self.assertEqual(metadata.map_assets["tilePyramids"][0]["origin"], origin)
+                payload["origin"] = [-229376, 278528]
+                _write_json(root / "inventory.json", payload)
+                with self.assertRaisesRegex(ValueError, "Inventory origin mismatch"):
+                    validate_source(root)
+
     def test_coverage_is_compact_sorted_and_deterministic(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

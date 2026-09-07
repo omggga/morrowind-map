@@ -82,7 +82,7 @@ def _pairs(before: dict, after: dict) -> list[tuple[str | None, str | None, str]
     left, right = set(before) - set(after), set(after) - set(before)
     # A recognized mapKey is a stable product identity. Match only when unique
     # across the entire snapshot, including datasets already paired by exact ID.
-    for map_key in ('original', 'tamriel-rebuilt'):
+    for map_key in ('original', 'tamriel-rebuilt', 'project-cyrodiil'):
         old = [key for key, value in before.items() if value['manifest'].get('mapKey') == map_key]
         new = [key for key, value in after.items() if value['manifest'].get('mapKey') == map_key]
         if len(old) == len(new) == 1 and old[0] in left and new[0] in right:

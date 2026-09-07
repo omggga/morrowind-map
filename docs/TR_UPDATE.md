@@ -137,7 +137,7 @@ render then runs these stages in strict order:
 | `catalog-build`, `catalog-validate`, `catalog-prepare` | Merge the five ESMs, validate the catalog, and prepare it in the same isolated root |
 | `manifest-build`, `release-verify` | Assemble a candidate from actual metadata and verify one identity throughout |
 | `activate-local` | Recheck candidate artifacts and switch only the isolated candidate manifest/index |
-| Full-plan and rendered browser gates | Validate the complete two-map candidate and exercise its actual catalogs/tiles |
+| Full-plan and rendered browser gates | Validate the complete candidate, preserving every other active map and exercise its actual catalogs/tiles |
 
 No stage changes tracked active public files. After success, read `publicRoot` from
 `local-data/render/result.json`, preview it, and explicitly adopt it with `render:use`
@@ -168,4 +168,4 @@ intermediate renders, and original game files remain local artifacts. ESM/ESP/BS
 and other game inputs must never enter Git or LFS. A TR-only contribution leaves
 Original unchanged; a deliberate `render:all` contribution includes both new candidates.
 
-Follow [DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md) to validate and stage the prepared graph and open a PR. Include the release metadata and any deliberate settings or coverage changes. The two-map index, manifests, catalogs, and tiles must agree on their respective dataset and snapshot identities. User data remains bound to its original map version.
+Follow [DATASET_CONTRIBUTING.md](DATASET_CONTRIBUTING.md) to validate and stage the prepared graph and open a PR. Include the release metadata and any deliberate settings or coverage changes. The dataset index, manifests, catalogs, and tiles must agree on their respective dataset and snapshot identities. User data remains bound to its original map version.

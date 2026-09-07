@@ -6,6 +6,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import Any, Mapping, Sequence
@@ -416,6 +417,8 @@ def activate(profile: Mapping[str, Any], lock: Mapping[str, Any]) -> ActivatedRe
 
     sys.modules["tools.openmw_renderer.profile"] = _runtime_profile(profile, lock)
     production = importlib.import_module("tools.openmw_renderer.production")
+    parsed = importlib.import_module("tools.tr_release.model").parse_profile(dict(profile))
+    production.LAND_CONTENT_FILES = parsed.land_content_files
     production.DATASET_ID = dataset_id
     production.SNAPSHOT_ID = snapshot_id
     production.PINNED_PROFILE_FINGERPRINT = str(lock["profileFingerprint"])
@@ -431,7 +434,7 @@ def activate(profile: Mapping[str, Any], lock: Mapping[str, Any]) -> ActivatedRe
 
     publish = importlib.import_module("tools.openmw_renderer.publish")
     publish.TILE_PYRAMID_ID = f"{dataset_id}.basemap"
-    publish.TILE_REGIONS = _profile_regions(profile)
+    publish.TILE_REGIONS = parsed.catalog_regions or _profile_regions(profile)
     publish.EXPECTED_TILE_COUNTS = tile_counts
     publish.PINNED_RAW_PROBE_IDS = probe_ids
     publish.EXPECTED_PLAN_FINGERPRINT = str(contract["planFingerprint"])
@@ -457,6 +460,7 @@ def activate(profile: Mapping[str, Any], lock: Mapping[str, Any]) -> ActivatedRe
     audit.EXPECTED_SCOPE = scope
 
     catalog = importlib.import_module("tools.catalog_pipeline.poison")
+    catalog.build_catalog = partial(catalog.build_catalog, allowed_regions=parsed.catalog_regions)
     catalog.DATASET_ID = dataset_id
     catalog.SNAPSHOT_ID = snapshot_id
     input_by_name = {

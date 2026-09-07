@@ -23,7 +23,12 @@ const entries = configuredRoot
 
 test('rendered candidate gate requires an explicit public tree', () => {
   test.skip(!configuredRoot, 'Used by the local render workflow.');
-  expect(entries).toHaveLength(2);
+  expect(entries.length).toBeGreaterThanOrEqual(2);
+  expect(entries.length).toBeLessThanOrEqual(3);
+  const keys = entries.map((entry) => readPublic<DatasetManifest>(entry.manifestUrl).mapKey);
+  expect(new Set(keys).size).toBe(entries.length);
+  expect(keys).toContain('original');
+  expect(keys).toContain('tamriel-rebuilt');
 });
 
 for (const entry of entries) {
@@ -77,5 +82,34 @@ for (const entry of entries) {
     ).toBe(true);
     expect(failures).toEqual([]);
     expect(external).toEqual([]);
+  });
+}
+
+const cyrodiil = entries.find((entry) =>
+  readPublic<DatasetManifest>(entry.manifestUrl).mapKey === 'project-cyrodiil');
+
+if (cyrodiil) {
+  test('opens Cyrodiil closer without a redundant region filter and preserves shared views', async ({ page }, testInfo) => {
+    const manifest = readPublic<DatasetManifest>(cyrodiil.manifestUrl);
+    await page.goto('/');
+    await page.getByRole('button', {
+      name: `Open map: Project Cyrodiil — ${manifest.release.name}`,
+    }).click();
+    const map = page.getByLabel('Interactive map in TES3 world coordinates');
+    await expect(map).toHaveAttribute('data-view-z', '3');
+    await expect(map).toHaveAttribute('data-view-x', String(manifest.map.projection.center[0]));
+    await expect(map).toHaveAttribute('data-view-y', String(manifest.map.projection.center[1]));
+    await expect(page.getByRole('group', { name: 'Map section', exact: true })).toHaveCount(0);
+    await expect(map).toHaveAttribute('data-basemap-loaded', /^[1-9]\d*$/);
+    await expect(map).toHaveAttribute('data-basemap-pending', '0');
+    await page.screenshot({ path: testInfo.outputPath('cyrodiil-default.png') });
+
+    const query = new URLSearchParams({
+      dataset: cyrodiil.datasetId, region: 'all',
+      x: String(manifest.map.projection.center[0]),
+      y: String(manifest.map.projection.center[1]), z: '5',
+    });
+    await page.goto(`/?${query}`);
+    await expect(map).toHaveAttribute('data-view-z', '5');
   });
 }
