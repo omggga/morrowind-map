@@ -11,6 +11,11 @@ from typing import Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+RELEASE_PROFILES = {
+    "tamriel-rebuilt": "tr-release.json",
+    "project-cyrodiil": "pc-release.json",
+    "home-of-nords": "shotn-release.json",
+}
 
 
 def run_module(module: str, args: Sequence[str]) -> None:
@@ -111,7 +116,7 @@ def copy_public_tree(source_public: Path, target_public: Path) -> None:
         atomic_copy(source / relative, destination)
     (target / "datasets").mkdir(exist_ok=True)
     write_json(receipt, {"graphSha256": plan["graphSha256"]})
-    for name in ("tr-release.json", "pc-release.json"):
+    for name in RELEASE_PROFILES.values():
         profile = source.parent / name
         if profile.is_file():
             safe_path(profile, source.parent)

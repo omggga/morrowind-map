@@ -8,7 +8,7 @@ Morrowind Map has three core parts:
 2. Python tooling extracts the TES3 catalog and builds the basemap with a pinned headless OpenMW renderer.
 3. Browser storage keeps user progress separate from the read-only game datasets.
 
-The runtime does not use external CDNs or APIs. Fonts, icons, manifests, and runtime artifacts are served from the same origin. The application and repository prose use English; contribution conventions are defined in [CONTRIBUTING.md](../CONTRIBUTING.md).
+Map data, fonts, icons, manifests, and runtime artifacts are served from the same origin. Optional analytics load only after consent. The application and repository prose use English; contribution conventions are defined in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Dataset contract
 
@@ -16,7 +16,8 @@ The runtime does not use external CDNs or APIs. Fonts, icons, manifests, and run
 
 - `original-goty-hd`;
 - one active versioned Tamriel Rebuilt dataset;
-- one active versioned Project Cyrodiil dataset, after its first render is adopted.
+- one active versioned Project Cyrodiil dataset;
+- one active versioned Home of the Nords dataset.
 
 The index contains only identity, ordering, and the manifest URL. Each manifest defines:
 
@@ -44,8 +45,17 @@ Cyrodiil uses the same OpenMW renderer, tile geometry, presentation, seam audits
 release adapter as TR. `config/pc-release.json` supplies its version, load order,
 source hashes and smoke controls. GOTY and Tamriel Data remain loaded dependencies;
 LAND coverage and the published location catalog are restricted to Cyrodiil.
-A Cyrodiil update preserves Original and TR, and a TR update preserves Cyrodiil.
+A single-map update preserves every other active map and its artifacts.
 The landing page reads the prepared manifest and opens Cyrodiil as its third choice.
+
+### Skyrim: Home of the Nords
+
+Home of the Nords uses the shared province release workflow with
+`config/shotn-release.json`. Its `Sky_Main.esm` defines the LAND extent, the `skyrim`
+region limits the published catalog, and `shotn:` identifies its snapshots. GOTY
+and Tamriel Data supply dependencies; grass, TR and Cyrodiil plugins are excluded.
+The candidate adds or replaces the fourth map while retaining every other active
+map and its immutable artifacts.
 
 ## Basemap and catalog
 
@@ -76,7 +86,7 @@ Changes enter `main` through topic-branch PRs. CI validates the Git source bound
 
 The URL stores `dataset`, `region`, `x`, `y`, `z`, and the selected `place`. Input parameters are validated and canonicalized; Back/Forward restores meaningful navigation state without adding history entries for every pan or zoom.
 
-Entering a map from the landing page without an explicit camera uses `map.projection.center` from the manifest at the first catalog tier, `z=2`. The exception is the selected `tr-mainland` region, which opens at Old Ebonheart at `z=4`. Explicit valid `x/y/z` URL coordinates always take precedence over defaults or region focus.
+Entering a map from the landing page without an explicit camera uses `map.projection.center` from the manifest. Original and TR open at `z=3`; Cyrodiil and Home of the Nords open at `z=4`. The selected `tr-mainland` region opens at Old Ebonheart at `z=4`. Explicit valid `x/y/z` URL coordinates always take precedence over defaults or region focus.
 
 Region, type, status, and zoom-tier filters apply to the full catalog. The results list appends DOM rows in batches as the user scrolls; search, facet counts, map markers, and the total number of matches use the full filtered set, not just the rendered batch.
 
@@ -86,6 +96,6 @@ Dataset and catalog loading have explicit loading, missing, invalid, network-err
 
 IndexedDB stores progress, notes, and personal markers separately from read-only dataset files. Every record belongs to a `datasetId`; its binding also checks `snapshotId`.
 
-A new TR release must receive both new identities. This prevents coordinates and records from different snapshots from being mixed. Old records are neither deleted nor migrated automatically; they remain bound to the previous dataset. JSON export/import is validated before an atomic write and does not alter game artifacts.
+A new map release must receive both new identities. This prevents coordinates and records from different snapshots from being mixed. Old records are neither deleted nor migrated automatically; they remain bound to the previous dataset. JSON export/import is validated before an atomic write and does not alter game artifacts.
 
 If IndexedDB is unavailable, the map remains usable in read-only mode. A local-write failure preserves the draft and offers a retry without resetting the camera or selected place.

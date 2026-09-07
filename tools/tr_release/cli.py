@@ -120,8 +120,8 @@ def _assert_future_dataset_id(dataset_id: str, index_path: Path) -> None:
         if not isinstance(item, dict) or not isinstance(item.get("datasetId"), str):
             raise ValueError("Active dataset index contains an invalid dataset entry")
         identifiers.append(item["datasetId"])
-    if len(identifiers) not in (2, 3) or identifiers.count(ORIGINAL_DATASET_ID) != 1:
-        raise ValueError("Active dataset index must contain Original and exactly one TR release")
+    if len(identifiers) not in (2, 3, 4) or identifiers.count(ORIGINAL_DATASET_ID) != 1:
+        raise ValueError("Active dataset index must contain two to four maps including Original")
     if dataset_id in identifiers:
         raise ValueError(
             f"TR release datasetId {dataset_id!r} is already active; choose a new versioned id "

@@ -80,7 +80,8 @@
     "test:acceptance:rendered": "playwright test -c playwright.acceptance.config.ts tests/acceptance/rendered-candidate.spec.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm build",
     "preview": "pnpm --filter @morrowind-map/web preview",
-    "render:project-cyrodiil": "python3 -m tools.rendering.cli run project-cyrodiil"
+    "render:project-cyrodiil": "python3 -m tools.rendering.cli run project-cyrodiil",
+    "render:home-of-nords": "python3 -m tools.rendering.cli run home-of-nords"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

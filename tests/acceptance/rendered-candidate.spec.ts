@@ -24,7 +24,7 @@ const entries = configuredRoot
 test('rendered candidate gate requires an explicit public tree', () => {
   test.skip(!configuredRoot, 'Used by the local render workflow.');
   expect(entries.length).toBeGreaterThanOrEqual(2);
-  expect(entries.length).toBeLessThanOrEqual(3);
+  expect(entries.length).toBeLessThanOrEqual(4);
   const keys = entries.map((entry) => readPublic<DatasetManifest>(entry.manifestUrl).mapKey);
   expect(new Set(keys).size).toBe(entries.length);
   expect(keys).toContain('original');
@@ -85,27 +85,28 @@ for (const entry of entries) {
   });
 }
 
-const cyrodiil = entries.find((entry) =>
-  readPublic<DatasetManifest>(entry.manifestUrl).mapKey === 'project-cyrodiil');
+const provinces = entries.filter((entry) =>
+  ['project-cyrodiil', 'home-of-nords'].includes(readPublic<DatasetManifest>(entry.manifestUrl).mapKey));
 
-if (cyrodiil) {
-  test('opens Cyrodiil closer without a redundant region filter and preserves shared views', async ({ page }, testInfo) => {
-    const manifest = readPublic<DatasetManifest>(cyrodiil.manifestUrl);
+for (const province of provinces) {
+  const manifest = readPublic<DatasetManifest>(province.manifestUrl);
+  const title = `${manifest.mapKey === 'home-of-nords' ? 'Skyrim: Home of the Nords' : 'Project Cyrodiil'} — ${manifest.release.name}`;
+  test(`opens ${manifest.mapKey} closer without a redundant region filter and preserves shared views`, async ({ page }, testInfo) => {
     await page.goto('/');
     await page.getByRole('button', {
-      name: `Open map: Project Cyrodiil — ${manifest.release.name}`,
+      name: `Open map: ${title}`,
     }).click();
     const map = page.getByLabel('Interactive map in TES3 world coordinates');
-    await expect(map).toHaveAttribute('data-view-z', '3');
+    await expect(map).toHaveAttribute('data-view-z', '4');
     await expect(map).toHaveAttribute('data-view-x', String(manifest.map.projection.center[0]));
     await expect(map).toHaveAttribute('data-view-y', String(manifest.map.projection.center[1]));
     await expect(page.getByRole('group', { name: 'Map section', exact: true })).toHaveCount(0);
     await expect(map).toHaveAttribute('data-basemap-loaded', /^[1-9]\d*$/);
     await expect(map).toHaveAttribute('data-basemap-pending', '0');
-    await page.screenshot({ path: testInfo.outputPath('cyrodiil-default.png') });
+    await page.screenshot({ path: testInfo.outputPath(`${manifest.mapKey}-default.png`) });
 
     const query = new URLSearchParams({
-      dataset: cyrodiil.datasetId, region: 'all',
+      dataset: province.datasetId, region: 'all',
       x: String(manifest.map.projection.center[0]),
       y: String(manifest.map.projection.center[1]), z: '5',
     });
