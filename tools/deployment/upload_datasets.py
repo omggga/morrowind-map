@@ -57,6 +57,7 @@ class DatasetPlanner:
     public_root: Path
     files: dict[str, PlannedFile] = field(default_factory=dict)
     datasets: list[dict[str, object]] = field(default_factory=list)
+    verify_tiles: bool = field(default=True, kw_only=True)
 
     @property
     def generated_root(self) -> Path:
@@ -346,9 +347,10 @@ class DatasetPlanner:
                 raise DeploymentError(f"{pyramid_id} tile path is duplicate or non-canonical: {relative_text}")
             byte_count = require_integer(record.get("bytes"), f"{pyramid_id} tile bytes", minimum=1)
             digest = require_sha256(record.get("sha256"), f"{pyramid_id} tile SHA-256")
-            tile_path = safe_file(self.generated_root, Path(dataset_id) / inventory_sha / Path(relative_text), f"{pyramid_id} tile {relative_text}")
-            if tile_path.stat().st_size != byte_count or self._sha256_file(tile_path) != digest:
-                raise DeploymentError(f"{pyramid_id} tile failed integrity: {relative_text}")
+            if self.verify_tiles:
+                tile_path = safe_file(self.generated_root, Path(dataset_id) / inventory_sha / Path(relative_text), f"{pyramid_id} tile {relative_text}")
+                if tile_path.stat().st_size != byte_count or self._sha256_file(tile_path) != digest:
+                    raise DeploymentError(f"{pyramid_id} tile failed integrity: {relative_text}")
             public_url = f"/datasets/generated/{dataset_id}/{inventory_sha}/{relative_text}"
             self._add_record(public_url, byte_count, digest)
             expected_paths.add(relative_text)
@@ -356,11 +358,12 @@ class DatasetPlanner:
             total += byte_count
         if len(expected_paths) != expected_count or total != expected_total:
             raise DeploymentError(f"{pyramid_id} tiles.ndjson count/bytes differ from map-assets")
-        actual = self._regular_tree_files(version_root, f"{pyramid_id} active tile tree")
-        if actual != expected_paths:
-            extra = sorted(actual - expected_paths)
-            missing = sorted(expected_paths - actual)
-            raise DeploymentError(f"{pyramid_id} tile tree differs from tiles.ndjson: {(extra or missing)[:5]}")
+        if self.verify_tiles:
+            actual = self._regular_tree_files(version_root, f"{pyramid_id} active tile tree")
+            if actual != expected_paths:
+                extra = sorted(actual - expected_paths)
+                missing = sorted(expected_paths - actual)
+                raise DeploymentError(f"{pyramid_id} tile tree differs from tiles.ndjson: {(extra or missing)[:5]}")
 
     def _add_record(self, public_url: str, byte_count: int, digest: str) -> None:
         relative = PurePosixPath(*PurePosixPath(public_url).parts[3:]).as_posix()
@@ -400,6 +403,17 @@ def build_dataset_plan(*, public_root: Path) -> dict[str, object]:
     if generated.is_symlink() or not generated.is_dir():
         raise DeploymentError(f"generated dataset root must be a real directory: {generated}")
     return DatasetPlanner(public).collect()
+
+
+def build_metadata_plan(*, public_root: Path) -> dict[str, object]:
+    """Read expected tile records from verified metadata, without accepting tile bytes.
+
+    Catalogs, manifests and inventory bindings still undergo the same checks.
+    This is a transport preflight only; upload/install must use build_dataset_plan.
+    Keeping both paths in DatasetPlanner preserves the deployed graph identity.
+    """
+    public = absolute_directory(public_root, "web public root")
+    return DatasetPlanner(public, verify_tiles=False).collect()
 
 
 def _validate_host(host: str) -> str:
