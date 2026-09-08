@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
 
       - name: Reject game inputs and invalid dataset Git objects
-        run: python3 -m tools.deployment.git_datasets check --repo-root . --revision "$GITHUB_SHA" --require-releases
+        run: python3 -m tools.deployment.git_datasets check --repo-root . --revision "$GITHUB_SHA"
 
       - name: Detect dataset changes
         id: changes

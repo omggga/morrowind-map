@@ -20,7 +20,19 @@ class GitDatasetTests(unittest.TestCase):
         self.git("init", "--quiet")
         self.git("config", "user.name", "Fixture")
         self.git("config", "user.email", "fixture@example.invalid")
-        self.write("apps/web/public/datasets/index.json", b'{"schemaVersion":1}\n')
+        from tools.deployment.common import canonical_json_bytes
+        from tools.deployment.dataset_packages import pack_tile_set, read_tile_sets
+        from tools.deployment.tests.fixtures import write_dist
+        from tools.deployment.upload_datasets import build_dataset_plan
+
+        public = self.repo / "apps/web/public"
+        paths = write_dist(public)
+        entry = pack_tile_set(read_tile_sets(public_root=public)[0],
+                              generated_root=public / "datasets/generated", package_root=self.root / "packages")
+        lock = {"schemaVersion": 1, "repository": "omggga/morrowind-map", "tileSets": [entry]}
+        self.write("config/dataset-releases.lock.json", canonical_json_bytes(lock))
+        self.write("config/dataset-upload-plan.json", canonical_json_bytes(build_dataset_plan(public_root=public)))
+        (public / paths["tile"].lstrip("/")).unlink()
 
     def git(self, *args: str) -> str:
         return subprocess.check_output(
@@ -46,27 +58,20 @@ class GitDatasetTests(unittest.TestCase):
         obj = self.write(f".git/lfs/objects/{oid[:2]}/{oid[2:4]}/{oid}", payload)
         return name, obj
 
-    def test_exports_committed_data_only_and_hydrates_verified_lfs(self) -> None:
-        name, _ = self.tile()
-        self.write("apps/web/public/datasets/generated/world/catalogs/locations.json", b"[]\n")
+    def test_exports_committed_metadata_only(self) -> None:
         self.write("tools/renderers/renderer.py", b"raise RuntimeError('must not run')\n")
         self.write("apps/web/public/datasets/metadata/worst-seams.webp", b"RIFF\x04\x00\x00\x00WEBP")
+        expected_index = (self.repo / "apps/web/public/datasets/index.json").read_bytes()
         revision = self.commit()
         self.write("apps/web/public/datasets/index.json", b"working tree must not escape")
         self.write("apps/web/public/datasets/untracked.json", b"{}")
         output = self.root / "public"
         report = export_revision(repo_root=self.repo, revision=revision, output_public_root=output)
-        self.assertEqual(report["lfsFileCount"], 1)
-        self.assertEqual(report["generatedFileCount"], 2)
-        self.assertEqual((output / name.removeprefix("apps/web/public/")).read_bytes(), b"RIFF\x04\x00\x00\x00WEBP")
-        self.assertEqual(json.loads((output / "datasets/index.json").read_bytes()), {"schemaVersion": 1})
+        self.assertEqual(report["snapshotMode"], "releases")
+        self.assertFalse(list((output / "datasets/generated").rglob("*.webp")))
+        self.assertEqual((output / "datasets/index.json").read_bytes(), expected_index)
         self.assertFalse((output / "datasets/untracked.json").exists())
         self.assertFalse((output / "tools").exists())
-
-    def test_metadata_only_baseline_is_identifiable(self) -> None:
-        report = check_revision(repo_root=self.repo, revision=self.commit())
-        self.assertEqual(report["generatedFileCount"], 0)
-        self.assertEqual(report["lfsFileCount"], 0)
 
     def test_rejects_proprietary_assets_anywhere_and_input_directories(self) -> None:
         for name in ("hidden/Morrowind.EsM", "tools/asset.BSA", "anything/texture.DDS", "local-data/source.json", "a/data-sources/input.txt", "renders/tile.webp", "raw/data.json", "apps/web/public/datasets/generated/source.zip", "Morrowind.zip", "uploads/game.7z", "inputs/game.json", "input/game.json"):
@@ -81,7 +86,7 @@ class GitDatasetTests(unittest.TestCase):
         name, _ = self.tile()
         for content in (b"RIFF\x04\x00\x00\x00WEBP", b"version https://git-lfs.github.com/spec/v1\noid sha256:" + b"a" * 64 + b"\nsize 01\n"):
             self.write(name, content)
-            with self.assertRaisesRegex(GitDatasetError, "canonical Git LFS pointer"):
+            with self.assertRaisesRegex(GitDatasetError, "forbid tracked generated WebP"):
                 check_revision(repo_root=self.repo, revision=self.commit())
         (self.repo / name).unlink()
         self.write("apps/web/public/datasets/generated/binary.json", b"\x00\xff")
@@ -100,25 +105,18 @@ class GitDatasetTests(unittest.TestCase):
         with self.assertRaisesRegex(GitDatasetError, "regular file"):
             check_revision(repo_root=self.repo, revision=self.git("rev-parse", "HEAD"))
 
-    def test_rejects_missing_corrupt_and_symlinked_lfs_object(self) -> None:
+    def test_existing_local_lfs_objects_cannot_restore_tracked_tiles(self) -> None:
         _, obj = self.tile()
         revision = self.commit()
-        for fault in ("corrupt", "missing", "symlink"):
-            with self.subTest(fault=fault):
-                if obj.exists() or obj.is_symlink():
-                    obj.unlink()
-                if fault == "corrupt":
-                    obj.write_bytes(b"RIFF\x04\x00\x00\x00FAIL")
-                elif fault == "symlink":
-                    target = self.root / "elsewhere"
-                    target.write_bytes(b"RIFF\x04\x00\x00\x00WEBP")
-                    obj.symlink_to(target)
-                with self.assertRaises(GitDatasetError):
-                    export_revision(repo_root=self.repo, revision=revision, output_public_root=self.root / fault)
-                self.assertFalse((self.root / fault).exists())
+        for existing in (True, False):
+            if not existing:
+                obj.unlink()
+            output = self.root / str(existing)
+            with self.assertRaisesRegex(GitDatasetError, "forbid tracked generated WebP"):
+                export_revision(repo_root=self.repo, revision=revision, output_public_root=output)
+            self.assertFalse(output.exists())
 
     def test_rejects_limits_and_unsafe_revision(self) -> None:
-        self.tile()
         revision = self.commit()
         for kwargs in ({"max_file_bytes": 10}, {"max_total_bytes": 25}, {"max_files": 1}):
             with self.subTest(kwargs=kwargs), self.assertRaisesRegex(GitDatasetError, "limit"):
@@ -139,7 +137,7 @@ class GitDatasetTests(unittest.TestCase):
         import sys
         from tools.deployment import git_datasets
 
-        self.tile()
+        self.write("apps/web/public/datasets/metadata/worst-seams.webp", b"RIFF\x04\x00\x00\x00WEBP")
         revision = self.commit()
         marker = self.root / "executed"
         hook = self.write(".git/hooks/post-checkout", f"#!/bin/sh\ntouch '{marker}'\n".encode())
@@ -152,7 +150,7 @@ class GitDatasetTests(unittest.TestCase):
             capture_output=True, text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout)["lfsFileCount"], 1)
+        self.assertEqual(json.loads(result.stdout)["snapshotMode"], "releases")
         self.assertFalse(marker.exists())
 
     def test_rejects_output_symlink_and_existing_dataset_tree(self) -> None:
@@ -173,26 +171,11 @@ class ReleaseSnapshotTests(unittest.TestCase):
     write = GitDatasetTests.write
     commit = GitDatasetTests.commit
 
-    def release_fixture(self) -> tuple[str, str]:
-        from tools.deployment.common import canonical_json_bytes
-        from tools.deployment.dataset_packages import pack_tile_set, read_tile_sets
-        from tools.deployment.tests.fixtures import write_dist
-        from tools.deployment.upload_datasets import build_dataset_plan
-
-        legacy = self.commit()
-        public = self.repo / "apps/web/public"
-        paths = write_dist(public)
-        plan = build_dataset_plan(public_root=public)
-        entry = pack_tile_set(read_tile_sets(public_root=public)[0], generated_root=public / "datasets/generated",
-                              package_root=self.root / "packages")
-        lock = {"schemaVersion": 1, "repository": "omggga/morrowind-map", "tileSets": [entry]}
-        self.write("config/dataset-releases.lock.json", canonical_json_bytes(lock))
-        self.write("config/dataset-upload-plan.json", canonical_json_bytes(plan))
-        (public / paths["tile"].lstrip("/")).unlink()
-        return legacy, self.commit()
+    def release_fixture(self) -> str:
+        return self.commit()
 
     def test_exports_exact_committed_release_metadata_lock_and_plan(self) -> None:
-        _, revision = self.release_fixture()
+        revision = self.release_fixture()
         lock = (self.repo / "config/dataset-releases.lock.json").read_bytes()
         plan = (self.repo / "config/dataset-upload-plan.json").read_bytes()
         self.write("config/dataset-releases.lock.json", b"invalid working tree")
@@ -200,41 +183,28 @@ class ReleaseSnapshotTests(unittest.TestCase):
         output = self.root / "public"
         report = export_revision(repo_root=self.repo, revision=revision, output_public_root=output)
         self.assertEqual(report["snapshotMode"], "releases")
-        self.assertEqual(report["lfsFileCount"], 0)
         self.assertEqual((output / "config/dataset-releases.lock.json").read_bytes(), lock)
         self.assertEqual((output / "config/dataset-upload-plan.json").read_bytes(), plan)
         self.assertFalse(list((output / "datasets/generated").rglob("*.webp")))
         self.assertTrue(list((output / "datasets/generated").rglob("*.json")))
 
-    def test_explicit_historical_mode_and_trusted_boundary(self) -> None:
-        legacy, boundary = self.release_fixture()
-        report = check_revision(repo_root=self.repo, revision=legacy, mode="legacy", release_boundary=boundary)
-        self.assertEqual(report["snapshotMode"], "legacy")
-        with self.assertRaisesRegex(GitDatasetError, "downgrade"):
-            check_revision(repo_root=self.repo, revision=boundary, mode="legacy")
-        with self.assertRaisesRegex(GitDatasetError, "committed transport lock"):
-            check_revision(repo_root=self.repo, revision=legacy, mode="releases")
-        with self.assertRaisesRegex(GitDatasetError, "40-character"):
-            check_revision(repo_root=self.repo, revision=legacy, release_boundary="HEAD")
-
-    def test_lock_deletion_cannot_downgrade(self) -> None:
-        _, boundary = self.release_fixture()
+    def test_every_snapshot_requires_its_own_lock(self) -> None:
         (self.repo / "config/dataset-releases.lock.json").unlink()
+        # Even a root commit without lock history cannot request old transport.
         revision = self.commit()
-        for options in ({}, {"mode": "legacy"}, {"release_boundary": boundary}):
-            with self.subTest(options=options), self.assertRaisesRegex(GitDatasetError, "(downgrade|transport lock)"):
-                check_revision(repo_root=self.repo, revision=revision, **options)
+        with self.assertRaisesRegex(GitDatasetError, "committed transport lock"):
+            check_revision(repo_root=self.repo, revision=revision)
+        with self.assertRaisesRegex(GitDatasetError, "committed transport lock"):
+            export_revision(repo_root=self.repo, revision=revision, output_public_root=self.root / "public")
+        self.assertFalse((self.root / "public").exists())
 
-    def test_trusted_boundary_fails_closed_with_shallow_or_unrelated_history(self) -> None:
-        _, boundary = self.release_fixture()
+    def test_lock_deletion_fails_even_with_shallow_history(self) -> None:
+        self.release_fixture()
         (self.repo / "config/dataset-releases.lock.json").unlink()
         revision = self.commit()
         self.write(".git/shallow", (revision + "\n").encode())
-        # The trusted SHA still exists locally, but this shallow root hides ancestry.
-        with self.assertRaisesRegex(GitDatasetError, "Cannot prove"):
-            check_revision(repo_root=self.repo, revision=revision, release_boundary=boundary)
         with self.assertRaisesRegex(GitDatasetError, "committed transport lock"):
-            check_revision(repo_root=self.repo, revision=revision, mode="releases")
+            check_revision(repo_root=self.repo, revision=revision)
 
     def test_malformed_incomplete_and_wrong_snapshot_locks_fail(self) -> None:
         self.release_fixture()
@@ -294,7 +264,7 @@ class ReleaseSnapshotTests(unittest.TestCase):
         self.assertFalse((self.root / "lfs-public").exists())
 
     def test_config_output_aliases_cannot_overlap_or_overwrite_source(self) -> None:
-        _, revision = self.release_fixture()
+        revision = self.release_fixture()
         source_config = self.repo / "config/dataset-releases.lock.json"
         original = source_config.read_bytes()
         output = self.root / "public"
@@ -306,29 +276,31 @@ class ReleaseSnapshotTests(unittest.TestCase):
             self.assertFalse((output / "datasets").exists())
             self.assertEqual(source_config.read_bytes(), original)
 
-    def test_legacy_export_includes_its_own_optional_plan(self) -> None:
-        payload = b'{"historical":"plan"}\n'
-        self.write("config/dataset-upload-plan.json", payload)
-        revision = self.commit()
-        output = self.root / "public"
-        config = self.root / "export-config"
-        report = export_revision(repo_root=self.repo, revision=revision, output_public_root=output,
-                                 output_config_root=config, mode="legacy")
-        self.assertEqual(report["snapshotMode"], "legacy")
-        self.assertEqual((config / "dataset-upload-plan.json").read_bytes(), payload)
-        self.assertFalse((config / "dataset-releases.lock.json").exists())
+    def test_removed_transport_options_are_rejected_by_cli(self) -> None:
+        import sys
+        from tools.deployment import git_datasets
+
+        revision = self.release_fixture()
+        for option in (["--mode", "legacy"], ["--metadata-only"], ["--release-boundary", revision]):
+            result = subprocess.run(
+                [sys.executable, str(Path(git_datasets.__file__).resolve()), "check",
+                 "--repo-root", str(self.repo), "--revision", revision, *option],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("unrecognized arguments", result.stderr)
 
     def test_release_cli_uses_trusted_imports_from_candidate_cwd(self) -> None:
         import os
         import sys
         from tools.deployment import git_datasets
 
-        _, revision = self.release_fixture()
+        revision = self.release_fixture()
         marker = self.root / "candidate-executed"
         self.write("tools/__init__.py", f"from pathlib import Path; Path({str(marker)!r}).touch()\n".encode())
         result = subprocess.run(
             [sys.executable, str(Path(git_datasets.__file__).resolve()), "export", "--repo-root", str(self.repo),
-             "--revision", revision, "--output-public-root", str(self.root / "public"), "--require-releases"],
+             "--revision", revision, "--output-public-root", str(self.root / "public")],
             capture_output=True, text=True, cwd=self.repo, env={**os.environ, "PYTHONPATH": str(self.repo)},
         )
         self.assertEqual(result.returncode, 0, result.stderr)

@@ -19,7 +19,7 @@ class FakeAPI:
         self.binding = {'schemaVersion': 2, 'repository': REPOSITORY, 'prNumber': 17,
                         'headSha': self.head, 'baseSha': self.base, 'toolSha': self.tool,
                         'runId': 200, 'runAttempt': 2, 'headLockSha256': '1' * 64,
-                        'baseLockSha256': None, 'headGraphSha256': '2' * 64,
+                        'baseLockSha256': 'b' * 64, 'headGraphSha256': '2' * 64,
                         'baseGraphSha256': '3' * 64, 'sourceMappingSha256': '4' * 64,
                         'receiptSha256': '5' * 64, 'publicationSha256': '6' * 64}
         self.check = {'id': 300, 'name': retry.CHECK_NAME, 'app': {'slug': 'github-actions'},

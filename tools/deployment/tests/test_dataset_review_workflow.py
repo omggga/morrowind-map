@@ -10,8 +10,8 @@ from pathlib import Path
 from unittest import mock
 
 from tools.deployment.common import DeploymentError, canonical_json_bytes
-from tools.deployment.dataset_packages import REPOSITORY, _lock, product_part_name
-from tools.deployment.git_datasets import GitDatasetError, check_revision
+from tools.deployment.dataset_packages import REPOSITORY, _lock, pack_datasets, product_part_name
+from tools.deployment.git_datasets import GitDatasetError
 from tools.deployment.dataset_review_workflow import digest, finish_review, freeze, prepare_review, promote_review
 from tools.deployment.tests import test_dataset_packages as fixtures
 from tools.deployment.upload_datasets import build_dataset_plan
@@ -24,7 +24,8 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.addCleanup(fixture.doCleanups)
         self.root, self.public, self.fixture = fixture.root, fixture.public, fixture
         self.plan = build_dataset_plan(public_root=self.public)
-        lock_path = Path(fixture.bootstrap()['lockPath'])
+        packed = pack_datasets(repo_root=self.root, selector='all', bootstrap=True, release='v1.0.0')
+        lock_path = Path(packed['lockPath'])
         self.lock = json.loads(lock_path.read_bytes())
         self.entry = self.lock['tileSets'][0]
         self.git('init', '--quiet')
@@ -34,19 +35,19 @@ class ReviewWorkflowTests(unittest.TestCase):
         (self.root / 'config').mkdir()
         (self.root / 'config/dataset-upload-plan.json').write_bytes(canonical_json_bytes(self.plan))
         tile = self.public / fixture.paths['tile'].lstrip('/')
-        payload = tile.read_bytes()
-        tile.write_text(f'version https://git-lfs.github.com/spec/v1\noid sha256:{hashlib.sha256(payload).hexdigest()}\nsize {len(payload)}\n')
-        self.base = self.commit()
         tile.unlink()
+        self.lockless = self.commit()
         (self.root / 'config/dataset-releases.lock.json').write_bytes(lock_path.read_bytes())
+        self.base = self.commit()
+        (self.root / 'README.md').write_text('Candidate documentation change.\n')
         self.head = self.commit()
         self.pr = {'number': 17, 'state': 'open', 'head': {'sha': self.head},
                    'base': {'sha': self.base, 'ref': 'main', 'repo': {'full_name': REPOSITORY}}}
         self.release = {'id': 101, 'tag_name': self.entry['releaseTag'], 'draft': False, 'immutable': True}
         self.assets = []
         self.payloads = {}
-        directory = fixture.output.joinpath(*(self.entry[k] for k in ('datasetId', 'pyramidId', 'inventorySha256')))
-        for number, name in enumerate(('package-index.json', 'tiles-0001.tar'), 1):
+        directory = Path(packed['packageRoot'])
+        for number, name in enumerate(('package-index.json', self.entry['parts'][0]['name']), 1):
             payload = (directory / name).read_bytes()
             self.payloads[number] = payload
             self.assets.append({'id': number, 'name': name, 'size': len(payload), 'state': 'uploaded',
@@ -83,52 +84,41 @@ class ReviewWorkflowTests(unittest.TestCase):
     def create_check(self, payload):
         self.checks.append(payload)
 
-    def context(self, bootstrap=False, bootstrap_release_tag=''):
+    def context(self, bootstrap=False):
         return freeze(api=self, pr_number=0 if bootstrap else 17, bootstrap_sha=self.base if bootstrap else '',
                       expected_head='' if bootstrap else self.head, expected_base='' if bootstrap else self.base,
-                      tool_sha=self.head, run_id=123, run_attempt=1, sources=b'[]', legacy_transport='releases',
-                      bootstrap_release_tag=bootstrap_release_tag)
+                      tool_sha=self.head, run_id=123, run_attempt=1, sources=b'[]')
 
     def prepare(self, context=None, work='work'):
         context = context or self.context()
-        def fetch(root, reference, **kwargs):
-            self.assertNotIn('lfs', kwargs)
+        def fetch(root, reference):
             (self.root / '.git/FETCH_HEAD').write_text(context['headSha'] + '\n')
         with mock.patch('tools.deployment.dataset_review_workflow._fetch', side_effect=fetch):
             return prepare_review(repo_root=self.root, work_root=self.root / work,
                                   context=context, api=self)
 
-    def test_current_trusted_tools_reject_pr_head_downgrade_without_cutover_ancestry(self):
-        # This orphan carries valid historical pointers, but no lock history.
-        # Auto inspection alone cannot prove it is a newly proposed downgrade.
-        orphan = self.git('commit-tree', self.base + '^{tree}', '-m', 'unrelated legacy head').strip()
-        self.assertEqual(check_revision(repo_root=self.root, revision=orphan)['snapshotMode'], 'legacy')
+    def test_review_rejects_lockless_pr_head_without_ancestry(self):
+        orphan = self.git('commit-tree', self.lockless + '^{tree}', '-m', 'unrelated lockless head').strip()
         context = self.context()
         context['headSha'] = orphan
         self.pr['head']['sha'] = orphan
         with mock.patch('tools.deployment.dataset_review_workflow.restore_snapshot') as restore:
-            with self.assertRaisesRegex(GitDatasetError, 'requires its committed transport lock'):
+            with self.assertRaisesRegex(GitDatasetError, 'transport lock'):
                 self.prepare(context)
             restore.assert_not_called()
-        self.assertFalse((self.root / '.git/lfs/objects').exists())
 
-    def test_historical_bootstrap_uses_pinned_product_under_current_trusted_tools(self):
-        entry = copy.deepcopy(self.entry)
-        entry['releaseTag'] = 'v1.0.0'
-        entry['parts'][0]['name'] = product_part_name(entry['datasetId'], 1, 1)
-        self.payloads[1] = canonical_json_bytes(_lock([entry]))
-        self.assets[0].update(size=len(self.payloads[1]),
-                              digest='sha256:' + hashlib.sha256(self.payloads[1]).hexdigest())
-        self.assets[1]['name'] = entry['parts'][0]['name']
-        self.release['tag_name'] = 'v1.0.0'
-        receipt = self.prepare(self.context(bootstrap=True, bootstrap_release_tag='v1.0.0'))
-        self.assertIsNone(receipt['headLockSha256'])
-        self.assertEqual(receipt['headSha'], self.base)
-        self.assertEqual(receipt['packages'][0]['entry'], entry)
-        self.assertEqual(receipt['headGraphSha256'], self.plan['graphSha256'])
-        self.assertFalse((self.root / '.git/lfs/objects').exists())
+    def test_review_rejects_lockless_base_and_bootstrap(self):
+        for bootstrap in (False, True):
+            context = self.context(bootstrap=bootstrap)
+            if bootstrap:
+                context['headSha'] = self.lockless
+            else:
+                context['baseSha'] = self.lockless
+                self.pr['base']['sha'] = self.lockless
+            with self.subTest(bootstrap=bootstrap), self.assertRaisesRegex(GitDatasetError, 'transport lock'):
+                self.prepare(context, work=f'work-lockless-{bootstrap}')
 
-    def test_migration_review_hydrates_legacy_base_without_lfs_and_never_executes_candidate(self):
+    def test_review_hydrates_both_release_locks_and_never_executes_candidate(self):
         marker = self.root / 'executed'
         code = self.root / 'tools/__init__.py'
         code.parent.mkdir()
@@ -140,17 +130,17 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertFalse((self.root / '.git/lfs/objects').exists())
         self.assertEqual(receipt['headGraphSha256'], self.plan['graphSha256'])
         self.assertEqual(receipt['baseGraphSha256'], self.plan['graphSha256'])
-        self.assertIsNone(receipt['baseLockSha256'])
+        self.assertEqual(receipt['baseLockSha256'], hashlib.sha256(canonical_json_bytes(self.lock)).hexdigest())
         self.assertEqual(len(receipt['packages']), 1)
         summary = json.loads((self.root / 'work/report/summary.json').read_bytes())
         self.assertEqual(summary['counts']['tiles']['changed'], 0)
         self.assertEqual(summary['counts']['tiles']['added'], 0)
 
-    def test_bootstrap_derives_descriptor_from_its_own_legacy_baseline(self):
+    def test_bootstrap_uses_its_own_committed_release_lock(self):
         receipt = self.prepare(self.context(bootstrap=True))
         self.assertEqual(receipt['mode'], 'bootstrap')
         self.assertIsNone(receipt['prNumber'])
-        self.assertIsNone(receipt['headLockSha256'])
+        self.assertEqual(receipt['headLockSha256'], hashlib.sha256(canonical_json_bytes(self.lock)).hexdigest())
         self.assertEqual(receipt['headGraphSha256'], self.plan['graphSha256'])
         self.assertEqual(receipt['packages'][0]['entry'], self.entry)
 
@@ -201,7 +191,7 @@ class ReviewWorkflowTests(unittest.TestCase):
                                      tool_sha=self.head, success=True))
         self.assertEqual(len(self.checks), 1)
 
-    def test_product_pin_is_receipt_bound_and_unchanged_inventory_can_use_two_versions(self):
+    def test_unchanged_inventory_can_use_two_committed_release_versions(self):
         releases, assets_by_release, payloads = {}, {}, {}
         for number, tag in enumerate(('v1.0.0', 'v1.1.0'), 10):
             entry = copy.deepcopy(self.entry)
@@ -223,28 +213,22 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.release_by_tag = lambda repository, tag: releases.get(tag)
         self.list_assets = lambda repository, release_id: assets_by_release[release_id]
         self.read_asset = lambda repository, asset_id: io.BytesIO(payloads[asset_id])
-        receipt = self.prepare(self.context(bootstrap_release_tag='v1.0.0'))
-        self.assertEqual(receipt['bootstrapReleaseTag'], 'v1.0.0')
+        receipt = self.prepare()
         self.assertEqual(receipt['headGraphSha256'], receipt['baseGraphSha256'])
         self.assertEqual({p['entry']['releaseTag'] for p in receipt['packages']}, {'v1.0.0', 'v1.1.0'})
         self.assertTrue(all(p['index']['schemaVersion'] == 2 for p in receipt['packages']))
         self.assertFalse((self.root / '.git/lfs/objects').exists())
 
-    def test_freeze_rejects_unsafe_bootstrap_release_pin(self):
-        for tag in ('latest', 'v1.0', '../v1.0.0', None):
-            with self.subTest(tag=tag), self.assertRaises(DeploymentError):
-                self.context(bootstrap_release_tag=tag)
-
     def test_freeze_rejects_ambiguous_unsafe_sources_or_wrong_base(self):
         with self.assertRaises(DeploymentError):
             freeze(api=self, pr_number=17, bootstrap_sha=self.base, tool_sha=self.head,
                    expected_head=self.head, expected_base=self.base,
-                   run_id=123, run_attempt=1, sources=b'[]', legacy_transport='releases')
+                   run_id=123, run_attempt=1, sources=b'[]')
         for head, base in [('', self.base), (self.head, ''), ('0' * 40, self.base), (self.head, '0' * 40)]:
             with self.subTest(head=head, base=base), self.assertRaises(DeploymentError):
                 freeze(api=self, pr_number=17, bootstrap_sha='', tool_sha=self.head,
                        expected_head=head, expected_base=base,
-                       run_id=123, run_attempt=1, sources=b'[]', legacy_transport='releases')
+                       run_id=123, run_attempt=1, sources=b'[]')
         self.pr['base']['ref'] = 'other'
         with self.assertRaises(DeploymentError):
             self.context()

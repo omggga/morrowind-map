@@ -13,11 +13,11 @@ import sys
 from pathlib import Path
 
 from tools.deployment.common import DeploymentError, canonical_json_bytes, require_sha256, strict_json_object
-from tools.deployment.dataset_packages import MAX_LOCK_BYTES, REPOSITORY, _entry_key, _real_directory, product_release_tag, read_tile_sets
+from tools.deployment.dataset_packages import MAX_LOCK_BYTES, REPOSITORY, _entry_key, _real_directory, read_tile_sets
 from tools.deployment.dataset_publication import publish_packages
 from tools.deployment.dataset_review_api import ReleaseAPI, positive_id
 from tools.deployment.dataset_review_sources import parse_sources, restore_snapshot
-from tools.deployment.git_datasets import LOCK_PATH, GitDatasetError, _git, _git_env, check_revision, export_revision
+from tools.deployment.git_datasets import GitDatasetError, _git, _git_env, check_revision, export_revision
 from tools.deployment.review_datasets import review_datasets
 from tools.deployment.upload_datasets import build_dataset_plan
 
@@ -55,17 +55,11 @@ def _pull(api, number: int) -> tuple[str, str]:
 
 
 def freeze(*, api, pr_number: int, bootstrap_sha: str, tool_sha: str,
-           run_id: int, run_attempt: int, sources: bytes, legacy_transport: str = 'releases',
-           expected_head: str, expected_base: str, bootstrap_release_tag: str = '') -> dict:
+           run_id: int, run_attempt: int, sources: bytes,
+           expected_head: str, expected_base: str) -> dict:
     sha(tool_sha)
     positive_id(run_id)
     positive_id(run_attempt)
-    if legacy_transport not in ('lfs', 'releases'):
-        raise DeploymentError('Legacy transport must be explicitly lfs or releases')
-    if bootstrap_release_tag != '':
-        product_release_tag(bootstrap_release_tag)
-        if legacy_transport != 'releases' and pr_number:
-            raise DeploymentError('Bootstrap release pin requires releases transport for historical snapshots')
     mapping = parse_sources(sources)
     if pr_number and bootstrap_sha or not pr_number and not bootstrap_sha:
         raise DeploymentError('Select exactly one PR number or bootstrap commit')
@@ -80,12 +74,12 @@ def freeze(*, api, pr_number: int, bootstrap_sha: str, tool_sha: str,
     return {'schemaVersion': 2, 'repository': REPOSITORY, 'prNumber': pr_number or None,
             'headSha': head, 'baseSha': base, 'toolSha': tool_sha, 'runId': run_id,
             'runAttempt': run_attempt, 'sources': mapping, 'sourceMappingSha256': digest(mapping),
-            'legacyTransport': legacy_transport, 'bootstrapReleaseTag': bootstrap_release_tag, 'mode': 'pull-request' if pr_number else 'bootstrap'}
+            'mode': 'pull-request' if pr_number else 'bootstrap'}
 
 
 def _context(context: dict) -> None:
     if set(context) != {'schemaVersion', 'repository', 'prNumber', 'headSha', 'baseSha', 'toolSha',
-                        'runId', 'runAttempt', 'sources', 'sourceMappingSha256', 'legacyTransport', 'bootstrapReleaseTag', 'mode'}:
+                        'runId', 'runAttempt', 'sources', 'sourceMappingSha256', 'mode'}:
         raise DeploymentError('Frozen review context has unexpected fields')
     if type(context['schemaVersion']) is not int or context['schemaVersion'] != 2 or context['repository'] != REPOSITORY:
         raise DeploymentError('Frozen review context is invalid')
@@ -98,13 +92,9 @@ def _context(context: dict) -> None:
         raise DeploymentError('Review mode does not match its PR/base identity')
     positive_id(context['runId'])
     positive_id(context['runAttempt'])
-    if context['bootstrapReleaseTag'] != '':
-        product_release_tag(context['bootstrapReleaseTag'])
-        if context['legacyTransport'] != 'releases' and context['mode'] != 'bootstrap':
-            raise DeploymentError('Bootstrap release pin requires releases transport')
     parse_sources(canonical_json_bytes(context['sources']))
-    if digest(context['sources']) != context['sourceMappingSha256'] or context['legacyTransport'] not in ('lfs', 'releases'):
-        raise DeploymentError('Review source mapping or legacy transport is invalid')
+    if digest(context['sources']) != context['sourceMappingSha256']:
+        raise DeploymentError('Review source mapping is invalid')
 
 
 def _still_current(context: dict, api) -> None:
@@ -112,18 +102,12 @@ def _still_current(context: dict, api) -> None:
         raise DeploymentError('PR head or base changed; start a fresh trusted review')
 
 
-def _fetch(repo_root: Path, reference: str, *, lfs=False) -> None:
-    common = ['git', '-c', 'core.hooksPath=/dev/null', '-c', "credential.helper=!gh auth git-credential"]
-    if lfs:
-        command = common + ['-c', f'lfs.url=https://github.com/{REPOSITORY}.git/info/lfs',
-                            '-c', f'remote.origin.url=https://github.com/{REPOSITORY}.git',
-                            'lfs', 'fetch', '--include=apps/web/public/datasets/generated/**/*.webp', '--exclude=',
-                            'origin', reference]
-    else:
-        command = common + ['fetch', '--no-tags', f'https://github.com/{REPOSITORY}.git', reference]
+def _fetch(repo_root: Path, reference: str) -> None:
+    command = ['git', '-c', 'core.hooksPath=/dev/null', '-c', "credential.helper=!gh auth git-credential",
+               'fetch', '--no-tags', f'https://github.com/{REPOSITORY}.git', reference]
     result = subprocess.run(command, cwd=repo_root, env=_git_env(), capture_output=True, timeout=1200, check=False)
     if result.returncode:
-        raise DeploymentError('Trusted Git/LFS fetch failed; check access and retry')
+        raise DeploymentError('Trusted Git fetch failed; check access and retry')
 
 
 def prepare_review(*, repo_root: Path, work_root: Path, context: dict, api) -> dict:
@@ -141,9 +125,6 @@ def prepare_review(*, repo_root: Path, work_root: Path, context: dict, api) -> d
         # Bootstrap only a known baseline in trusted main history, never a branch's code.
         if _git(repo_root, 'merge-base', context['headSha'], context['toolSha']).decode().strip() != context['headSha']:
             raise DeploymentError('Bootstrap baseline must be an ancestor of trusted main')
-    # Candidate ancestry can be unrelated or shallow. The exact trusted tools'
-    # Git tree decides whether a new PR head must retain release transport.
-    trusted_releases = bool(_git(repo_root, 'ls-tree', '--name-only', context['toolSha'], '--', LOCK_PATH).strip())
     work = _real_directory(work_root)
     records = {}
     package_records = {}
@@ -152,43 +133,35 @@ def prepare_review(*, repo_root: Path, work_root: Path, context: dict, api) -> d
         if revision is None:
             records[label] = None
             continue
-        mode = 'releases' if trusted_releases and context['prNumber'] and label == 'head' else 'auto'
-        report = check_revision(repo_root=repo_root, revision=revision, mode=mode)
-        release_transport = (report['snapshotMode'] == 'releases' or context['mode'] == 'bootstrap'
-                             or context['legacyTransport'] == 'releases')
-        if not release_transport:
-            _fetch(repo_root, revision, lfs=True)
+        check_revision(repo_root=repo_root, revision=revision)
         public = work / label / 'public'
-        export_revision(repo_root=repo_root, revision=revision, output_public_root=public,
-                        metadata_only=release_transport, mode=mode)
+        export_revision(repo_root=repo_root, revision=revision, output_public_root=public)
         plan_path = public / 'config/dataset-upload-plan.json'
         expected_plan = _read(plan_path)
         # Budget data plus an archive before hydration. Archives are discarded as
         # soon as their part verifies; only the two extracted snapshots coexist.
-        if release_transport:
-            tile_sets = read_tile_sets(public_root=public)
-            needed = sum(t.byte_count for s in tile_sets for t in s.tiles)
-            if shutil.disk_usage(work).free < needed + min(needed + 10_000_000, 2_147_483_648):
-                raise DeploymentError('Insufficient runner space for snapshot and one archive')
-            keys = {s.key for s in tile_sets}
-            sources = [s for s in context['sources'] if _entry_key(s) in keys]
-            seen_sources.update(_entry_key(s) for s in sources)
-            lock_path = public / 'config/dataset-releases.lock.json'
-            restored = restore_snapshot(public_root=public, lock_path=lock_path if lock_path.exists() else None,
-                                         sources=sources, api=api, cache_root=work / 'archive-cache',
-                                         bootstrap_release_tag=context['bootstrapReleaseTag'])
-            for package in restored['packages']:
-                key = (*_entry_key(package['entry']), package['entry']['releaseTag'])
-                existing = package_records.get(key)
-                if existing is not None and existing != package:
-                    raise DeploymentError('Same tile inventory resolved to conflicting source packages')
-                package_records[key] = package
+        tile_sets = read_tile_sets(public_root=public)
+        needed = sum(t.byte_count for s in tile_sets for t in s.tiles)
+        if shutil.disk_usage(work).free < needed + min(needed + 10_000_000, 2_147_483_648):
+            raise DeploymentError('Insufficient runner space for snapshot and one archive')
+        keys = {s.key for s in tile_sets}
+        sources = [s for s in context['sources'] if _entry_key(s) in keys]
+        seen_sources.update(_entry_key(s) for s in sources)
+        lock_path = public / 'config/dataset-releases.lock.json'
+        restored = restore_snapshot(public_root=public, lock_path=lock_path,
+                                     sources=sources, api=api, cache_root=work / 'archive-cache')
+        for package in restored['packages']:
+            key = (*_entry_key(package['entry']), package['entry']['releaseTag'])
+            existing = package_records.get(key)
+            if existing is not None and existing != package:
+                raise DeploymentError('Same tile inventory resolved to conflicting source packages')
+            package_records[key] = package
         plan = build_dataset_plan(public_root=public)
         if plan != expected_plan:
             raise DeploymentError('Restored snapshot differs from its own committed upload plan')
         lock_path = public / 'config/dataset-releases.lock.json'
         records[label] = {'public': public, 'graph': plan['graphSha256'],
-                          'lock': hashlib.sha256(lock_path.read_bytes()).hexdigest() if lock_path.exists() else None}
+                          'lock': hashlib.sha256(lock_path.read_bytes()).hexdigest()}
     if seen_sources != {_entry_key(s) for s in context['sources']}:
         raise DeploymentError('Source mapping includes a map outside the reviewed snapshots')
     _still_current(context, api)
@@ -210,7 +183,7 @@ def promote_review(*, receipt_path: Path, receipt_sha: str, work_root: Path, api
     if hashlib.sha256(receipt_path.read_bytes()).hexdigest() != receipt_sha or digest(receipt) != receipt_sha:
         raise DeploymentError('Review artifact differs from the trusted receipt digest')
     context_keys = {'schemaVersion', 'repository', 'prNumber', 'headSha', 'baseSha', 'toolSha',
-                    'runId', 'runAttempt', 'sources', 'sourceMappingSha256', 'legacyTransport', 'bootstrapReleaseTag', 'mode'}
+                    'runId', 'runAttempt', 'sources', 'sourceMappingSha256', 'mode'}
     if set(receipt) != context_keys | {'headLockSha256', 'baseLockSha256', 'headGraphSha256', 'baseGraphSha256', 'packages'}:
         raise DeploymentError('Review receipt fields are invalid')
     _context({key: receipt[key] for key in context_keys})
@@ -222,7 +195,7 @@ def promote_review(*, receipt_path: Path, receipt_sha: str, work_root: Path, api
     _still_current(receipt, api)
     publications = publish_packages(receipt['packages'], api=api, work_root=work_root / 'packages', tool_sha=tool_sha)
     _still_current(receipt, api)
-    binding_keys = context_keys - {'sources', 'legacyTransport', 'bootstrapReleaseTag', 'mode'}
+    binding_keys = context_keys - {'sources', 'mode'}
     binding = {key: receipt[key] for key in binding_keys}
     binding.update({key: receipt[key] for key in ('headLockSha256', 'baseLockSha256', 'headGraphSha256', 'baseGraphSha256')})
     binding.update(receiptSha256=receipt_sha, publicationSha256=digest(publications))
@@ -288,8 +261,7 @@ def main(argv=None) -> int:
             context = freeze(api=api, pr_number=int(env.get('PR_NUMBER') or 0), bootstrap_sha=env.get('BOOTSTRAP_SHA', ''),
                              tool_sha=tool_sha, run_id=run_id, run_attempt=attempt,
                              expected_head=env.get('EXPECTED_HEAD', ''), expected_base=env.get('EXPECTED_BASE', ''),
-                             sources=env.get('SOURCE_MAPPING', '[]').encode(), legacy_transport=env.get('LEGACY_TRANSPORT', 'releases'),
-                             bootstrap_release_tag=env.get('BOOTSTRAP_RELEASE_TAG', ''))
+                             sources=env.get('SOURCE_MAPPING', '[]').encode())
             _write(args.work_root / 'context.json', context)
             _outputs(candidate_sha=context['headSha'], pr_number=context['prNumber'] or 0)
         elif args.command == 'review':

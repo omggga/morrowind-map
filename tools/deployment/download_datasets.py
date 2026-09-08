@@ -151,7 +151,7 @@ def download_datasets(*, repo_root: Path, cache_root: Path | None = None,
     public = _real_directory(public)
     lock_path = Path(lock_path) if lock_path is not None else root / 'config/dataset-releases.lock.json'
     if not lock_path.exists() and not lock_path.is_symlink():
-        raise DeploymentError('No active Release lock; this snapshot still uses the documented legacy LFS workflow')
+        raise DeploymentError('No active Release lock; restore config/dataset-releases.lock.json from this snapshot before downloading')
     # Both the destination and shared cache are serialized, even if callers choose
     # different caches or several source-ZIP workspaces share one cache.
     cache = Path(cache_root) if cache_root is not None else root / 'local-data/cache/dataset-releases'

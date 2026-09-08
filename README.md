@@ -1,6 +1,6 @@
 # Morrowind Map
 
-Five English-language interactive maps for The Elder Scrolls III: Morrowind, available at [morrowindmap.com](https://morrowindmap.com/).
+Five interactive maps for The Elder Scrolls III: Morrowind, available at [morrowindmap.com](https://morrowindmap.com/).
 
 | Map | Coverage |
 | --- | --- |

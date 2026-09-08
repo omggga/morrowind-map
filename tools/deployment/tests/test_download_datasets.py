@@ -174,10 +174,9 @@ class DownloadTests(unittest.TestCase):
         fixture = git_fixtures.ReleaseSnapshotTests()
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
-        _, revision = fixture.release_fixture()
+        revision = fixture.release_fixture()
         public = fixture.root / 'exported-public'
-        export_revision(repo_root=fixture.repo, revision=revision, output_public_root=public,
-                        mode='releases')
+        export_revision(repo_root=fixture.repo, revision=revision, output_public_root=public)
         def fetch(entry, part):
             return (fixture.root / 'packages' / entry['datasetId'] / entry['pyramidId'] /
                     entry['inventorySha256'] / part['name']).open('rb')

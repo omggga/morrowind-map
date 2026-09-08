@@ -13,7 +13,7 @@ from io import StringIO
 from pathlib import Path
 
 from tools.deployment.common import DeploymentError, canonical_json_bytes
-from tools.deployment.tests.fixtures import TILE_HASH, build_runtime, descriptor, write_dist
+from tools.deployment.tests.fixtures import TILE_HASH, build_runtime, descriptor, legacy_package_fixture, write_dist
 from tools.deployment.upload_datasets import PlannedFile, build_dataset_plan, build_metadata_plan
 from tools.deployment.dataset_packages import (
     MAX_ARCHIVE_BYTES,
@@ -40,7 +40,7 @@ class DatasetPackageTests(unittest.TestCase):
         self.output = self.root / 'local-data/packages'
 
     def bootstrap(self) -> dict:
-        return pack_datasets(repo_root=self.root, selector='all', bootstrap=True)
+        return legacy_package_fixture(self.root)
 
     def add_map(self, dataset_id: str, payloads: list[bytes]) -> dict[str, str]:
         """Bind a synthetic map's metadata to its independently supplied tile bytes."""
@@ -181,13 +181,13 @@ class DatasetPackageTests(unittest.TestCase):
 
     def test_active_lock_requires_bootstrap_and_matching_inventory(self) -> None:
         with self.assertRaisesRegex(DeploymentError, 'bootstrap'):
-            pack_datasets(repo_root=self.root, selector='all')
-        self.bootstrap()
+            pack_datasets(repo_root=self.root, selector='all', release='v1.0.0')
+        result = pack_datasets(repo_root=self.root, selector='all', release='v1.0.0', bootstrap=True)
         active = self.root / 'config/dataset-releases.lock.json'
         active.parent.mkdir()
-        active.write_bytes((self.output / 'dataset-releases.lock.json').read_bytes())
+        active.write_bytes(Path(result['lockPath']).read_bytes())
         before = active.read_bytes()
-        pack_datasets(repo_root=self.root, selector='test-dataset')
+        pack_datasets(repo_root=self.root, selector='all', release='v1.0.0')
         self.assertEqual(before, active.read_bytes())
 
     def test_inventory_parts_reserve_ustar_end_padding(self) -> None:
@@ -223,49 +223,50 @@ class DatasetPackageTests(unittest.TestCase):
         with self.assertRaises(DeploymentError):
             plan_parts(tiles, max_archive_bytes=2_147_483_648)
 
-    def test_one_map_update_preserves_every_other_descriptor(self) -> None:
+    def test_product_update_preserves_other_archive_bytes(self) -> None:
         self.add_map('second-map', [self.webp(30)])
-        self.bootstrap()
+        initial = pack_datasets(repo_root=self.root, selector='all', release='v1.0.0', bootstrap=True)
         active = self.root / 'config/dataset-releases.lock.json'
         active.parent.mkdir()
-        active.write_bytes((self.output / 'dataset-releases.lock.json').read_bytes())
+        active.write_bytes(Path(initial['lockPath']).read_bytes())
         before = json.loads(active.read_bytes())
+        original = (Path(initial['packageRoot']) / 'test-dataset.tar').read_bytes()
         self.add_map('second-map', [self.webp(31)])
-        result = pack_datasets(repo_root=self.root, selector='second-map')
-        self.assertEqual((result['packed'], result['reused']), (1, 1))
+        result = pack_datasets(repo_root=self.root, selector='all', release='v1.0.1')
         after = json.loads(active.read_bytes())
         stable = lambda lock: next(e for e in lock['tileSets'] if e['datasetId'] == 'test-dataset')
-        self.assertEqual(stable(before), stable(after))
-        verify_packages(public_root=self.public, package_root=self.output, lock_path=active)
+        self.assertEqual(stable(before)['parts'], stable(after)['parts'])
+        self.assertEqual((Path(result['packageRoot']) / 'test-dataset.tar').read_bytes(), original)
+        self.assertEqual({entry['releaseTag'] for entry in after['tileSets']}, {'v1.0.1'})
+        verify_packages(public_root=self.public, package_root=Path(result['packageRoot']), lock_path=active)
 
-    def test_catalog_only_update_needs_no_new_local_archive(self) -> None:
-        self.bootstrap()
+    def test_catalog_only_update_reuses_existing_product_archives(self) -> None:
+        result = pack_datasets(repo_root=self.root, selector='all', release='v1.0.0', bootstrap=True)
         active = self.root / 'config/dataset-releases.lock.json'
         active.parent.mkdir()
-        active.write_bytes((self.output / 'dataset-releases.lock.json').read_bytes())
+        active.write_bytes(Path(result['lockPath']).read_bytes())
         before = active.read_bytes()
+        archives = {path.relative_to(self.output): path.read_bytes() for path in self.output.rglob('*.tar')}
         manifest_path = self.public / self.paths['manifest'].lstrip('/')
         manifest = json.loads(manifest_path.read_bytes())
         manifest['title'] = {'en': 'A metadata-only edit'}
         manifest_path.write_bytes(canonical_json_bytes(manifest))
-        for archive in self.output.rglob('*.tar'):
-            archive.unlink()
-        result = pack_datasets(repo_root=self.root, selector='test-dataset')
-        self.assertEqual((result['packed'], result['reused']), (0, 1))
+        pack_datasets(repo_root=self.root, selector='all', release='v1.0.0')
         self.assertEqual(before, active.read_bytes())
-        self.assertEqual(list(self.output.rglob('*.tar')), [])
+        self.assertEqual({path.relative_to(self.output): path.read_bytes() for path in self.output.rglob('*.tar')}, archives)
 
-    def test_failed_selection_preserves_active_lock(self) -> None:
+    def test_partial_product_selection_preserves_active_lock(self) -> None:
         self.add_map('second-map', [self.webp(30)])
-        self.bootstrap()
+        result = pack_datasets(repo_root=self.root, selector='all', release='v1.0.0', bootstrap=True)
         active = self.root / 'config/dataset-releases.lock.json'
         active.parent.mkdir()
-        active.write_bytes((self.output / 'dataset-releases.lock.json').read_bytes())
+        active.write_bytes(Path(result['lockPath']).read_bytes())
         before = active.read_bytes()
         self.add_map('second-map', [self.webp(31)])
-        with self.assertRaisesRegex(DeploymentError, 'Unselected map'):
-            pack_datasets(repo_root=self.root, selector='test-dataset')
+        with self.assertRaisesRegex(DeploymentError, 'every active map'):
+            pack_datasets(repo_root=self.root, selector='test-dataset', release='v1.0.1')
         self.assertEqual(before, active.read_bytes())
+        self.assertFalse((self.output / 'releases/v1.0.1').exists())
 
     def test_manifest_inventory_binding_is_still_verified_before_download(self) -> None:
         (self.public / self.paths['tile'].lstrip('/')).unlink()

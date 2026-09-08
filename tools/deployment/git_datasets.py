@@ -1,21 +1,19 @@
 """Inspect and export dataset objects without checking out or running candidate code.
 
 Invoke a trusted copy by absolute path; all imports resolve from that trusted tree.
-Legacy Git LFS objects must already be fetched using a trusted endpoint. Release
-snapshots export metadata only, for a separate trusted downloader. At cutover,
-trusted callers must pin --release-boundary or use --require-releases: shallow
-history alone cannot prove that a missing lock belongs to a historical snapshot.
+Snapshots must contain their own complete Release lock and upload plan. Export
+contains metadata only, for a separate trusted downloader. Tracked generated
+tiles and LFS pointers are rejected; historical transport restoration is not
+supported by this tool.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -43,7 +41,6 @@ MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 20 * 1024 * 1024 * 1024
 MAX_FILES = 500_000
 MAX_TREE_BYTES = 128 * 1024 * 1024
-MAX_POINTER_BYTES = 200
 _SOURCE_EXTENSIONS = {
     ".bsa", ".ba2", ".esm", ".esp", ".omwaddon", ".omwgame", ".omwscripts",
     ".fnt", ".dds", ".tga", ".nif", ".kf", ".pex",
@@ -66,12 +63,6 @@ class Entry:
     path: str
     oid: str
     size: int
-    lfs_oid: str | None = None
-    lfs_size: int | None = None
-
-    @property
-    def output_size(self) -> int:
-        return self.lfs_size if self.lfs_size is not None else self.size
 
 
 def _git_args(repo_root: Path, *args: str) -> list[str]:
@@ -173,7 +164,7 @@ def _validate_path(path: str) -> None:
         raise GitDatasetError(f"Unsafe Git path: {path!r}")
     lowered = [part.lower() for part in parts]
     if ".lfsconfig" in lowered:
-        raise GitDatasetError(f"Candidate .lfsconfig is forbidden; use trusted LFS configuration: {path}")
+        raise GitDatasetError(f"Candidate .lfsconfig is forbidden: {path}")
     if any(part in _SOURCE_DIRECTORIES for part in lowered[:-1]):
         raise GitDatasetError(f"Tracked source-input directory is forbidden: {path}")
     suffix = PurePosixPath(lowered[-1]).suffix
@@ -196,38 +187,10 @@ def _json(payload: bytes, path: str) -> None:
         raise GitDatasetError(f"Dataset JSON is invalid: {path}") from error
 
 
-def _snapshot_mode(repo_root: Path, revision: str, *, has_lock: bool,
-                   mode: str, release_boundary: str | None) -> str:
-    if mode not in {"auto", "legacy", "releases"}:
-        raise GitDatasetError("Snapshot mode must be auto, legacy or releases")
-    required = mode == "releases"
-    if release_boundary is not None:
-        if not re.fullmatch(r"[a-f0-9]{40}", release_boundary):
-            raise GitDatasetError("release boundary must be a full lowercase 40-character commit SHA")
-        if _git(repo_root, "cat-file", "-t", release_boundary).strip() != b"commit":
-            raise GitDatasetError("release boundary must identify a locally available commit")
-        def ancestor(left: str, right: str) -> bool:
-            result = subprocess.run(_git_args(repo_root, "merge-base", "--is-ancestor", left, right),
-                                    env=_git_env(), capture_output=True, check=False)
-            if result.returncode not in (0, 1):
-                raise GitDatasetError("Cannot establish trusted release boundary ancestry")
-            return result.returncode == 0
-        if ancestor(release_boundary, revision):
-            required = True
-        elif not ancestor(revision, release_boundary):
-            raise GitDatasetError("Cannot prove snapshot precedes trusted release boundary; fetch trusted history")
-    # Full history also catches deletion, rename, and merge-side lock introductions.
-    history = _git(repo_root, "log", "--full-history", "--format=%H", "-1", revision, "--", LOCK_PATH)
-    required = required or bool(history.strip()) or has_lock
-    if required and mode == "legacy":
-        raise GitDatasetError("Release snapshot cannot downgrade to legacy LFS mode")
-    if required and not has_lock:
-        raise GitDatasetError("Release snapshot requires its committed transport lock; legacy downgrade is forbidden")
-    return "releases" if required else "legacy"
-
-
 def _validate_release_snapshot(repo_root: Path, entries: list[Entry]) -> None:
     by_path = {entry.path: entry for entry in entries}
+    if LOCK_PATH not in by_path:
+        raise GitDatasetError("Release snapshot requires its committed transport lock")
     if PLAN_PATH not in by_path:
         raise GitDatasetError("Release snapshot requires its committed dataset upload plan")
     with tempfile.TemporaryDirectory(prefix="git-dataset-metadata-") as temporary:
@@ -248,8 +211,7 @@ def _validate_release_snapshot(repo_root: Path, entries: list[Entry]) -> None:
 
 def _inspect(
     repo_root: Path, revision: str, max_file_bytes: int, max_total_bytes: int, max_files: int,
-    mode: str = "auto", release_boundary: str | None = None,
-) -> tuple[list[Entry], str]:
+) -> list[Entry]:
     if not re.fullmatch(r"[a-f0-9]{40}", revision):
         raise GitDatasetError("revision must be a full lowercase 40-character commit SHA")
     if any(value <= 0 for value in (max_file_bytes, max_total_bytes, max_files)):
@@ -278,59 +240,44 @@ def _inspect(
             suffix = PurePosixPath(path).suffix
             if suffix not in {".json", ".ndjson", ".webp"}:
                 raise GitDatasetError(f"Only JSON metadata and WebP renders are permitted in datasets: {path}")
-            if generated and suffix == ".webp" and size > MAX_POINTER_BYTES:
-                raise GitDatasetError(f"Generated WebP must be a canonical Git LFS pointer: {path}")
+            if generated and suffix == ".webp":
+                raise GitDatasetError("Release snapshots forbid tracked generated WebP tiles")
             payload = _read_blob(blobs, entry)
-            pointer = _POINTER.fullmatch(payload) if suffix == ".webp" else None
-            if pointer:
-                entry = Entry(path, oid, size, pointer[1].decode("ascii"), int(pointer[2]))
-            elif generated and suffix == ".webp":
-                raise GitDatasetError(f"Generated WebP must be a canonical Git LFS pointer: {path}")
-            elif suffix == ".webp":
+            if _POINTER.fullmatch(payload):
+                raise GitDatasetError("Release snapshots forbid LFS pointers, including metadata WebP")
+            if suffix == ".webp":
                 if len(payload) < 12 or payload[:4] != b"RIFF" or payload[8:12] != b"WEBP":
                     raise GitDatasetError(f"Dataset WebP header is invalid: {path}")
             else:
                 _json(payload, path)
-            if entry.output_size > max_file_bytes:
-                raise GitDatasetError(f"Dataset per-file byte limit exceeded: {path}")
-            total += entry.output_size
+            total += entry.size
             if total > max_total_bytes:
                 raise GitDatasetError("Dataset total byte limit exceeded")
             entries.append(entry)
     try:
-        snapshot_mode = _snapshot_mode(repo_root, revision, has_lock=any(e.path == LOCK_PATH for e in entries),
-                                       mode=mode, release_boundary=release_boundary)
-        if snapshot_mode == "releases":
-            if any(e.path.startswith(GENERATED_PREFIX) and e.path.endswith(".webp") for e in entries):
-                raise GitDatasetError("Release snapshots forbid tracked generated WebP tiles")
-            if any(entry.lfs_oid is not None for entry in entries):
-                raise GitDatasetError("Release snapshots forbid LFS pointers, including metadata WebP")
-            _validate_release_snapshot(repo_root, entries)
+        _validate_release_snapshot(repo_root, entries)
     except DeploymentError as error:
         raise GitDatasetError(str(error)) from error
-    return entries, snapshot_mode
+    return entries
 
 
-def _report(entries: list[Entry], revision: str, snapshot_mode: str) -> dict[str, object]:
+def _report(entries: list[Entry], revision: str) -> dict[str, object]:
     entries = [entry for entry in entries if entry.path.startswith(DATASET_PREFIX)]
     return {
         "revision": revision,
-        "snapshotMode": snapshot_mode,
+        "snapshotMode": "releases",
         "fileCount": len(entries),
         "generatedFileCount": sum(entry.path.startswith(GENERATED_PREFIX) for entry in entries),
-        "lfsFileCount": sum(entry.lfs_oid is not None for entry in entries),
-        "totalBytes": sum(entry.output_size for entry in entries),
+        "totalBytes": sum(entry.size for entry in entries),
     }
 
 
 def check_revision(
     *, repo_root: Path, revision: str, max_file_bytes: int = MAX_FILE_BYTES,
     max_total_bytes: int = MAX_TOTAL_BYTES, max_files: int = MAX_FILES,
-    mode: str = "auto", release_boundary: str | None = None,
 ) -> dict[str, object]:
-    entries, snapshot_mode = _inspect(repo_root, revision, max_file_bytes, max_total_bytes, max_files,
-                                      mode, release_boundary)
-    return _report(entries, revision, snapshot_mode)
+    entries = _inspect(repo_root, revision, max_file_bytes, max_total_bytes, max_files)
+    return _report(entries, revision)
 
 
 def _no_symlinks(path: Path) -> None:
@@ -339,47 +286,17 @@ def _no_symlinks(path: Path) -> None:
             raise GitDatasetError(f"Output/object symlink is forbidden: {component}")
 
 
-def _copy_lfs(git_dir: Path, entry: Entry, target: Path) -> None:
-    assert entry.lfs_oid is not None and entry.lfs_size is not None
-    oid = entry.lfs_oid
-    source = git_dir / "lfs/objects" / oid[:2] / oid[2:4] / oid
-    _no_symlinks(source)
-    try:
-        with source.open("rb") as stream, target.open("xb") as output:
-            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode) or os.fstat(stream.fileno()).st_size != entry.lfs_size:
-                raise GitDatasetError(f"LFS object size/type mismatch: {entry.path}")
-            digest = hashlib.sha256()
-            count = 0
-            prefix = b""
-            while chunk := stream.read(min(1024 * 1024, entry.lfs_size - count + 1)):
-                count += len(chunk)
-                if count > entry.lfs_size:
-                    raise GitDatasetError(f"LFS object exceeds declared size: {entry.path}")
-                if len(prefix) < 12:
-                    prefix += chunk[:12 - len(prefix)]
-                digest.update(chunk)
-                output.write(chunk)
-            if count != entry.lfs_size or digest.hexdigest() != oid:
-                raise GitDatasetError(f"LFS object SHA-256/size mismatch: {entry.path}")
-            if len(prefix) < 12 or prefix[:4] != b"RIFF" or prefix[8:12] != b"WEBP":
-                raise GitDatasetError(f"LFS object is not a WebP render: {entry.path}")
-    except OSError as error:
-        raise GitDatasetError(f"LFS object missing or unreadable for {entry.path}: {error}") from error
-
-
 def export_revision(
     *, repo_root: Path, revision: str, output_public_root: Path,
     max_file_bytes: int = MAX_FILE_BYTES, max_total_bytes: int = MAX_TOTAL_BYTES,
-    max_files: int = MAX_FILES, mode: str = "auto", release_boundary: str | None = None,
-    output_config_root: Path | None = None, metadata_only: bool = False,
+    max_files: int = MAX_FILES, output_config_root: Path | None = None,
 ) -> dict[str, object]:
     """Export only committed data; config defaults to output_public_root/config.
 
     Release output intentionally has no generated tiles. Pass the exported lock
     explicitly to the trusted downloader before validating the complete graph.
     """
-    entries, snapshot_mode = _inspect(repo_root, revision, max_file_bytes, max_total_bytes, max_files,
-                                      mode, release_boundary)
+    entries = _inspect(repo_root, revision, max_file_bytes, max_total_bytes, max_files)
     output_public_root = output_public_root.absolute()
     _no_symlinks(output_public_root)
     output_public_root = Path(os.path.abspath(output_public_root))
@@ -393,7 +310,6 @@ def export_revision(
         raise GitDatasetError("Config output must not overlap the dataset tree")
     if any(entry.path in CONFIG_PATHS for entry in entries) and config_destination.exists():
         raise GitDatasetError(f"Output config tree already exists: {config_destination}")
-    git_dir = Path(os.fsdecode(_git(repo_root, "rev-parse", "--path-format=absolute", "--git-common-dir").strip()))
     # Validate in a private staging tree, so corrupt/missing objects publish nothing.
     with tempfile.TemporaryDirectory(prefix="git-datasets-") as temporary:
         staging = Path(temporary) / "datasets"
@@ -401,20 +317,15 @@ def export_revision(
         config_staging = Path(temporary) / "config"
         with _blobs(repo_root) as blobs:
             for entry in entries:
-                if metadata_only and entry.lfs_oid:
-                    continue
                 target = (config_staging / Path(entry.path).name if entry.path in CONFIG_PATHS
                           else staging / entry.path.removeprefix(DATASET_PREFIX))
                 target.parent.mkdir(parents=True, exist_ok=True)
-                if entry.lfs_oid:
-                    _copy_lfs(git_dir, entry, target)
-                else:
-                    target.write_bytes(_read_blob(blobs, entry))
+                target.write_bytes(_read_blob(blobs, entry))
         output_public_root.mkdir(parents=True, exist_ok=True)
         shutil.copytree(staging, destination)
         if config_staging.exists():
             shutil.copytree(config_staging, config_destination)
-    return _report(entries, revision, snapshot_mode)
+    return _report(entries, revision)
 
 
 def main() -> int:
@@ -424,22 +335,16 @@ def main() -> int:
     parser.add_argument("--revision", required=True)
     parser.add_argument("--output-public-root", type=Path)
     parser.add_argument("--output-config-root", type=Path)
-    parser.add_argument("--metadata-only", action="store_true", help="Omit legacy LFS payloads for trusted Release hydration")
-    parser.add_argument("--mode", choices=("auto", "legacy", "releases"), default="auto")
-    parser.add_argument("--require-releases", action="store_true")
-    parser.add_argument("--release-boundary", help="Trusted first release-backed commit SHA")
     parser.add_argument("--max-file-bytes", type=int, default=MAX_FILE_BYTES)
     parser.add_argument("--max-total-bytes", type=int, default=MAX_TOTAL_BYTES)
     parser.add_argument("--max-files", type=int, default=MAX_FILES)
     args = parser.parse_args()
-    kwargs = dict(repo_root=args.repo_root, revision=args.revision, max_file_bytes=args.max_file_bytes, max_total_bytes=args.max_total_bytes, max_files=args.max_files, mode="releases" if args.require_releases else args.mode, release_boundary=args.release_boundary)
-    if args.require_releases and args.mode == "legacy":
-        parser.error("--require-releases conflicts with --mode legacy")
+    kwargs = dict(repo_root=args.repo_root, revision=args.revision, max_file_bytes=args.max_file_bytes, max_total_bytes=args.max_total_bytes, max_files=args.max_files)
     try:
         if args.command == "export":
             if args.output_public_root is None:
                 parser.error("export requires --output-public-root")
-            report = export_revision(**kwargs, output_public_root=args.output_public_root, output_config_root=args.output_config_root, metadata_only=args.metadata_only)
+            report = export_revision(**kwargs, output_public_root=args.output_public_root, output_config_root=args.output_config_root)
         else:
             report = check_revision(**kwargs)
     except (GitDatasetError, OSError) as error:

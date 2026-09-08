@@ -509,64 +509,18 @@ def pack_product_release(*, repo_root: Path, tag: str, bootstrap: bool) -> dict[
             'tileSets': len(tile_sets), 'parts': sum(len(e['parts']) for e in lock['tileSets'])}
 
 
-def pack_datasets(*, repo_root: Path, selector: str, bootstrap: bool = False,
-                  release: str | None = None) -> dict[str, Any]:
-    if release is not None:
-        if selector != 'all':
-            raise DeploymentError('A product release includes every active map; use selector all')
-        return pack_product_release(repo_root=repo_root, tag=release, bootstrap=bootstrap)
-    root = Path(repo_root).resolve(strict=True)
-    public = root / 'apps/web/public'
-    if bootstrap and selector != 'all':
-        raise DeploymentError('Bootstrap packs all active maps; use selector all')
-    active_lock = root / 'config/dataset-releases.lock.json'
-    if not bootstrap and not active_lock.exists():
-        raise DeploymentError('No active transport lock; use pack all --bootstrap to write ignored descriptors')
-    plan = build_dataset_plan(public_root=public)
-    tile_sets = _tile_sets(plan)
-    selected = set()
-    for dataset in plan['datasets']:
-        manifest_path = safe_file(public, Path(dataset['manifest']['url'].lstrip('/')), 'manifest')
-        manifest = strict_json_object(manifest_path.read_bytes(), 'manifest')
-        if selector in ('all', dataset['datasetId'], manifest.get('mapKey')):
-            selected.add(dataset['datasetId'])
-    if not selected:
-        raise DeploymentError(f'No active map matches {selector!r}')
-    if selector != 'all' and len(selected) != 1:
-        raise DeploymentError('Map selector is ambiguous')
-    # Locking is local and does not activate an application dataset or publish a release.
-    output = _real_directory(root / 'local-data/packages')
-    lock_file = output / '.pack.lock'
-    if lock_file.is_symlink():
-        raise DeploymentError('Package lock must not be a symlink')
-    with lock_file.open('a') as process_lock:
-        fcntl.flock(process_lock, fcntl.LOCK_EX)
-        previous = {} if bootstrap else {_entry_key(e): e for e in _read_lock(active_lock)['tileSets']}
-        entries = []
-        packed = reused = 0
-        for tile_set in tile_sets:
-            old = previous.get(tile_set.key)
-            if old is not None:
-                validate_lock(_lock([old]), [tile_set])
-                entries.append(old)
-                reused += 1
-            elif tile_set.dataset_id in selected:
-                entries.append(pack_tile_set(tile_set, generated_root=public / 'datasets/generated', package_root=output))
-                packed += 1
-            else:
-                raise DeploymentError('Unselected map has no matching package; pack all changed maps')
-        lock = _lock(entries)
-        validate_lock(lock, tile_sets)
-        target = output / 'dataset-releases.lock.json' if bootstrap else active_lock
-        _write_json(target, lock)
-        return {'lockPath': str(target), 'tileSets': len(tile_sets), 'packed': packed, 'reused': reused}
+def pack_datasets(*, repo_root: Path, selector: str, release: str,
+                  bootstrap: bool = False) -> dict[str, Any]:
+    if selector != 'all':
+        raise DeploymentError('A product release includes every active map; use selector all')
+    return pack_product_release(repo_root=repo_root, tag=release, bootstrap=bootstrap)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subcommands = parser.add_subparsers(dest='command', required=True)
     pack = subcommands.add_parser('pack', help='Pack ready map tiles without publishing')
-    pack.add_argument('map', help='An active map key/dataset ID, or all')
+    pack.add_argument('map', help='Use all to include every active map in the product release')
     pack.add_argument('--repo-root', type=Path, default=Path(__file__).resolve().parents[2])
     pack.add_argument('--bootstrap', action='store_true', help='Pack all maps and write only ignored descriptors')
     pack.add_argument('--release', required=True, help='Product release tag, for example v1.0.0')
