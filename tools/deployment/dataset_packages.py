@@ -319,21 +319,38 @@ def _verify_entry(tile_set: TileSet, entry: dict[str, Any], package_root: Path) 
     offset = 0
     for part in entry['parts']:
         path = safe_file(package_root, tile_set.package_path / part['name'], 'package archive')
-        if path.stat().st_size != part['bytes'] or _hash_file(path) != part['sha256']:
-            raise DeploymentError('Package archive length or SHA-256 differs from the lock')
         tiles = tile_set.tiles[offset:offset + part['tileCount']]
-        with path.open('rb') as source:
-            for tile in tiles:
-                if source.read(512) != _tile_header(tile):
-                    raise DeploymentError('Archive member is not the expected canonical USTAR tile')
-                _copy_tile(source, None, tile)
-                padding = _padded(tile.byte_count, 512) - tile.byte_count
-                if source.read(padding) != b'\0' * padding:
-                    raise DeploymentError('Archive tile padding is invalid')
-            tail = part['bytes'] - source.tell()
-            if source.read(tail + 1) != b'\0' * tail:
-                raise DeploymentError('Archive end records or trailing bytes are invalid')
+        read_part(path, tiles, part)
         offset += len(tiles)
+
+
+def read_part(path: Path, tiles: Sequence[PlannedFile], part: dict[str, Any],
+              *, output_root: Path | None = None) -> None:
+    """Verify a canonical part, optionally writing expected files into private staging.
+
+    No archive-supplied filename or filesystem attribute is used for extraction.
+    The caller binds the part and tile slice to a validated snapshot first.
+    """
+    if path.stat().st_size != part['bytes'] or _hash_file(path) != part['sha256']:
+        raise DeploymentError('Package archive length or SHA-256 differs from the lock')
+    with path.open('rb') as source:
+        for tile in tiles:
+            if source.read(512) != _tile_header(tile):
+                raise DeploymentError('Archive member is not the expected canonical USTAR tile')
+            if output_root is None:
+                _copy_tile(source, None, tile)
+            else:
+                target = output_root / tile.path
+                _real_directory(target.parent)
+                with target.open('xb') as output:
+                    _copy_tile(source, output, tile)
+                target.chmod(0o644)
+            padding = _padded(tile.byte_count, 512) - tile.byte_count
+            if source.read(padding) != b'\0' * padding:
+                raise DeploymentError('Archive tile padding is invalid')
+        tail = part['bytes'] - source.tell()
+        if tail < 1024 or tail > RECORD_BYTES + 1024 or source.read(tail + 1) != b'\0' * tail:
+            raise DeploymentError('Archive end records or trailing bytes are invalid')
 
 
 def verify_packages(*, public_root: Path, package_root: Path, lock_path: Path) -> dict[str, Any]:
