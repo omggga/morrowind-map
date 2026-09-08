@@ -262,12 +262,20 @@ def require_dataset_review(*, repo: str, commit: str) -> dict[str, object]:
     if matched[2] is None:
         # Old successful reviews remain deployable without their expired report
         # artifacts, but they can never authorize the new release transport.
-        for sha in (head, commit):
-            if _snapshot_binding(repo, sha, graph=False)["lockSha256"] is not None:
-                raise DatasetReviewError("Legacy review cannot authorize a snapshot with a transport lock")
+        snapshots = [_snapshot_binding(repo, sha, graph=False) for sha in (head, commit)]
+        if any(snapshot["lockSha256"] is not None for snapshot in snapshots):
+            raise DatasetReviewError("Legacy review cannot authorize a snapshot with a transport lock")
+        parents = _list(snapshots[1]["parents"])
+        parent = _object(parents[0]).get("sha") if parents else None
+        if not isinstance(parent, str) or not _SHA.fullmatch(parent):
+            raise DatasetReviewError("Legacy reviewed merge must identify its immutable first parent")
+        if _snapshot_binding(repo, parent, graph=False)["lockSha256"] is not None:
+            raise DatasetReviewError("Legacy review cannot authorize a release transport downgrade")
         return result
 
     binding = _binding(check)
+    if binding["baseLockSha256"] is not None and binding["headLockSha256"] is None:
+        raise DatasetReviewError("Review cannot authorize a release transport downgrade")
     if (
         binding["repository"] != repo or binding["prNumber"] != number
         or binding["headSha"] != head or binding["runId"] != run_id

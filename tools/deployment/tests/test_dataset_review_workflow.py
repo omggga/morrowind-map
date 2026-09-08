@@ -11,6 +11,7 @@ from unittest import mock
 
 from tools.deployment.common import DeploymentError, canonical_json_bytes
 from tools.deployment.dataset_packages import REPOSITORY, _lock, product_part_name
+from tools.deployment.git_datasets import GitDatasetError, check_revision
 from tools.deployment.dataset_review_workflow import digest, finish_review, freeze, prepare_review, promote_review
 from tools.deployment.tests import test_dataset_packages as fixtures
 from tools.deployment.upload_datasets import build_dataset_plan
@@ -89,12 +90,43 @@ class ReviewWorkflowTests(unittest.TestCase):
                       bootstrap_release_tag=bootstrap_release_tag)
 
     def prepare(self, context=None, work='work'):
+        context = context or self.context()
         def fetch(root, reference, **kwargs):
             self.assertNotIn('lfs', kwargs)
-            (self.root / '.git/FETCH_HEAD').write_text(self.head + '\n')
+            (self.root / '.git/FETCH_HEAD').write_text(context['headSha'] + '\n')
         with mock.patch('tools.deployment.dataset_review_workflow._fetch', side_effect=fetch):
             return prepare_review(repo_root=self.root, work_root=self.root / work,
-                                  context=context or self.context(), api=self)
+                                  context=context, api=self)
+
+    def test_current_trusted_tools_reject_pr_head_downgrade_without_cutover_ancestry(self):
+        # This orphan carries valid historical pointers, but no lock history.
+        # Auto inspection alone cannot prove it is a newly proposed downgrade.
+        orphan = self.git('commit-tree', self.base + '^{tree}', '-m', 'unrelated legacy head').strip()
+        self.assertEqual(check_revision(repo_root=self.root, revision=orphan)['snapshotMode'], 'legacy')
+        context = self.context()
+        context['headSha'] = orphan
+        self.pr['head']['sha'] = orphan
+        with mock.patch('tools.deployment.dataset_review_workflow.restore_snapshot') as restore:
+            with self.assertRaisesRegex(GitDatasetError, 'requires its committed transport lock'):
+                self.prepare(context)
+            restore.assert_not_called()
+        self.assertFalse((self.root / '.git/lfs/objects').exists())
+
+    def test_historical_bootstrap_uses_pinned_product_under_current_trusted_tools(self):
+        entry = copy.deepcopy(self.entry)
+        entry['releaseTag'] = 'v1.0.0'
+        entry['parts'][0]['name'] = product_part_name(entry['datasetId'], 1, 1)
+        self.payloads[1] = canonical_json_bytes(_lock([entry]))
+        self.assets[0].update(size=len(self.payloads[1]),
+                              digest='sha256:' + hashlib.sha256(self.payloads[1]).hexdigest())
+        self.assets[1]['name'] = entry['parts'][0]['name']
+        self.release['tag_name'] = 'v1.0.0'
+        receipt = self.prepare(self.context(bootstrap=True, bootstrap_release_tag='v1.0.0'))
+        self.assertIsNone(receipt['headLockSha256'])
+        self.assertEqual(receipt['headSha'], self.base)
+        self.assertEqual(receipt['packages'][0]['entry'], entry)
+        self.assertEqual(receipt['headGraphSha256'], self.plan['graphSha256'])
+        self.assertFalse((self.root / '.git/lfs/objects').exists())
 
     def test_migration_review_hydrates_legacy_base_without_lfs_and_never_executes_candidate(self):
         marker = self.root / 'executed'

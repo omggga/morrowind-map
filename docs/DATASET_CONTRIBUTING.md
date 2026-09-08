@@ -4,8 +4,8 @@ You can contribute a new render through a PR without server access. Build it fro
 
 ## Files to include
 
-- Ready active WebP tiles under `apps/web/public/datasets/generated/` use Git LFS.
-- Runtime JSON catalogs/locales, the index, manifests, metadata, audit reports, and tile inventories use regular Git.
+- Ready active WebP tiles under `apps/web/public/datasets/generated/` stay local and are distributed as Release archives; do not add them to Git or LFS.
+- Runtime JSON catalogs/locales, the index, manifests, metadata, audit reports, tile inventories, `config/dataset-releases.lock.json` and the upload plan use regular Git.
 - Game plugins, archives, meshes, textures, checkpoints, intermediate renders, and local candidate trees must never enter Git or LFS.
 
 Only publish files referenced by the active dataset index. Old snapshots may remain on disk but should not be added to your PR.
@@ -22,19 +22,20 @@ pnpm render:use --public-root <candidate-public-directory>
 `render:use` checks the complete graph and browser behavior before adopting the files. It does not stage or publish them. After adoption:
 
 ```bash
-git lfs install
 pnpm exec playwright install chromium
+pnpm datasets:pack all --release v1.0.1
+pnpm datasets:verify --package-root local-data/packages/releases/v1.0.1 --lock config/dataset-releases.lock.json
 pnpm deploy:datasets:plan
 pnpm test:acceptance:prepared
 MORROWIND_RENDER_PUBLIC_ROOT="$PWD/apps/web/public" pnpm test:acceptance:rendered
 pnpm datasets:stage
 ```
 
-The plan validates each active file's size and hash, plus the index, manifests, catalogs, locales, and audit metadata. LFS pointer files are not valid WebP payloads.
+Choose the next unused product release version instead of reusing an existing release. Packing includes all active maps, reuses unchanged archives and updates the transport lock only after complete validation. The plan validates each active file's size and hash, plus the index, manifests, catalogs, locales, and audit metadata. The lock must describe that same complete graph.
 
-`datasets:stage` stages only the validated generated files and `config/dataset-upload-plan.json`. It removes obsolete generated paths from the Git index while preserving local copies. It does not stage other contracts: explicitly add changed index, manifest, metadata, and release profile files with `git add -- <paths>`. Get the metadata paths from the manifest, including every referenced inventory, coverage, and audit file.
+`datasets:stage` stages only validated active generated JSON, `config/dataset-releases.lock.json` and `config/dataset-upload-plan.json`. It removes generated WebP and obsolete generated paths from the Git index while preserving local copies. Invalid metadata or an incomplete lock leaves staging unchanged. It does not stage other contracts: explicitly add changed index, manifest, metadata, and release profile files with `git add -- <paths>`. Get the metadata paths from the manifest, including every referenced inventory, coverage, and audit file.
 
-Review `git diff --cached --stat` and `git diff --cached --name-only` before committing. Do not force-add the whole generated directory: it may contain unrelated snapshots. Push the commit and its LFS objects, then open a PR into `main`.
+Review `git diff --cached --stat` and `git diff --cached --name-only` before committing. Do not force-add the whole generated directory: it may contain unrelated snapshots. Publish the candidate bundle to a readable source release as described below, push the metadata/lock commit, and open a PR into `main`. A maintainer runs trusted review and canonical publication before the PR can merge.
 
 ## What to describe
 
@@ -44,21 +45,20 @@ CI validates the source-file boundary, the complete prepared graph, and browser 
 
 ## Local tile packages
 
-The package tooling and trusted publication support Release transport while the
-active contribution, CI and deployment workflow above still uses Git LFS. Packaging is local: it does
-not upload assets, change the active dataset, or remove LFS tracking.
+The active contribution, CI and deployment paths use the committed transport
+lock and immutable product releases. Packaging is local: it does not upload
+assets, activate a map, or deploy the site. The initial five-map `v1.0.0` bundle
+is already published and selected by `config/dataset-releases.lock.json`.
 
-With ready tiles already present, build one versioned product release containing
-an independent archive for every active map. Write the initial descriptors only
-under ignored `local-data/packages/`:
+With ready tiles already present, build the next complete bundle:
 
 ```bash
-pnpm datasets:pack all --bootstrap --release v1.0.0
-pnpm datasets:verify --package-root local-data/packages/releases/v1.0.0 --lock local-data/packages/dataset-releases.lock.json
+pnpm datasets:pack all --release v1.0.1
+pnpm datasets:verify --package-root local-data/packages/releases/v1.0.1 --lock config/dataset-releases.lock.json
 ```
 
 Python 3.10+ is required. No renderer runs during packaging. The directory
-`local-data/packages/releases/v1.0.0/` contains one shared `package-index.json`
+`local-data/packages/releases/v1.0.1/` contains one shared `package-index.json`
 and these five archives:
 
 - `morrowind.tar`
@@ -76,25 +76,18 @@ assets plus its shared index. Source inputs and runtime metadata are never
 packed into the tile archives.
 
 The schema-version-2 index describes the complete active map selection: every
-entry shares the exact `v1.0.0` release tag, and archive names are unique across
+entry shares one exact product release tag, and archive names are unique across
 the release. Full hashes stay in the index and transport lock rather than
 release titles or filenames. The published release is named **Morrowind
-Interactive Map v1.0.0**, uses the stable `v1.0.0` tag, and becomes **Latest**.
+Interactive Map v1.0.0**; future versions use the same title format and stable
+version tag and become **Latest**.
 It is one product release with all five maps in Assets.
 
 `datasets:verify` checks archive hashes, canonical headers and every expected
 tile against the snapshot metadata. It does not extract or install anything.
-Do not commit these bootstrap descriptors as an active transport lock yet;
-the migration of contribution, CI and deployment from LFS remains a separate
-step.
-
-Once an active `config/dataset-releases.lock.json` has been adopted by the future
-transport workflow, build the next complete bundle with:
-
-```bash
-pnpm datasets:pack all --release v1.0.1
-pnpm datasets:verify --package-root local-data/packages/releases/v1.0.1 --lock config/dataset-releases.lock.json
-```
+The packer writes the complete active transport lock atomically after successful
+verification. Stage it with `pnpm datasets:stage` alongside the validated JSON
+and upload plan; package archives remain under ignored `local-data/packages/`.
 
 `--release` is required, and the CLI accepts only `all`: a product release always
 contains every active map. A changed bundle needs a new `vMAJOR.MINOR.PATCH` tag;
@@ -111,8 +104,8 @@ cleanup; future releases do not authorize deleting their predecessors.
 
 ## Restoring a Release-backed snapshot
 
-The current snapshot still uses the LFS workflow above. Once a snapshot includes
-the complete `config/dataset-releases.lock.json`, restore every active map with:
+After `pnpm install --frozen-lockfile`, restore every active map selected by
+the committed `config/dataset-releases.lock.json` with:
 
 ```bash
 pnpm datasets:download
@@ -120,8 +113,8 @@ pnpm datasets:download
 
 Python 3.10+ on macOS or Linux is sufficient; the downloader uses the standard
 library. It also works from a source ZIP without Git, Docker, or game inputs.
-It reads `GH_TOKEN` / `GITHUB_TOKEN` from the environment or an existing
-`gh auth login` session for private releases. A fine-grained token needs only
+The repository is currently private. The downloader reads `GH_TOKEN` /
+`GITHUB_TOKEN` from the environment or an existing `gh auth login` session. A fine-grained token needs only
 repository Contents read access. Public releases support `--anonymous`, which
 does not read credentials or require `gh`. Never put tokens in command arguments.
 GitHub's [Release asset API](https://docs.github.com/en/rest/releases/assets#get-a-release-asset)
@@ -145,7 +138,7 @@ commit's upload plan and transport lock to `<output-public-root>/config/` (or
 `--output-config-root`). Use `datasets:download --public-root <exported-public>
 --lock <exported-config>/dataset-releases.lock.json` to hydrate that metadata.
 Release snapshots forbid tracked generated WebP and cannot fall back to LFS
-when the lock is invalid. At cutover, trusted callers must use
+when the lock is invalid. Trusted callers enforce this boundary with
 `--require-releases` or pin `--release-boundary <first-release-backed-commit>`;
 available lock history also prevents downgrade by lock deletion. Historical
 LFS export remains explicit via `--mode legacy` and uses only locally available
@@ -160,14 +153,16 @@ candidate scripts and workflows never execute in this review. Both the PR head
 and base must match the dispatch inputs, which are also recorded in the run
 title. A new head or base requires a fresh review.
 
-For an existing LFS PR, use the current head/base SHAs and the default transport:
+For a PR, use its current head/base SHAs. Current snapshots use their own lock;
+the default historical adapter uses Releases and the pinned `v1.0.0` bootstrap:
 
 ```bash
 pr=123
 head_sha=$(gh api "repos/omggga/morrowind-map/pulls/$pr" --jq .head.sha)
 base_sha=$(gh api "repos/omggga/morrowind-map/pulls/$pr" --jq .base.sha)
 gh workflow run dataset-review.yml --repo omggga/morrowind-map --ref main \
-  -f pr_number="$pr" -f expected_head="$head_sha" -f expected_base="$base_sha"
+  -f pr_number="$pr" -f expected_head="$head_sha" -f expected_base="$base_sha" \
+  -f legacy_transport=releases -f bootstrap_release_tag=v1.0.0
 ```
 
 A Release-backed snapshot uses its committed lock automatically. If a package
@@ -198,15 +193,13 @@ is optional (`""`); a nonempty prefix starts with a letter or digit and contains
 only letters, digits, dots, underscores and hyphens. Several maps may share one
 source release. Sources are bounded to 100 identities and 128 KiB.
 
-There is one narrowly defined draft-source option: upload the complete product
-bundle to a draft in `omggga/morrowind-map` with the exact intended product tag,
-then explicitly map its numeric release ID for the map identities. Its shared
-schema-version-2 `package-index.json` must describe the complete bundle. With an
-empty prefix, the source asset names are already the canonical product asset
-names, so trusted publication can verify and publish that same draft. Other
-draft sources are rejected. A draft is never selected implicitly by `Latest`,
-by a mutable source tag, or from another repository. All sources are frozen in
-the review receipt before publication.
+Source releases must be **published**. The read-only Actions review token cannot
+read drafts; do not use an unpublished draft as a workflow source. The initial
+complete `v1.0.0` bundle was verified and published by the maintainer, then
+independently restored and validated through trusted Actions. Future candidates
+can use published external source releases; the separate publication job creates
+or resumes the canonical destination draft after review succeeds. All source
+IDs and archive hashes are frozen in the review receipt.
 
 The review checks every map, archive and tile, compares the complete graphs,
 and retains a small HTML/JSON report and hash-bound receipt for seven days.
@@ -222,7 +215,7 @@ The stable product release becomes Latest for people browsing GitHub; trusted
 review, downloads and publication still use only exact tags, numeric source IDs
 and the hashes bound to the receipt.
 
-Only this publication job has Contents write access. The environment must allow
+Within Actions, only the publication job has Contents write access. The environment must allow
 only `main`, contain no production SSH secrets, and have the nonsecret variable
 `IMMUTABLE_RELEASES_CONFIRMED=true` after a maintainer confirms repository release
 immutability. The [settings API](https://docs.github.com/en/rest/repos/repos#check-if-immutable-releases-are-enabled-for-a-repository)
@@ -249,18 +242,20 @@ This maintainer command needs Actions write access and rechecks the current PR,
 CI run and trusted review immediately before retrying failed jobs. The review
 workflow itself has no Actions write permission.
 
-The explicit bootstrap mode uses `pr_number=0`,
-`bootstrap_sha=<full-main-ancestor-SHA>`, `bootstrap_release_tag=v1.0.0` and source
-mappings. It derives descriptors from that baseline's own metadata, inventories
-and the shared `package-index.json`, then verifies all bytes. It never borrows a
-candidate PR's lock for a historical base. The exact `bootstrap_release_tag`
-input is used only for historical snapshots without their own transport lock;
-a snapshot with a committed lock always retains that lock's selection.
+The initial bootstrap is complete. For an explicit historical verification, use
+`pr_number=0`, `bootstrap_sha=<full-main-ancestor-SHA>`,
+`bootstrap_release_tag=v1.0.0` and `source_mapping=[]` to restore the published
+immutable baseline bundle. The adapter derives descriptors from that baseline's
+own metadata, inventories and the shared index, then verifies every byte. It
+never borrows a candidate PR's lock for a historical base.
 
-`legacy_transport=releases` uses the same adapter when reviewing an old LFS base
-after packages exist; supply the exact historical product tag through
-`bootstrap_release_tag` instead of resolving Latest. It does not fetch LFS
-payloads. The chosen product tag is frozen into the receipt. Bootstrap has no
-PR check. These operations require the publication tools to have been merged
-into trusted `main` first. Publishing the bundle does not change the active LFS
-workflow, repository visibility, or the project's noncommercial licensing.
+The workflow defaults to `legacy_transport=releases` and the exact historical
+`bootstrap_release_tag=v1.0.0`. This tag applies only to snapshots without their
+own lock; current head and base snapshots retain their committed selections.
+A different historical graph requires matching verified packages and an explicit
+release selection. The chosen tag is frozen in the receipt, never resolved from
+Latest. Explicit old-snapshot LFS recovery remains available separately: for an
+LFS review, select `legacy_transport=lfs` and clear `bootstrap_release_tag`.
+Current review and deployment do not fetch LFS payloads. Bootstrap has no PR check.
+Publishing a bundle does not change repository visibility or noncommercial
+licensing, and does not itself activate or deploy a map.

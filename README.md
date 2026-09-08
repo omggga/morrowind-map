@@ -14,16 +14,17 @@ Search places, filter locations, share map links, and keep progress, notes, and 
 
 ## Run locally
 
-Install Node.js `^20.19.0` or `>=22.12.0`, pnpm `11.19.0`, and Git LFS. From your clone:
+Install Node.js `^20.19.0` or `>=22.12.0`, pnpm `11.19.0`, and Python 3.10+. From your clone or extracted source ZIP:
 
 ```bash
-git lfs install
-git lfs pull --include='apps/web/public/datasets/generated/**/*.webp' --exclude=''
 pnpm install --frozen-lockfile
+pnpm datasets:download
 pnpm dev
 ```
 
-Open `http://127.0.0.1:5173`. The prepared maps need no game installation, Docker, or OpenMW. Git LFS downloads approximately 2.8 GB of ready map tiles.
+Open `http://127.0.0.1:5173`. The downloader restores all five maps, approximately 2.8 GB of ready tiles, from the immutable product release selected by `config/dataset-releases.lock.json`. It uses the Python standard library; no Git LFS, game installation, Docker, or OpenMW is needed. `pnpm dev` does not download missing maps.
+
+The repository is currently private. Authenticate with an existing `gh auth login` session or provide `GH_TOKEN` / `GITHUB_TOKEN` in the environment with repository Contents read access. Do not put tokens in commands or files. If the repository becomes public, `pnpm datasets:download --anonymous` works without credentials or `gh`. Downloads verify hashes, reuse complete maps and cached archives, and can safely be retried; `--discard-cache` removes verified archives after extraction to save disk space.
 
 ## Build
 
@@ -32,7 +33,7 @@ pnpm build
 pnpm preview
 ```
 
-The static application is written to `apps/web/dist`. Keep its `datasets/` directory and assets together when serving the build. Download the LFS payload before building to include real tiles rather than pointer files. Hosting configuration is up to you.
+The static application is written to `apps/web/dist`. Keep its `datasets/` directory and assets together when serving the build. Run `pnpm datasets:download` before building to include the complete prepared maps. Hosting configuration is up to you.
 
 ## Contribute
 
@@ -46,7 +47,7 @@ This checks types, lint, application tests, and the build. CI runs the broader i
 
 ## Rebuild a map
 
-Ready WebP tiles use Git LFS; runtime JSON and metadata use regular Git. Game files, textures, meshes, and intermediate renders must never be committed.
+Ready WebP tiles are distributed as map archives in GitHub Releases; runtime JSON, metadata, the transport lock and upload plan use regular Git. Game files, textures, meshes, and intermediate renders must never be committed.
 
 Supply your own matching inputs in ignored `local-data/inputs/`, then use:
 
@@ -65,7 +66,7 @@ Rendering needs Python 3.10+, Docker with Linux AMD64 support, and ImageMagick. 
 
 - [Rendering](docs/RENDERING.md): input layout, commands, settings, and preview.
 - [TR release profiles](docs/TR_UPDATE.md): preparing a new Tamriel Rebuilt version.
-- [Dataset contributions](docs/DATASET_CONTRIBUTING.md): contributing ready maps through Git/LFS.
+- [Dataset contributions](docs/DATASET_CONTRIBUTING.md): contributing prepared map packages and metadata.
 - [Architecture](docs/ARCHITECTURE.md): runtime, data formats, and browser storage.
 - [Testing](docs/TESTING.md): choosing checks for your change.
 - [Third-party notices](THIRD_PARTY_NOTICES.md).

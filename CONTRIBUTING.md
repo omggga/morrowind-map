@@ -25,7 +25,7 @@ Keep map coordinates, data integrity, personal-data persistence, accessibility, 
 
 Use [docs/RENDERING.md](docs/RENDERING.md) to build locally and [docs/DATASET_CONTRIBUTING.md](docs/DATASET_CONTRIBUTING.md) to submit prepared files. You need no access to the hosted site's server.
 
-Never commit game source files, archives, meshes, textures, credentials, or intermediate renders. Only validated ready WebP tiles, runtime JSON, and relevant metadata belong in a dataset PR.
+Never commit game source files, archives, meshes, textures, credentials, intermediate renders, or generated WebP tiles. A dataset PR contains runtime JSON, relevant metadata, `config/dataset-releases.lock.json` and the validated upload plan. Publish prepared TAR packages to a source release readable by trusted review; a maintainer promotes the verified complete bundle into the canonical product release. Use `pnpm datasets:stage` after packaging to stage only the active JSON, lock and plan while preserving local tiles.
 
 Maintainers review the final diff and CI results before merging. Dataset changes also receive a review report for the exact PR commit. Keep unrelated changes out of the PR and resolve review feedback before merge.
 

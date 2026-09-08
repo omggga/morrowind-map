@@ -1,5 +1,4 @@
 # Patch artifacts carry their own diff markers; do not reinterpret nested whitespace.
 tools/openmw_renderer/patches/*.patch -whitespace
 
-apps/web/public/datasets/generated/**/*.webp filter=lfs diff=lfs merge=lfs -text
 config/dataset-upload-plan.json linguist-generated=true

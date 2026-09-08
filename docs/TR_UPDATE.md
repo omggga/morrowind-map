@@ -153,14 +153,16 @@ changing those inputs; never edit an old lock or output to force compatibility.
 
 ## What enters Git
 
-After explicit `render:use`, validate and commit the current contracts and prepared active payload:
+After explicit `render:use`, package the complete active bundle with `pnpm datasets:pack all --release v1.0.1` (using the next unused product version), then validate and commit the current contracts:
 
 - `config/tr-release.json`
 - `apps/web/public/datasets/index.json`
 - The new `apps/web/public/datasets/manifests/<datasetId>.json`
 - Compact integrity/audit metadata under `apps/web/public/datasets/metadata/<datasetId>/`
 - Generated JSON catalogs and locales in regular Git
-- Active `apps/web/public/datasets/generated/**/*.webp` files in Git LFS
+- `config/dataset-releases.lock.json` and the complete `config/dataset-upload-plan.json`
+
+Ready WebP tiles stay local and are distributed as verified TAR assets in the product release. A TR update changes the TR archive while reusing the other maps' TAR bytes and hashes; all lock entries share the new product release tag.
 
 Generated locks under `local-data/render/` (or the legacy `local-data/tr-release/`),
 candidate trees, renderer checkpoints,

@@ -32,16 +32,16 @@ on:
       bootstrap_release_tag:
         description: Exact product release for historical snapshots without a transport lock
         required: false
-        default: ''
+        default: 'v1.0.0'
         type: string
       legacy_transport:
         description: Explicit transport for historical snapshots (bootstrap always uses releases)
         required: true
-        default: lfs
+        default: releases
         type: choice
         options:
-          - lfs
           - releases
+          - lfs
 
 permissions:
   contents: read

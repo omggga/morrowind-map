@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
 
       - name: Reject game inputs and invalid dataset Git objects
-        run: python3 -m tools.deployment.git_datasets check --repo-root . --revision "$GITHUB_SHA"
+        run: python3 -m tools.deployment.git_datasets check --repo-root . --revision "$GITHUB_SHA" --require-releases
 
       - name: Detect dataset changes
         id: changes
@@ -36,7 +36,7 @@ jobs:
           if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ || "$BASE_SHA" == 0000000000000000000000000000000000000000 ]]; then
             BASE_SHA=$(git rev-parse HEAD^)
           fi
-          if git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- apps/web/public/datasets config/dataset-upload-plan.json config/tr-release.json config/pc-release.json config/shotn-release.json config/az-release.json tools/deployment .gitattributes; then
+          if git diff --quiet "$BASE_SHA" "$GITHUB_SHA" -- apps/web/public/datasets config/dataset-upload-plan.json config/dataset-releases.lock.json config/tr-release.json config/pc-release.json config/shotn-release.json config/az-release.json tools/deployment packages/contracts/src/schemas .gitattributes .github/workflows/ci.yml .github/workflows/dataset-review.yml; then
             echo 'datasets_changed=false' >> "$GITHUB_OUTPUT"
           else
             echo 'datasets_changed=true' >> "$GITHUB_OUTPUT"
@@ -99,14 +99,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Fetch only the committed ready tiles
+      - name: Restore the committed immutable map packages
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          git -c credential.helper='!gh auth git-credential' \
-            -c lfs.url="https://github.com/$GITHUB_REPOSITORY.git/info/lfs" \
-            lfs fetch --include='apps/web/public/datasets/generated/**/*.webp' --exclude='' origin "$GITHUB_SHA"
-          git lfs checkout
+        run: python3 -m tools.deployment.download_datasets --discard-cache
       - name: Validate the complete graph and recorded publication plan
         run: |
           python3 -m tools.deployment.upload_datasets --plan-output artifacts/deployment/dataset-upload-plan.json
@@ -221,10 +217,7 @@ jobs:
           python3 -m tools.deployment.upload_datasets --probe-plan config/dataset-upload-plan.json --host production > "$RUNNER_TEMP/dataset-probe.json"
           dataset_status=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["status"])' "$RUNNER_TEMP/dataset-probe.json")
           if [[ "$dataset_status" == missing ]]; then
-            git -c credential.helper='!gh auth git-credential' \
-              -c lfs.url="https://github.com/$GITHUB_REPOSITORY.git/info/lfs" \
-              lfs fetch --include='apps/web/public/datasets/generated/**/*.webp' --exclude='' origin "$GITHUB_SHA"
-            git lfs checkout
+            python3 -m tools.deployment.download_datasets --discard-cache
             python3 -m tools.deployment.upload_datasets --plan-output "$RUNNER_TEMP/actual-plan.json"
             cmp config/dataset-upload-plan.json "$RUNNER_TEMP/actual-plan.json"
             python3 -m tools.deployment.upload_datasets --host production --stage-only

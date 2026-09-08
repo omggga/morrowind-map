@@ -17,7 +17,7 @@ from tools.deployment.dataset_packages import MAX_LOCK_BYTES, REPOSITORY, _entry
 from tools.deployment.dataset_publication import publish_packages
 from tools.deployment.dataset_review_api import ReleaseAPI, positive_id
 from tools.deployment.dataset_review_sources import parse_sources, restore_snapshot
-from tools.deployment.git_datasets import GitDatasetError, _git, _git_env, check_revision, export_revision
+from tools.deployment.git_datasets import LOCK_PATH, GitDatasetError, _git, _git_env, check_revision, export_revision
 from tools.deployment.review_datasets import review_datasets
 from tools.deployment.upload_datasets import build_dataset_plan
 
@@ -55,7 +55,7 @@ def _pull(api, number: int) -> tuple[str, str]:
 
 
 def freeze(*, api, pr_number: int, bootstrap_sha: str, tool_sha: str,
-           run_id: int, run_attempt: int, sources: bytes, legacy_transport: str,
+           run_id: int, run_attempt: int, sources: bytes, legacy_transport: str = 'releases',
            expected_head: str, expected_base: str, bootstrap_release_tag: str = '') -> dict:
     sha(tool_sha)
     positive_id(run_id)
@@ -141,6 +141,9 @@ def prepare_review(*, repo_root: Path, work_root: Path, context: dict, api) -> d
         # Bootstrap only a known baseline in trusted main history, never a branch's code.
         if _git(repo_root, 'merge-base', context['headSha'], context['toolSha']).decode().strip() != context['headSha']:
             raise DeploymentError('Bootstrap baseline must be an ancestor of trusted main')
+    # Candidate ancestry can be unrelated or shallow. The exact trusted tools'
+    # Git tree decides whether a new PR head must retain release transport.
+    trusted_releases = bool(_git(repo_root, 'ls-tree', '--name-only', context['toolSha'], '--', LOCK_PATH).strip())
     work = _real_directory(work_root)
     records = {}
     package_records = {}
@@ -149,14 +152,15 @@ def prepare_review(*, repo_root: Path, work_root: Path, context: dict, api) -> d
         if revision is None:
             records[label] = None
             continue
-        report = check_revision(repo_root=repo_root, revision=revision)
+        mode = 'releases' if trusted_releases and context['prNumber'] and label == 'head' else 'auto'
+        report = check_revision(repo_root=repo_root, revision=revision, mode=mode)
         release_transport = (report['snapshotMode'] == 'releases' or context['mode'] == 'bootstrap'
                              or context['legacyTransport'] == 'releases')
         if not release_transport:
             _fetch(repo_root, revision, lfs=True)
         public = work / label / 'public'
         export_revision(repo_root=repo_root, revision=revision, output_public_root=public,
-                        metadata_only=release_transport)
+                        metadata_only=release_transport, mode=mode)
         plan_path = public / 'config/dataset-upload-plan.json'
         expected_plan = _read(plan_path)
         # Budget data plus an archive before hydration. Archives are discarded as
@@ -284,7 +288,7 @@ def main(argv=None) -> int:
             context = freeze(api=api, pr_number=int(env.get('PR_NUMBER') or 0), bootstrap_sha=env.get('BOOTSTRAP_SHA', ''),
                              tool_sha=tool_sha, run_id=run_id, run_attempt=attempt,
                              expected_head=env.get('EXPECTED_HEAD', ''), expected_base=env.get('EXPECTED_BASE', ''),
-                             sources=env.get('SOURCE_MAPPING', '[]').encode(), legacy_transport=env.get('LEGACY_TRANSPORT', 'lfs'),
+                             sources=env.get('SOURCE_MAPPING', '[]').encode(), legacy_transport=env.get('LEGACY_TRANSPORT', 'releases'),
                              bootstrap_release_tag=env.get('BOOTSTRAP_RELEASE_TAG', ''))
             _write(args.work_root / 'context.json', context)
             _outputs(candidate_sha=context['headSha'], pr_number=context['prNumber'] or 0)
