@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from tools.deployment.common import DeploymentError, canonical_json_bytes
-from tools.deployment.dataset_packages import REPOSITORY
+from tools.deployment.dataset_packages import REPOSITORY, _lock, product_part_name
 from tools.deployment.dataset_review_workflow import digest, finish_review, freeze, prepare_review, promote_review
 from tools.deployment.tests import test_dataset_packages as fixtures
 from tools.deployment.upload_datasets import build_dataset_plan
@@ -82,10 +82,11 @@ class ReviewWorkflowTests(unittest.TestCase):
     def create_check(self, payload):
         self.checks.append(payload)
 
-    def context(self, bootstrap=False):
+    def context(self, bootstrap=False, bootstrap_release_tag=''):
         return freeze(api=self, pr_number=0 if bootstrap else 17, bootstrap_sha=self.base if bootstrap else '',
                       expected_head='' if bootstrap else self.head, expected_base='' if bootstrap else self.base,
-                      tool_sha=self.head, run_id=123, run_attempt=1, sources=b'[]', legacy_transport='releases')
+                      tool_sha=self.head, run_id=123, run_attempt=1, sources=b'[]', legacy_transport='releases',
+                      bootstrap_release_tag=bootstrap_release_tag)
 
     def prepare(self, context=None, work='work'):
         def fetch(root, reference, **kwargs):
@@ -133,6 +134,7 @@ class ReviewWorkflowTests(unittest.TestCase):
                                binding_path=self.root / 'work-publication/result/binding.json')
         self.assertTrue(result)
         self.assertEqual(self.checks[0]['conclusion'], 'success')
+        self.assertNotIn('bootstrapReleaseTag', binding)
         self.assertEqual(self.checks[0]['external_id'], f'dataset-review:123:1:{digest(receipt)}')
         self.assertEqual(json.loads(self.checks[0]['output']['text']), binding)
 
@@ -166,6 +168,40 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertTrue(finish_review(api=self, pr_number=0, head_sha=self.base, run_id=123, run_attempt=1,
                                      tool_sha=self.head, success=True))
         self.assertEqual(len(self.checks), 1)
+
+    def test_product_pin_is_receipt_bound_and_unchanged_inventory_can_use_two_versions(self):
+        releases, assets_by_release, payloads = {}, {}, {}
+        for number, tag in enumerate(('v1.0.0', 'v1.1.0'), 10):
+            entry = copy.deepcopy(self.entry)
+            entry['releaseTag'] = tag
+            entry['parts'][0]['name'] = product_part_name(entry['datasetId'], 1, 1)
+            index = _lock([entry])
+            index_bytes = canonical_json_bytes(index)
+            releases[tag] = dict(self.release, id=number, tag_name=tag)
+            assets_by_release[number] = [
+                dict(self.assets[0], id=number * 10, size=len(index_bytes),
+                     digest='sha256:' + hashlib.sha256(index_bytes).hexdigest()),
+                dict(self.assets[1], id=number * 10 + 1, name=entry['parts'][0]['name']),
+            ]
+            payloads[number * 10] = index_bytes
+            payloads[number * 10 + 1] = self.payloads[2]
+        (self.root / 'config/dataset-releases.lock.json').write_bytes(canonical_json_bytes(index))
+        self.head = self.commit()
+        self.pr['head']['sha'] = self.head
+        self.release_by_tag = lambda repository, tag: releases.get(tag)
+        self.list_assets = lambda repository, release_id: assets_by_release[release_id]
+        self.read_asset = lambda repository, asset_id: io.BytesIO(payloads[asset_id])
+        receipt = self.prepare(self.context(bootstrap_release_tag='v1.0.0'))
+        self.assertEqual(receipt['bootstrapReleaseTag'], 'v1.0.0')
+        self.assertEqual(receipt['headGraphSha256'], receipt['baseGraphSha256'])
+        self.assertEqual({p['entry']['releaseTag'] for p in receipt['packages']}, {'v1.0.0', 'v1.1.0'})
+        self.assertTrue(all(p['index']['schemaVersion'] == 2 for p in receipt['packages']))
+        self.assertFalse((self.root / '.git/lfs/objects').exists())
+
+    def test_freeze_rejects_unsafe_bootstrap_release_pin(self):
+        for tag in ('latest', 'v1.0', '../v1.0.0', None):
+            with self.subTest(tag=tag), self.assertRaises(DeploymentError):
+                self.context(bootstrap_release_tag=tag)
 
     def test_freeze_rejects_ambiguous_unsafe_sources_or_wrong_base(self):
         with self.assertRaises(DeploymentError):

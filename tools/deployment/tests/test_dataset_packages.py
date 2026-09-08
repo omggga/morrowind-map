@@ -17,6 +17,7 @@ from tools.deployment.tests.fixtures import TILE_HASH, build_runtime, descriptor
 from tools.deployment.upload_datasets import PlannedFile, build_dataset_plan, build_metadata_plan
 from tools.deployment.dataset_packages import (
     MAX_ARCHIVE_BYTES,
+    product_part_name,
     archive_size,
     main,
     pack_datasets,
@@ -319,12 +320,79 @@ class DatasetPackageTests(unittest.TestCase):
 
     def test_cli_bootstrap_and_verify_do_not_need_git_metadata(self) -> None:
         with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
-            self.assertEqual(main(['pack', 'all', '--bootstrap', '--repo-root', str(self.root)]), 0)
+            self.assertEqual(main(['pack', 'all', '--bootstrap', '--release', 'v1.0.0', '--repo-root', str(self.root)]), 0)
             self.assertEqual(main(['verify', '--public-root', str(self.public),
-                                   '--package-root', str(self.output), '--lock',
+                                   '--package-root', str(self.output / 'releases/v1.0.0'), '--lock',
                                    str(self.output / 'dataset-releases.lock.json')]), 0)
-            self.assertEqual(main(['pack', 'missing-map', '--repo-root', str(self.root)]), 1)
+            self.assertEqual(main(['pack', 'missing-map', '--release', 'v1.0.0', '--repo-root', str(self.root)]), 1)
         self.assertFalse((self.root / '.git').exists())
+
+    def test_product_release_has_one_index_and_short_archives_for_all_maps(self) -> None:
+        self.add_map('poison-song-26.08', [self.webp(30)])
+        before = build_dataset_plan(public_root=self.public)
+        result = pack_datasets(repo_root=self.root, selector='all', bootstrap=True, release='v1.0.0')
+        package_root = Path(result['packageRoot'])
+        self.assertEqual(sorted(p.name for p in package_root.iterdir()),
+                         ['package-index.json', 'tamriel-rebuilt.tar', 'test-dataset.tar'])
+        lock = parse_lock((package_root / 'package-index.json').read_bytes())
+        self.assertEqual(lock['schemaVersion'], 2)
+        self.assertEqual({e['releaseTag'] for e in lock['tileSets']}, {'v1.0.0'})
+        self.assertEqual(Path(result['lockPath']).read_bytes(), (package_root / 'package-index.json').read_bytes())
+        self.assertFalse((self.root / 'config/dataset-releases.lock.json').exists())
+        self.assertEqual(pack_datasets(repo_root=self.root, selector='all', bootstrap=True, release='v1.0.0'), result)
+        from tools.deployment.download_datasets import download_datasets
+        for path in self.public.rglob('tiles'):
+            if path.is_dir():
+                shutil.rmtree(path)
+        class LocalRelease:
+            def fetch(self, entry, part):
+                return (package_root / part['name']).open('rb')
+        restored = download_datasets(repo_root=self.root, lock_path=Path(result['lockPath']), client=LocalRelease())
+        self.assertEqual(restored['downloaded'], 2)
+        self.assertEqual(build_dataset_plan(public_root=self.public), before)
+
+    def test_product_version_cannot_be_reused_for_changed_inventory(self) -> None:
+        self.add_map('second-map', [self.webp(30)])
+        result = pack_datasets(repo_root=self.root, selector='all', bootstrap=True, release='v1.0.0')
+        before = Path(result['lockPath']).read_bytes()
+        self.add_map('second-map', [self.webp(31)])
+        with self.assertRaises(DeploymentError):
+            pack_datasets(repo_root=self.root, selector='all', bootstrap=True, release='v1.0.0')
+        self.assertEqual(Path(result['lockPath']).read_bytes(), before)
+        changed = pack_datasets(repo_root=self.root, selector='all', bootstrap=True, release='v1.0.1')
+        after = parse_lock(Path(changed['lockPath']).read_bytes())
+        prior = parse_lock(before)
+        old_stable = next(e for e in prior['tileSets'] if e['datasetId'] == 'test-dataset')
+        new_stable = next(e for e in after['tileSets'] if e['datasetId'] == 'test-dataset')
+        self.assertEqual(old_stable['parts'], new_stable['parts'])
+        self.assertEqual({e['releaseTag'] for e in after['tileSets']}, {'v1.0.1'})
+
+    def test_product_lock_rejects_unsafe_versions_mixed_tags_and_archive_collisions(self) -> None:
+        self.add_map('second-map', [self.webp(30)])
+        result = pack_datasets(repo_root=self.root, selector='all', bootstrap=True, release='v1.0.0')
+        lock = parse_lock(Path(result['lockPath']).read_bytes())
+        for tag in ('latest', '../v1.0.0', 'v01.0.0', 'v1.0', 'v1.0.0-rc1', 'v1.0.0\n'):
+            invalid = copy.deepcopy(lock)
+            for entry in invalid['tileSets']:
+                entry['releaseTag'] = tag
+            with self.subTest(tag=tag), self.assertRaises(DeploymentError):
+                parse_lock(canonical_json_bytes(invalid))
+        invalid = copy.deepcopy(lock)
+        invalid['tileSets'][0]['releaseTag'] = 'v1.0.1'
+        with self.assertRaisesRegex(DeploymentError, 'same product release'):
+            parse_lock(canonical_json_bytes(invalid))
+        invalid = copy.deepcopy(lock)
+        invalid['tileSets'][0]['parts'][0]['name'] = '../escape.tar'
+        with self.assertRaises(DeploymentError):
+            parse_lock(canonical_json_bytes(invalid))
+        self.assertEqual(product_part_name('poison-song-26.08', 1, 2), 'tamriel-rebuilt-0001.tar')
+        self.assertEqual(product_part_name('poison-song-26.08', 2, 2), 'tamriel-rebuilt-0002.tar')
+        invalid = copy.deepcopy(lock)
+        for number, entry in enumerate(invalid['tileSets']):
+            entry['datasetId'] = f'poison-song-26.0{number}'
+            entry['parts'][0]['name'] = 'tamriel-rebuilt.tar'
+        with self.assertRaisesRegex(DeploymentError, 'duplicate'):
+            parse_lock(canonical_json_bytes(invalid))
 
 
 if __name__ == '__main__':

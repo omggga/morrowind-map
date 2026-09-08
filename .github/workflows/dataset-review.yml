@@ -29,6 +29,11 @@ on:
         required: false
         default: '[]'
         type: string
+      bootstrap_release_tag:
+        description: Exact product release for historical snapshots without a transport lock
+        required: false
+        default: ''
+        type: string
       legacy_transport:
         description: Explicit transport for historical snapshots (bootstrap always uses releases)
         required: true
@@ -68,6 +73,7 @@ jobs:
           EXPECTED_BASE: ${{ inputs.expected_base }}
           SOURCE_MAPPING: ${{ inputs.source_mapping }}
           LEGACY_TRANSPORT: ${{ inputs.legacy_transport }}
+          BOOTSTRAP_RELEASE_TAG: ${{ inputs.bootstrap_release_tag }}
         run: python3 -m tools.deployment.dataset_review_workflow freeze --work-root "$RUNNER_TEMP/dataset-review"
       - name: Validate both snapshots as data and prepare the bound review receipt
         id: review

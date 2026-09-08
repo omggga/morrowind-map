@@ -8,8 +8,8 @@ from pathlib import Path
 
 from tools.deployment.common import DeploymentError, canonical_json_bytes, strict_json_object
 from tools.deployment.dataset_packages import (
-    MAX_LOCK_BYTES, REPOSITORY, _entry_key, _read_lock, _real_directory,
-    parse_lock, read_tile_sets, release_tag, validate_lock,
+    MAX_LOCK_BYTES, REPOSITORY, _entry_key, _lock, _read_lock, _real_directory,
+    is_product_release, parse_lock, product_release_tag, read_tile_sets, release_tag, validate_lock,
 )
 from tools.deployment.download_datasets import download_datasets
 
@@ -53,8 +53,9 @@ def parse_sources(payload: bytes) -> list[dict]:
     return sources
 
 
-def _release_source(api, key: tuple, mapping: dict | None) -> tuple[str, dict, str]:
-    tag = release_tag(key)
+def _release_source(api, key: tuple, mapping: dict | None, *, tag: str = '',
+                    bootstrap_pin: bool = False) -> tuple[str, dict, str, bool]:
+    tag = tag or release_tag(key)
     release = api.release_by_tag(REPOSITORY, tag)
     if (isinstance(release, dict) and release.get('draft') is True and mapping is not None
             and release.get('tag_name') == tag and type(release.get('id')) is int
@@ -67,14 +68,20 @@ def _release_source(api, key: tuple, mapping: dict | None) -> tuple[str, dict, s
                 or release.get('immutable') is not True or release.get('tag_name') != tag
                 or type(release.get('id')) is not int or release['id'] <= 0):
             raise DeploymentError('Canonical review release must be published and immutable')
-        return REPOSITORY, release, ''
+        return REPOSITORY, release, '', True
     if mapping is None:
         raise DeploymentError('Missing canonical package; an explicit review source mapping is required')
     release = api.release_by_id(mapping['repository'], mapping['releaseId'])
-    if (not isinstance(release, dict) or release.get('draft') is not False
+    if (not isinstance(release, dict) or type(release.get('draft')) is not bool
             or type(release.get('id')) is not int or release['id'] != mapping['releaseId']):
         raise DeploymentError('Mapped review release must be published and match its numeric ID')
-    return mapping['repository'], release, mapping['assetPrefix']
+    if release['draft'] and (not is_product_release(tag) or mapping['repository'] != REPOSITORY
+                             or release.get('tag_name') != tag or mapping['assetPrefix']):
+        raise DeploymentError('Mapped draft must be the explicitly selected canonical product release')
+    if bootstrap_pin and (mapping['repository'] != REPOSITORY or release.get('tag_name') != tag
+                          or mapping['assetPrefix'] or (not release['draft'] and release.get('immutable') is not True)):
+        raise DeploymentError('Bootstrap source must match its exact immutable release or explicitly mapped draft')
+    return mapping['repository'], release, mapping['assetPrefix'], False
 
 
 def _assets(api, repository: str, release_id: int) -> dict:
@@ -98,7 +105,7 @@ def _assets(api, repository: str, release_id: int) -> dict:
     return assets
 
 
-def _index(api, repository: str, assets: dict, prefix: str, tile_set) -> dict:
+def _index(api, repository: str, assets: dict, prefix: str) -> dict:
     asset = assets.get(prefix + 'package-index.json')
     if asset is None or not 0 < asset['size'] <= MAX_LOCK_BYTES:
         raise DeploymentError('Missing or oversized review package-index.json')
@@ -110,9 +117,7 @@ def _index(api, repository: str, assets: dict, prefix: str, tile_set) -> dict:
         import hashlib
         if asset['digest'] != 'sha256:' + hashlib.sha256(payload).hexdigest():
             raise DeploymentError('Review package index differs from its API digest')
-    lock = parse_lock(payload)
-    validate_lock(lock, [tile_set])
-    return lock['tileSets'][0]
+    return parse_lock(payload)
 
 
 class _PinnedClient:
@@ -131,8 +136,10 @@ class _PinnedClient:
 
 
 def restore_snapshot(*, public_root: Path, lock_path: Path | None, sources: list,
-                     api, cache_root: Path) -> dict:
+                     api, cache_root: Path, bootstrap_release_tag: str = '') -> dict:
     """Preflight every source, then restore against this snapshot's own inventory."""
+    if bootstrap_release_tag != '':
+        product_release_tag(bootstrap_release_tag)
     sources = parse_sources(canonical_json_bytes(sources))
     tile_sets = read_tile_sets(public_root=public_root)
     mappings = {_entry_key(source): source for source in sources}
@@ -143,14 +150,34 @@ def restore_snapshot(*, public_root: Path, lock_path: Path | None, sources: list
         validate_lock(committed, tile_sets)
     entries = {_entry_key(entry): entry for entry in committed['tileSets']} if committed else {}
     packages = []
+    indexes = {}
     for tile_set in tile_sets:
-        repository, release, prefix = _release_source(api, tile_set.key, mappings.get(tile_set.key))
-        assets = _assets(api, repository, release['id'])
-        # Legacy/bootstrap snapshots derive only the descriptor for their own
-        # verified inventory. Normal snapshots never fetch a replacement lock.
         entry = entries.get(tile_set.key)
-        if entry is None:
-            entry = _index(api, repository, assets, prefix, tile_set)
+        pin = bootstrap_release_tag if committed is None else ''
+        tag = entry['releaseTag'] if entry is not None else pin
+        repository, release, prefix, canonical = _release_source(
+            api, tile_set.key, mappings.get(tile_set.key), tag=tag, bootstrap_pin=bool(pin))
+        assets = _assets(api, repository, release['id'])
+        # The shared index is publication evidence, never a replacement for a
+        # committed descriptor. Only its exact own-inventory projection hydrates.
+        index = None
+        if entry is None or is_product_release(entry['releaseTag']):
+            index_key = repository, release['id'], prefix
+            if index_key not in indexes:
+                indexes[index_key] = _index(api, repository, assets, prefix)
+            index = indexes[index_key]
+            selected = [e for e in index['tileSets'] if _entry_key(e) == tile_set.key]
+            if len(selected) != 1:
+                raise DeploymentError('Review package index does not contain its exact own inventory')
+            validate_lock(_lock(selected), [tile_set])
+            if canonical or release['draft'] or pin:
+                if any(e['releaseTag'] != release.get('tag_name') for e in index['tileSets']):
+                    raise DeploymentError('Review package index differs from its resolved release tag')
+            if release['draft'] and index['schemaVersion'] != 2:
+                raise DeploymentError('Only product bundle indexes may use explicitly mapped drafts')
+            if entry is not None and entry != selected[0]:
+                raise DeploymentError('Review package index differs from the committed descriptor')
+            entry = selected[0]
         pinned = []
         for part in entry['parts']:
             asset_name = prefix + part['name']
@@ -162,11 +189,13 @@ def restore_snapshot(*, public_root: Path, lock_path: Path | None, sources: list
                 raise DeploymentError('Review archive API digest differs from the transport lock')
             pinned.append({'name': part['name'], 'assetName': asset_name, 'assetId': asset['id'],
                            'sha256': part['sha256'], 'bytes': part['bytes'], 'apiDigest': digest})
-        packages.append({'entry': entry, 'source': {
+        package = {'entry': entry, 'source': {
             'repository': repository, 'releaseId': release['id'], 'assets': pinned,
-        }})
-    lock = {'schemaVersion': 1, 'repository': REPOSITORY,
-            'tileSets': [package['entry'] for package in packages]}
+        }}
+        if is_product_release(entry['releaseTag']):
+            package['index'] = index
+        packages.append(package)
+    lock = _lock([package['entry'] for package in packages])
     validate_lock(lock, tile_sets)
     cache = _real_directory(Path(cache_root))
     with tempfile.TemporaryDirectory(prefix='.review-lock-', dir=cache) as temporary:

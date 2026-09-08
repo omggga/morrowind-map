@@ -2,18 +2,28 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://morrowind-map.local/schemas/dataset-releases-lock.schema.json",
   "title": "Dataset release transport lock",
-  "description": "Transport metadata only. Runtime tooling additionally checks identity uniqueness, canonical tag binding, contiguous part numbering, and agreement with the active dataset graph.",
+  "description": "Transport metadata only. Runtime tooling additionally checks identity uniqueness, canonical tag binding, contiguous part numbering, and agreement with the active dataset graph. Version 2 additionally requires one shared product release tag, unique map archive names, and at most 999 archive assets across the release.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "repository", "tileSets"],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "enum": [1, 2] },
     "repository": { "const": "omggga/morrowind-map" },
     "tileSets": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 100,
-      "items": { "$ref": "#/definitions/tileSet" }
+      "maxItems": 100
+    }
+  },
+  "if": { "properties": { "schemaVersion": { "const": 2 } } },
+  "then": {
+    "properties": {
+      "tileSets": { "type": "array", "items": { "$ref": "#/definitions/productTileSet" } }
+    }
+  },
+  "else": {
+    "properties": {
+      "tileSets": { "type": "array", "items": { "$ref": "#/definitions/tileSet" } }
     }
   },
   "definitions": {
@@ -71,6 +81,74 @@
           "minLength": 14,
           "maxLength": 14,
           "pattern": "^tiles-0(?:[1-9][0-9]{2}|0[1-9][0-9]|00[1-9])\\.tar$"
+        },
+        "sha256": { "$ref": "#/definitions/sha256" },
+        "bytes": {
+          "type": "integer",
+          "minimum": 10240,
+          "maximum": 2137483648,
+          "multipleOf": 10240
+        },
+        "tileCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500000
+        },
+        "unpackedBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2137483648
+        }
+      }
+    },
+    "productTileSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "datasetId",
+        "pyramidId",
+        "inventorySha256",
+        "format",
+        "releaseTag",
+        "parts"
+      ],
+      "properties": {
+        "datasetId": { "$ref": "#/definitions/identifier" },
+        "pyramidId": { "$ref": "#/definitions/identifier" },
+        "inventorySha256": { "$ref": "#/definitions/sha256" },
+        "format": { "const": "ustar-v1" },
+        "releaseTag": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 31,
+          "pattern": "^v(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})$",
+          "not": { "pattern": "[^v0-9.]" }
+        },
+        "parts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 999,
+          "items": { "$ref": "#/definitions/productPart" }
+        }
+      }
+    },
+    "productPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sha256",
+        "bytes",
+        "tileCount",
+        "unpackedBytes"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*\\.tar$",
+          "not": { "pattern": "[^a-z0-9.-]" }
         },
         "sha256": { "$ref": "#/definitions/sha256" },
         "bytes": {

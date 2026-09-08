@@ -11,7 +11,7 @@ from urllib.request import Request, build_opener
 
 from tools.deployment.common import DeploymentError, canonical_json_bytes, strict_json_object
 from tools.deployment.dataset_github import MAX_API_BYTES, MAX_REDIRECTS, _credential, _NoRedirect, _storage_url
-from tools.deployment.dataset_packages import MAX_ARCHIVE_BYTES, REPOSITORY
+from tools.deployment.dataset_packages import MAX_ARCHIVE_BYTES, REPOSITORY, is_product_release
 
 
 def repository(value: str) -> str:
@@ -160,20 +160,26 @@ class ReleaseAPI:
     def create_draft(self, tag: str, tool_sha: str, body: str):
         if not re.fullmatch(r'[a-f0-9]{40}', tool_sha):
             raise DeploymentError('Draft target must be the trusted tool commit')
-        return self._request(f'repos/{REPOSITORY}/releases', method='POST',
-                             body={'tag_name': tag, 'target_commitish': tool_sha, 'draft': True,
-                                   'prerelease': True, 'make_latest': 'false',
-                                   'generate_release_notes': False, 'body': body})
+        product = is_product_release(tag)
+        payload = {'tag_name': tag, 'target_commitish': tool_sha, 'draft': True,
+                   'prerelease': not product, 'make_latest': 'true' if product else 'false',
+                   'generate_release_notes': False, 'body': body}
+        if product:
+            payload['name'] = f'Morrowind Interactive Map {tag}'
+        return self._request(f'repos/{REPOSITORY}/releases', method='POST', body=payload)
 
     def upload_asset(self, release_id: int, name: str, path: Path):
-        if not re.fullmatch(r'(?:tiles-[0-9]{4}\.tar|package-index\.json)', name):
+        if (not isinstance(name, str) or len(name) > 144
+                or not re.fullmatch(r'(?:[a-z0-9]+(?:[.-][a-z0-9]+)*\.tar|package-index\.json)', name)):
             raise DeploymentError('Canonical release asset name is invalid')
         return self._request(f'repos/{REPOSITORY}/releases/{positive_id(release_id)}/assets?name={quote(name)}',
                              method='POST', upload=path)
 
-    def publish_release(self, release_id: int):
+    def publish_release(self, release_id: int, *, tag: str | None = None):
+        product = tag is not None and is_product_release(tag)
         return self._request(f'repos/{REPOSITORY}/releases/{positive_id(release_id)}', method='PATCH',
-                             body={'draft': False, 'prerelease': True, 'make_latest': 'false'})
+                             body={'draft': False, 'prerelease': not product,
+                                   'make_latest': 'true' if product else 'false'})
 
     def get_pull(self, number: int):
         return self._request(f'repos/{REPOSITORY}/pulls/{positive_id(number)}')

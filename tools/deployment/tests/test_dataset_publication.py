@@ -3,13 +3,14 @@ from __future__ import annotations
 import copy
 import hashlib
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from tools.deployment.common import DeploymentError, canonical_json_bytes
-from tools.deployment.dataset_packages import REPOSITORY, release_tag
+from tools.deployment.dataset_packages import REPOSITORY, _lock, release_tag
 from tools.deployment.dataset_publication import publish_packages
 
 
@@ -63,7 +64,7 @@ class FakeAPI:
         self.writes.append(('upload', name))
         return self.add_asset(REPOSITORY, release_id, name, path.read_bytes())
 
-    def publish_release(self, release_id):
+    def publish_release(self, release_id, *, tag=None):
         self.writes.append(('publish', release_id))
         release = self.releases[REPOSITORY, release_id]
         release.update(draft=False, immutable=self.publish_immutable)
@@ -100,6 +101,118 @@ class PublicationTests(unittest.TestCase):
         index = canonical_json_bytes({'schemaVersion': 1, 'repository': REPOSITORY, 'tileSets': [self.entry]})
         self.api.add_asset(REPOSITORY, release['id'], 'package-index.json', index)
         return release
+
+    def product_packages(self):
+        packages = []
+        for dataset, name in [('original-goty-test', 'morrowind.tar'), ('poison-song-test', 'tamriel-rebuilt.tar')]:
+            package = copy.deepcopy(self.package)
+            package['entry'].update(datasetId=dataset, releaseTag='v1.0.0')
+            package['entry']['parts'][0]['name'] = name
+            package['source']['assets'][0]['name'] = name
+            packages.append(package)
+        index = _lock([package['entry'] for package in packages])
+        for package in packages:
+            package['index'] = copy.deepcopy(index)
+        return packages
+
+    def publish_product(self, packages=None):
+        return publish_packages(self.product_packages() if packages is None else packages,
+                                api=self.api, work_root=self.root, tool_sha='b' * 40)
+
+    def test_product_maps_share_one_release_and_complete_index(self):
+        packages = self.product_packages()
+        result = self.publish_product(packages)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]['releaseId'], result[1]['releaseId'])
+        self.assertEqual([write[0] for write in self.api.writes],
+                         ['create', 'upload', 'upload', 'upload', 'publish'])
+        release_id = result[0]['releaseId']
+        assets = self.api.list_assets(REPOSITORY, release_id)
+        self.assertEqual({asset['name'] for asset in assets},
+                         {'morrowind.tar', 'tamriel-rebuilt.tar', 'package-index.json'})
+        index = next(asset for asset in assets if asset['name'] == 'package-index.json')
+        payload = json.loads(self.api.payloads[REPOSITORY, index['id']])
+        self.assertEqual(payload['schemaVersion'], 2)
+        self.assertEqual({entry['datasetId'] for entry in payload['tileSets']}, {'original-goty-test', 'poison-song-test'})
+        for record in result:
+            self.assertEqual({asset['name'] for asset in record['assets']},
+                             {record['entry']['parts'][0]['name'], 'package-index.json'})
+        self.api.writes.clear()
+        self.assertEqual(self.publish_product(packages), result)
+        self.assertEqual(self.api.writes, [])
+
+    def test_product_retry_resumes_only_missing_map_and_index(self):
+        original = self.api.upload_asset
+        def interrupt(release_id, name, path):
+            if name == 'tamriel-rebuilt.tar':
+                raise DeploymentError('Interrupted second map upload')
+            return original(release_id, name, path)
+        with mock.patch.object(self.api, 'upload_asset', side_effect=interrupt):
+            with self.assertRaisesRegex(DeploymentError, 'Interrupted'):
+                self.publish_product()
+        self.api.writes.clear()
+        self.publish_product()
+        self.assertEqual(self.api.writes[:2], [('upload', 'tamriel-rebuilt.tar'), ('upload', 'package-index.json')])
+        self.assertEqual(self.api.writes[2][0], 'publish')
+
+    def test_product_conflicts_are_rejected_before_writes(self):
+        for conflict in ('identity', 'name', 'index'):
+            packages = self.product_packages()
+            if conflict == 'identity':
+                packages[1]['entry']['datasetId'] = packages[0]['entry']['datasetId']
+            elif conflict == 'name':
+                packages[1]['entry']['parts'][0]['name'] = packages[0]['entry']['parts'][0]['name']
+            else:
+                packages[1]['index']['tileSets'].pop()
+            with self.subTest(conflict=conflict), self.assertRaises(DeploymentError):
+                self.publish_product(packages)
+            self.assertEqual(self.api.writes, [])
+
+    def test_product_existing_immutable_release_reuses_selected_map_with_full_index(self):
+        first = self.publish_product()
+        self.api.writes.clear()
+        result = self.publish_product(self.product_packages()[:1])
+        self.assertEqual(result, first[:1])
+        self.assertEqual(self.api.writes, [])
+
+    def test_product_cannot_publish_partial_reviewed_index(self):
+        with self.assertRaisesRegex(DeploymentError, 'every map'):
+            self.publish_product(self.product_packages()[:1])
+        self.assertEqual(self.api.writes, [])
+
+    def test_product_existing_index_cannot_drop_a_map(self):
+        self.publish_product()
+        self.api.writes.clear()
+        packages = self.product_packages()[:1]
+        packages[0]['index'] = _lock([packages[0]['entry']])
+        with self.assertRaises(DeploymentError):
+            self.publish_product(packages)
+        self.assertEqual(self.api.writes, [])
+
+    def test_legacy_and_product_coordinates_can_coexist_for_migration(self):
+        self.canonical()
+        result = self.publish_product([self.package, *self.product_packages()])
+        self.assertEqual(len(result), 3)
+        self.assertNotEqual(result[0]['releaseId'], result[1]['releaseId'])
+
+    def test_later_release_conflict_is_rejected_before_any_group_writes(self):
+        release = self.canonical()
+        self.api.add_asset(REPOSITORY, release['id'], 'unexpected.txt', b'conflict')
+        with self.assertRaises(DeploymentError):
+            self.publish_product([*self.product_packages(), self.package])
+        self.assertEqual(self.api.writes, [])
+
+    def test_product_partial_draft_cannot_be_published_from_subset(self):
+        draft = self.api.add_release(REPOSITORY, 'v1.0.0', draft=True)
+        self.api.add_asset(REPOSITORY, draft['id'], 'morrowind.tar', b'x' * 10240)
+        with self.assertRaisesRegex(DeploymentError, 'every map'):
+            self.publish_product(self.product_packages()[:1])
+        self.assertEqual(self.api.writes, [])
+
+    def test_product_publication_requires_immutable_release(self):
+        self.api.publish_immutable = False
+        with self.assertRaisesRegex(DeploymentError, 'did not produce an immutable release'):
+            self.publish_product()
 
     def test_publishes_then_reuses_immutable_release_without_writes(self):
         first = self.publish()

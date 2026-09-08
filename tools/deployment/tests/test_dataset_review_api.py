@@ -51,6 +51,28 @@ class ReviewAPITests(unittest.TestCase):
         self.assertEqual(publish.method, 'PATCH')
         self.assertEqual(json.loads(publish.data), {'draft': False, 'prerelease': True, 'make_latest': 'false'})
 
+    def test_product_release_has_human_title_and_is_latest(self):
+        api = ReleaseAPI(writable=True)
+        with mock.patch.object(api, '_request', return_value={}) as request:
+            api.create_draft('v1.0.0', 'b' * 40, 'Five validated map packages.')
+            api.publish_release(12, tag='v1.0.0')
+        create, publish = request.call_args_list
+        self.assertEqual(create.kwargs['body']['name'], 'Morrowind Interactive Map v1.0.0')
+        self.assertFalse(create.kwargs['body']['prerelease'])
+        self.assertEqual(create.kwargs['body']['make_latest'], 'true')
+        self.assertEqual(publish.kwargs['body'], {'draft': False, 'prerelease': False, 'make_latest': 'true'})
+
+    def test_product_archive_names_are_bounded_safe_basenames(self):
+        api = ReleaseAPI(writable=True)
+        with mock.patch.object(api, '_request', return_value={}) as request:
+            for name in ('morrowind.tar', 'tamriel-rebuilt.tar', 'home-of-nords-0001.tar', 'custom-map-1.0.tar', 'package-index.json'):
+                api.upload_asset(12, name, Path('/unused'))
+            self.assertEqual(request.call_count, 5)
+            for name in ('../morrowind.tar', 'maps/morrowind.tar', 'a' * 256 + '.tar', 'map.tar.gz', 'map?x.tar'):
+                with self.subTest(name=name), self.assertRaises(DeploymentError):
+                    api.upload_asset(12, name, Path('/unused'))
+            self.assertEqual(request.call_count, 5)
+
     def test_upload_stream_is_bounded_and_upload_redirect_is_rejected(self):
         api = ReleaseAPI(writable=True)
         with tempfile.TemporaryDirectory() as temporary:

@@ -8,7 +8,7 @@ import shutil
 import unittest
 
 from tools.deployment.common import DeploymentError, canonical_json_bytes
-from tools.deployment.dataset_packages import REPOSITORY
+from tools.deployment.dataset_packages import REPOSITORY, _lock, product_part_name
 from tools.deployment.dataset_review_sources import parse_sources, restore_snapshot
 from tools.deployment.tests import test_dataset_packages as package_fixtures
 from tools.deployment.upload_datasets import build_dataset_plan
@@ -59,14 +59,101 @@ class ReviewSourcesTests(unittest.TestCase):
         self.calls.append(('read', repository, asset_id))
         return io.BytesIO(self.payloads[asset_id])
 
-    def restore(self, *, sources=None, legacy=False):
+    def restore(self, *, sources=None, legacy=False, bootstrap_release_tag=''):
         return restore_snapshot(public_root=self.public, lock_path=None if legacy else self.lock_path,
-                                sources=sources or [], api=self, cache_root=self.root / 'cache')
+                                sources=sources or [], api=self, cache_root=self.root / 'cache',
+                                bootstrap_release_tag=bootstrap_release_tag)
 
     def mapped(self):
         self.release = None
         for asset in self.assets:
             asset['name'] = self.mapping['assetPrefix'] + asset['name']
+
+    def product(self, *, extra=False):
+        entry = copy.deepcopy(self.entry)
+        entry['releaseTag'] = 'v1.0.0'
+        entry['parts'][0]['name'] = product_part_name(entry['datasetId'], 1, 1)
+        entries = [entry]
+        if extra:
+            other = copy.deepcopy(entry)
+            other.update(datasetId='z-other-map', pyramidId='other-basemap')
+            other['parts'][0]['name'] = 'z-other-map.tar'
+            entries.append(other)
+        index = _lock(entries)
+        self.payloads[1] = canonical_json_bytes(index)
+        self.assets[0].update(size=len(self.payloads[1]), digest='sha256:' + hashlib.sha256(self.payloads[1]).hexdigest())
+        self.assets[1]['name'] = entry['parts'][0]['name']
+        self.release['tag_name'] = 'v1.0.0'
+        self.lock_path.write_bytes(canonical_json_bytes(_lock([entry])))
+        return index
+
+    def test_bootstrap_product_pin_restores_own_projection_and_preserves_full_index(self):
+        index = self.product(extra=True)
+        result = self.restore(legacy=True, bootstrap_release_tag='v1.0.0')
+        self.assertEqual(result['lock'], _lock(index['tileSets'][:1]))
+        self.assertEqual(result['packages'][0]['index'], index)
+        self.assertEqual([c for c in self.calls if c[0] == 'tag'], [('tag', REPOSITORY, 'v1.0.0')])
+        self.assertEqual(build_dataset_plan(public_root=self.public), self.before)
+
+    def test_committed_product_uses_own_tag_and_rejects_remote_replacement(self):
+        self.product()
+        wrong = json.loads(self.payloads[1])
+        wrong['tileSets'][0]['parts'][0]['sha256'] = 'a' * 64
+        self.payloads[1] = canonical_json_bytes(wrong)
+        self.assets[0].update(size=len(self.payloads[1]), digest=None)
+        with self.assertRaisesRegex(DeploymentError, 'committed descriptor'):
+            self.restore(bootstrap_release_tag='v9.9.9')
+        self.assertEqual([c for c in self.calls if c[0] == 'tag'], [('tag', REPOSITORY, 'v1.0.0')])
+        self.assertEqual([c[2] for c in self.calls if c[0] == 'read'], [1])
+
+    def test_product_pin_cannot_fall_back_to_legacy_release_or_unrelated_mapping(self):
+        self.release = None
+        with self.assertRaisesRegex(DeploymentError, 'explicit review source'):
+            self.restore(legacy=True, bootstrap_release_tag='v1.0.0')
+        with self.assertRaisesRegex(DeploymentError, 'Bootstrap source must match'):
+            self.restore(legacy=True, sources=[self.mapping], bootstrap_release_tag='v1.0.0')
+        self.assertFalse(any(c[0] == 'read' for c in self.calls))
+        with self.assertRaisesRegex(DeploymentError, 'vMAJOR.MINOR.PATCH'):
+            self.restore(legacy=True, bootstrap_release_tag='latest')
+
+    def test_product_pin_rejects_wrong_index_version_before_archive(self):
+        self.product()
+        self.release['tag_name'] = 'v2.0.0'
+        with self.assertRaisesRegex(DeploymentError, 'resolved release tag'):
+            self.restore(legacy=True, bootstrap_release_tag='v2.0.0')
+        self.assertEqual([c[2] for c in self.calls if c[0] == 'read'], [1])
+
+    def test_explicit_canonical_product_draft_can_supply_its_own_complete_index(self):
+        index = self.product()
+        self.release.update(draft=True, immutable=False)
+        mapping = dict(self.mapping, repository=REPOSITORY, releaseId=self.release['id'], assetPrefix='')
+        self.release_by_id = lambda repository, release_id: self.release
+        with self.assertRaisesRegex(DeploymentError, 'published and immutable'):
+            self.restore(legacy=True, bootstrap_release_tag='v1.0.0')
+        result = self.restore(legacy=True, sources=[mapping], bootstrap_release_tag='v1.0.0')
+        self.assertEqual(result['packages'][0]['index'], index)
+        self.assertEqual(result['packages'][0]['source']['releaseId'], self.release['id'])
+        self.assertEqual(build_dataset_plan(public_root=self.public), self.before)
+
+    def test_mapped_product_index_can_use_published_staging_tag(self):
+        index = self.product(extra=True)
+        self.mapped()
+        result = self.restore(sources=[self.mapping])
+        self.assertEqual(result['packages'][0]['index'], index)
+        self.assertEqual(result['packages'][0]['source']['repository'], self.mapping['repository'])
+        self.assertEqual(build_dataset_plan(public_root=self.public), self.before)
+
+    def test_legacy_or_foreign_draft_is_never_an_implicit_product_source(self):
+        self.product()
+        self.release.update(draft=True, immutable=False)
+        self.release_by_id = lambda repository, release_id: dict(self.release, id=release_id)
+        with self.assertRaisesRegex(DeploymentError, 'explicitly selected canonical'):
+            self.restore(sources=[self.mapping])
+        self.release = None
+        self.release_by_id = lambda repository, release_id: {'id': release_id, 'draft': True}
+        with self.assertRaisesRegex(DeploymentError, 'explicitly selected canonical'):
+            self.restore(legacy=True, sources=[self.mapping])
+        self.assertFalse(any(c[0] == 'read' for c in self.calls))
 
     def test_mapping_parser_bounds_and_exact_fields(self):
         self.assertEqual(parse_sources(canonical_json_bytes([self.mapping])), [self.mapping])

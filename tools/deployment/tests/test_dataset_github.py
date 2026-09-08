@@ -35,6 +35,21 @@ class GitHubDownloadTests(unittest.TestCase):
         self.asset = {'id': 20, 'name': self.part['name'], 'state': 'uploaded', 'size': 10240,
                       'digest': 'sha256:' + self.part['sha256']}
 
+    def test_product_release_fetches_short_names_from_one_exact_tag(self):
+        client = GitHubClient(anonymous=True)
+        release = {**self.release, 'tag_name': 'v1.0.0'}
+        entry = {**self.entry, 'releaseTag': 'v1.0.0'}
+        first = {**self.part, 'name': 'morrowind.tar'}
+        second = {**self.part, 'name': 'tamriel-rebuilt.tar'}
+        assets = [{**self.asset, 'name': first['name']}, {**self.asset, 'id': 21, 'name': second['name']}]
+        with mock.patch.object(client, '_json', side_effect=[release, assets]) as metadata, \
+             mock.patch.object(client, '_open', side_effect=lambda *a, **k: Response(b'archive')) as stream:
+            client.fetch(entry, first).close()
+            client.fetch(entry, second).close()
+        self.assertEqual(metadata.call_count, 2)
+        self.assertEqual(metadata.call_args_list[0].args[0], API + '/tags/v1.0.0')
+        self.assertEqual([call.args[0] for call in stream.call_args_list], [API + '/assets/20', API + '/assets/21'])
+
     def test_authenticated_api_redirect_drops_credentials_at_storage(self):
         client = GitHubClient()
         responses = [Response(json.dumps(self.release).encode()), Response(json.dumps([self.asset]).encode()),
