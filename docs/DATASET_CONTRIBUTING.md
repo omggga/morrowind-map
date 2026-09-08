@@ -44,8 +44,8 @@ CI validates the source-file boundary, the complete prepared graph, and browser 
 
 ## Local tile packages
 
-The package tooling prepares a future Release transport while the contribution,
-CI and deployment workflow above still uses Git LFS. Packaging is local: it does
+The package tooling and trusted publication support Release transport while the
+active contribution, CI and deployment workflow above still uses Git LFS. Packaging is local: it does
 not upload assets, change the active dataset, or remove LFS tracking.
 
 With ready tiles already present, build one independent package for each active
@@ -116,3 +116,92 @@ available lock history also prevents downgrade by lock deletion. Historical
 LFS export remains explicit via `--mode legacy` and uses only locally available
 objects fetched separately from the trusted endpoint. Snapshot tools never run
 candidate code or fetch LFS themselves.
+
+## Trusted review and publication
+
+The maintainer dispatches `Dataset review (trusted)` from `main`. All jobs use
+the same trusted tool commit. Candidate Git objects are exported as data;
+candidate scripts and workflows never execute in this review. Both the PR head
+and base must match the dispatch inputs, which are also recorded in the run
+title. A new head or base requires a fresh review.
+
+For an existing LFS PR, use the current head/base SHAs and the default transport:
+
+```bash
+pr=123
+head_sha=$(gh api "repos/omggga/morrowind-map/pulls/$pr" --jq .head.sha)
+base_sha=$(gh api "repos/omggga/morrowind-map/pulls/$pr" --jq .base.sha)
+gh workflow run dataset-review.yml --repo omggga/morrowind-map --ref main \
+  -f pr_number="$pr" -f expected_head="$head_sha" -f expected_base="$base_sha"
+```
+
+A Release-backed snapshot uses its committed lock automatically. If a package
+is not yet canonical, supply `source_mapping`: a JSON array with one object per
+new package identity. For example:
+
+```json
+[
+  {
+    "datasetId": "example-dataset",
+    "pyramidId": "example-pyramid",
+    "inventorySha256": "<64 lowercase hexadecimal characters>",
+    "repository": "contributor/source-packages",
+    "releaseId": 123456,
+    "assetPrefix": "example-"
+  }
+]
+```
+
+Pass the JSON as the `source_mapping` dispatch input, for example
+`-f source_mapping="$(cat local-data/source-mapping.json)"`. Use numeric GitHub
+release IDs, not URLs or tags. The source release must be published and
+readable by the trusted workflow token. It contains `<assetPrefix>tiles-0001.tar`
+and every other part in that map's descriptor. The prefix is optional (`""`);
+a nonempty prefix starts with a letter or digit and contains only letters,
+digits, dots, underscores and hyphens. Several maps may share one source release
+with different prefixes. Sources are bounded to 100 identities and 128 KiB.
+Unchanged packages are restored from their canonical immutable releases.
+
+The review checks every map, archive and tile, compares the complete graphs,
+and retains a small HTML/JSON report and hash-bound receipt for seven days.
+The report lists all changes and samples previews. Archive payloads are not
+uploaded as Actions artifacts. A separate `dataset-publication` environment job
+re-fetches the pinned source assets, checks their hashes, and publishes canonical
+releases. Publication is serialized. It reuses an exact immutable release or
+resumes an exact matching draft; conflicting assets are never overwritten.
+Missing API digests are checked by downloading and hashing the bytes.
+
+Only this publication job has Contents write access. The environment must allow
+only `main`, contain no production SSH secrets, and have the nonsecret variable
+`IMMUTABLE_RELEASES_CONFIRMED=true` after a maintainer confirms repository release
+immutability. The [settings API](https://docs.github.com/en/rest/repos/repos#check-if-immutable-releases-are-enabled-for-a-repository)
+requires Administration read access, which the workflow token does not receive.
+The variable records that preflight confirmation; publication also verifies that
+each resulting release actually reports `immutable: true` before succeeding.
+
+The PR check succeeds only after review and publication. The merge gate verifies
+the successful trusted main run, exact head/base run title, current run attempt,
+and committed lock/graph binding. Its compact check record remains available
+after the downloadable report expires. Historical checks are accepted only for
+LFS snapshots. Publishing a package does not activate a map or deploy the site.
+
+For a failed publication, dispatch a fresh review or choose **Re-run all jobs**;
+receipts belong to one run attempt. Matching drafts can be resumed on that new
+attempt. After successful publication, an explicitly selected failed CI run for
+the same PR head can be retried with:
+
+```bash
+python3 -m tools.deployment.dataset_review_retry --pr-number 123 --run-id 456789
+```
+
+This maintainer command needs Actions write access and rechecks the current PR,
+CI run and trusted review immediately before retrying failed jobs. The review
+workflow itself has no Actions write permission.
+
+The explicit bootstrap mode uses `pr_number=0`, `bootstrap_sha=<full-main-ancestor-SHA>`
+and source mappings. It derives each descriptor from that baseline's own metadata,
+inventory and prefixed `package-index.json`, then verifies all bytes. It never
+borrows a candidate PR's lock for a historical base. `legacy_transport=releases`
+uses the same adapter when reviewing an old LFS base after packages exist; it
+does not fetch LFS payloads. Bootstrap has no PR check. These operations require
+the publication tools to have been merged into trusted `main` first.

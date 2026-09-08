@@ -371,7 +371,7 @@ def export_revision(
     *, repo_root: Path, revision: str, output_public_root: Path,
     max_file_bytes: int = MAX_FILE_BYTES, max_total_bytes: int = MAX_TOTAL_BYTES,
     max_files: int = MAX_FILES, mode: str = "auto", release_boundary: str | None = None,
-    output_config_root: Path | None = None,
+    output_config_root: Path | None = None, metadata_only: bool = False,
 ) -> dict[str, object]:
     """Export only committed data; config defaults to output_public_root/config.
 
@@ -401,6 +401,8 @@ def export_revision(
         config_staging = Path(temporary) / "config"
         with _blobs(repo_root) as blobs:
             for entry in entries:
+                if metadata_only and entry.lfs_oid:
+                    continue
                 target = (config_staging / Path(entry.path).name if entry.path in CONFIG_PATHS
                           else staging / entry.path.removeprefix(DATASET_PREFIX))
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -422,6 +424,7 @@ def main() -> int:
     parser.add_argument("--revision", required=True)
     parser.add_argument("--output-public-root", type=Path)
     parser.add_argument("--output-config-root", type=Path)
+    parser.add_argument("--metadata-only", action="store_true", help="Omit legacy LFS payloads for trusted Release hydration")
     parser.add_argument("--mode", choices=("auto", "legacy", "releases"), default="auto")
     parser.add_argument("--require-releases", action="store_true")
     parser.add_argument("--release-boundary", help="Trusted first release-backed commit SHA")
@@ -436,7 +439,7 @@ def main() -> int:
         if args.command == "export":
             if args.output_public_root is None:
                 parser.error("export requires --output-public-root")
-            report = export_revision(**kwargs, output_public_root=args.output_public_root, output_config_root=args.output_config_root)
+            report = export_revision(**kwargs, output_public_root=args.output_public_root, output_config_root=args.output_config_root, metadata_only=args.metadata_only)
         else:
             report = check_revision(**kwargs)
     except (GitDatasetError, OSError) as error:

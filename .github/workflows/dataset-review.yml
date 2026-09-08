@@ -1,12 +1,42 @@
 name: Dataset review (trusted)
+run-name: dataset-review-v2:pr:${{ inputs.pr_number }}:head:${{ inputs.expected_head || inputs.bootstrap_sha }}:base:${{ inputs.expected_base }}
 
 on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: Pull request number to inspect (the current head SHA is fixed at start)
-        required: true
+        description: PR to review (zero when bootstrapping a baseline)
+        required: false
+        default: 0
         type: number
+      bootstrap_sha:
+        description: Exact trusted main baseline to bootstrap instead of a PR
+        required: false
+        default: ''
+        type: string
+      expected_head:
+        description: Exact current PR head SHA (required for a PR review)
+        required: false
+        default: ''
+        type: string
+      expected_base:
+        description: Exact current PR base SHA (required for a PR review)
+        required: false
+        default: ''
+        type: string
+      source_mapping:
+        description: JSON array of dataset identities and source repository/release IDs
+        required: false
+        default: '[]'
+        type: string
+      legacy_transport:
+        description: Explicit transport for historical snapshots (bootstrap always uses releases)
+        required: true
+        default: lfs
+        type: choice
+        options:
+          - lfs
+          - releases
 
 permissions:
   contents: read
@@ -18,96 +48,108 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
-      candidate_sha: ${{ steps.pr.outputs.candidate_sha }}
+      candidate_sha: ${{ steps.freeze.outputs.candidate_sha }}
+      pr_number: ${{ steps.freeze.outputs.pr_number }}
+      receipt_sha: ${{ steps.review.outputs.receipt_sha }}
     steps:
-      - name: Checkout trusted tools only
+      - name: Checkout the pinned trusted tools only
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 0
-      - name: Resolve and fetch immutable PR commits without checking out candidate code
-        id: pr
+      - name: Freeze PR or bootstrap identity and structured sources
+        id: freeze
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr_number }}
-        run: |
-          set -euo pipefail
-          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]
-          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pr.json"
-          python3 - <<'PY'
-          import json, os, re
-          pr = json.load(open(os.environ['RUNNER_TEMP'] + '/pr.json'))
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
-              for key, value in [('candidate_sha', pr['head']['sha']), ('base_sha', pr['base']['sha'])]:
-                  assert re.fullmatch('[0-9a-f]{40}', value)
-                  out.write(f'{key}={value}\n')
-          PY
-          git -c credential.helper='!gh auth git-credential' fetch origin "refs/pull/$PR_NUMBER/head"
-          python3 - <<'PY'
-          import json, os, subprocess
-          expected = json.load(open(os.environ['RUNNER_TEMP'] + '/pr.json'))['head']['sha']
-          assert subprocess.check_output(['git', 'rev-parse', 'FETCH_HEAD'], text=True).strip() == expected, 'PR changed; restart the review'
-          PY
-      - name: Inspect Git objects and fetch LFS using the fixed repository endpoint
+          BOOTSTRAP_SHA: ${{ inputs.bootstrap_sha }}
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+          EXPECTED_BASE: ${{ inputs.expected_base }}
+          SOURCE_MAPPING: ${{ inputs.source_mapping }}
+          LEGACY_TRANSPORT: ${{ inputs.legacy_transport }}
+        run: python3 -m tools.deployment.dataset_review_workflow freeze --work-root "$RUNNER_TEMP/dataset-review"
+      - name: Validate both snapshots as data and prepare the bound review receipt
+        id: review
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE_SHA: ${{ steps.pr.outputs.candidate_sha }}
-          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
-        run: |
-          set -euo pipefail
-          python3 -m tools.deployment.git_datasets check --repo-root . --revision "$CANDIDATE_SHA"
-          python3 -m tools.deployment.git_datasets check --repo-root . --revision "$BASE_SHA" > "$RUNNER_TEMP/base-tree.json"
-          git -c credential.helper='!gh auth git-credential' \
-            -c lfs.url="https://github.com/$GITHUB_REPOSITORY.git/info/lfs" \
-            lfs fetch --include='apps/web/public/datasets/generated/**/*.webp' --exclude='' origin "$CANDIDATE_SHA" "$BASE_SHA"
-      - name: Export data, validate it and build the visual report with trusted code
-        env:
-          CANDIDATE_SHA: ${{ steps.pr.outputs.candidate_sha }}
-          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
-        run: |
-          set -euo pipefail
-          candidate="$RUNNER_TEMP/candidate/apps/web/public"
-          python3 -m tools.deployment.git_datasets export --repo-root . --revision "$CANDIDATE_SHA" --output-public-root "$candidate"
-          git show "$CANDIDATE_SHA:config/dataset-upload-plan.json" > "$RUNNER_TEMP/candidate-plan.json"
-          python3 -m tools.deployment.upload_datasets --repo-root "$RUNNER_TEMP/candidate" --plan-output "$RUNNER_TEMP/actual-plan.json"
-          cmp "$RUNNER_TEMP/candidate-plan.json" "$RUNNER_TEMP/actual-plan.json"
-          baseline=()
-          if python3 -c 'import json,sys; sys.exit(json.load(open(sys.argv[1]))["generatedFileCount"] == 0)' "$RUNNER_TEMP/base-tree.json"; then
-            python3 -m tools.deployment.git_datasets export --repo-root . --revision "$BASE_SHA" --output-public-root "$RUNNER_TEMP/base-public"
-            baseline=(--base-public-root "$RUNNER_TEMP/base-public" --base-sha "$BASE_SHA")
-          fi
-          python3 -m tools.deployment.review_datasets --candidate-public-root "$candidate" \
-            --candidate-sha "$CANDIDATE_SHA" "${baseline[@]}" --output-dir "$RUNNER_TEMP/dataset-review"
-          echo "Report for PR commit $CANDIDATE_SHA. Download the dataset-review artifact and open index.html; full changes are in summary.json." >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v7
+        run: python3 -m tools.deployment.dataset_review_workflow review --work-root "$RUNNER_TEMP/dataset-review"
+      - name: Upload only the review report and receipt
+        uses: actions/upload-artifact@v7
         with:
-          name: dataset-review-${{ steps.pr.outputs.candidate_sha }}
-          path: ${{ runner.temp }}/dataset-review/
+          name: dataset-review-${{ steps.freeze.outputs.candidate_sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dataset-review/report/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish verified immutable dataset packages
+    needs: review
+    if: github.ref == 'refs/heads/main' && needs.review.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: read
+      actions: read
+    environment:
+      name: dataset-publication
+    concurrency:
+      group: dataset-package-publication
+      cancel-in-progress: false
+    steps:
+      - name: Checkout the same pinned trusted tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Download this attempt's trusted receipt
+        uses: actions/download-artifact@v8
+        with:
+          name: dataset-review-${{ needs.review.outputs.candidate_sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dataset-publication/input/
+      - name: Reverify receipt-bound source bytes and publish canonical packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECEIPT_SHA: ${{ needs.review.outputs.receipt_sha }}
+          IMMUTABLE_RELEASES_CONFIRMED: ${{ vars.IMMUTABLE_RELEASES_CONFIRMED }}
+        run: python3 -m tools.deployment.dataset_review_workflow publish --work-root "$RUNNER_TEMP/dataset-publication"
+      - name: Retain compact publication evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: dataset-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dataset-publication/result/
           if-no-files-found: error
           retention-days: 7
 
   result:
     name: Attach trusted review result to PR commit
-    needs: review
+    needs: [review, publish]
     if: always() && github.ref == 'refs/heads/main' && needs.review.outputs.candidate_sha != ''
     runs-on: ubuntu-latest
     permissions:
+      contents: read
+      pull-requests: read
       checks: write
+      actions: read
     steps:
-      - name: Publish the SHA-bound check
+      - name: Checkout the same pinned trusted result tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Download successful publication binding
+        if: needs.publish.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          name: dataset-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dataset-result/
+      - name: Attach a durable check only after review and publication
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.review.outputs.pr_number }}
           CANDIDATE_SHA: ${{ needs.review.outputs.candidate_sha }}
-          REVIEW_RESULT: ${{ needs.review.result }}
-        run: |
-          python3 - <<'PY'
-          import json, os, subprocess
-          success = os.environ['REVIEW_RESULT'] == 'success'
-          url = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
-          payload = {'name': 'Dataset review (trusted)', 'head_sha': os.environ['CANDIDATE_SHA'],
-                     'status': 'completed', 'conclusion': 'success' if success else 'failure',
-                     'details_url': url, 'external_id': 'dataset-review:' + os.environ['GITHUB_RUN_ID'],
-                     'output': {'title': 'Dataset data review', 'summary': 'Trusted data-only validation and visual report: ' + url}}
-          subprocess.run(['gh', 'api', '--method', 'POST', 'repos/' + os.environ['GITHUB_REPOSITORY'] + '/check-runs', '--input', '-'],
-                         input=json.dumps(payload), text=True, check=True, stdout=subprocess.DEVNULL)
-          PY
+          RECEIPT_SHA: ${{ needs.review.outputs.receipt_sha }}
+          PUBLICATION_SUCCESS: ${{ needs.review.result == 'success' && needs.publish.result == 'success' }}
+        run: python3 -m tools.deployment.dataset_review_workflow finish --work-root "$RUNNER_TEMP/dataset-result"
