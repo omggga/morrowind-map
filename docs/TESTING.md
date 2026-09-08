@@ -10,11 +10,12 @@ Choose checks that match your change. You do not need to run every tool locally 
 | Catalog or renderer | Relevant `pnpm test:catalog`, `test:renderer`, `test:openmw-renderer`, `test:original-renderer`, `test:tr-release`, or `test:rendering`; smoke-render affected maps when renderer behavior changes |
 | Ready datasets | `pnpm deploy:datasets:plan`, `pnpm test:acceptance:prepared`, and the all-map browser check below |
 
-`pnpm check` runs type checking, lint, application/contract unit tests, and the production build. It needs no Python, OpenMW, game inputs, or browser-test installation. Individual application tests can be run with `pnpm test:unit <test-file>`.
+`pnpm check` runs type checking, lint, application/contract unit tests, and the production build. After the README setup and `pnpm datasets:download` have restored the maps, this command needs no OpenMW, game inputs, or browser-test installation. The initial downloader requires Python 3.10+; it does not require Git LFS. Individual application tests can be run with `pnpm test:unit <test-file>`.
 
 CI runs the full checks automatically. To reproduce them locally:
 
 ```bash
+pnpm datasets:download
 pnpm exec playwright install chromium
 pnpm verify
 ```
@@ -42,7 +43,7 @@ Exercise real tiles, search and navigation for every active map after adopting a
 MORROWIND_RENDER_PUBLIC_ROOT="$PWD/apps/web/public" pnpm test:acceptance:rendered
 ```
 
-CI also runs this check when datasets change.
+CI restores the complete map selection from the committed transport lock before running prepared and rendered checks when datasets change. It compares the reconstructed upload plan with `config/dataset-upload-plan.json`; a missing or invalid lock cannot trigger an LFS fallback. Application-only CI remains lightweight and does not download tiles.
 
 ## Map quality
 

@@ -109,7 +109,7 @@ class DatasetReviewGateTests(unittest.TestCase):
     def test_accepts_exact_merged_head_and_verified_trusted_run(self) -> None:
         result = self.require()
         self.assertEqual(result, {"repository": self.repo, "commit": self.commit, "pullRequest": 17, "headSha": self.head, "checkRunId": 30, "reviewRunId": 1234})
-        self.assertEqual(len(self.calls), 9)
+        self.assertIn(f"repos/{self.repo}/git/commits/{self.base}", self.calls)
         self.run["path"] += "@refs/heads/main"
         self.require()
 
@@ -173,6 +173,18 @@ class DatasetReviewGateTests(unittest.TestCase):
         # A mutable PR base field does not replace the immutable merge parent.
         self.pr["base"]["sha"] = "f" * 40
         self.require()
+
+    def test_legacy_review_cannot_authorize_lock_deletion_from_release_base(self) -> None:
+        self.snapshots[self.base] = (b'{"schemaVersion":2}', self.graph)
+        with self.assertRaisesRegex(review.DatasetReviewError, "transport downgrade"):
+            self.require()
+
+    def test_v2_review_cannot_authorize_bound_lock_deletion(self) -> None:
+        lock = b'{"schemaVersion":2}'
+        self.snapshots[self.base] = (lock, self.graph)
+        self.use_binding(baseLockSha256=hashlib.sha256(lock).hexdigest())
+        with self.assertRaisesRegex(review.DatasetReviewError, "transport downgrade"):
+            self.require()
 
     def test_v2_binds_head_merged_and_base_lock_bytes(self) -> None:
         lock = b'{"schemaVersion":1}\n'

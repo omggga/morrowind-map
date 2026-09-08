@@ -7,7 +7,7 @@ it does not modify the website or the tracked active dataset.
 
 ## Prerequisites
 
-Follow [README.md](../README.md) to install dependencies and download the complete active Git LFS payload. Candidates preserve all active maps, so a single-map rerender also needs the other maps' prepared baselines. Install Chromium for candidate browser checks:
+Follow [README.md](../README.md) to install dependencies and run `pnpm datasets:download` to restore all five active maps from their pinned product release. Candidates preserve all active maps, so a single-map rerender also needs the other maps' prepared baselines. Install Chromium for candidate browser checks:
 
 ```bash
 pnpm exec playwright install chromium
@@ -222,7 +222,7 @@ The repository includes Cyrodiil as the third landing choice. It opens at `z=4`,
 level closer than Original and TR, and has no redundant map-section filter.
 For future releases, review the candidate before `render:use` adopts it locally;
 see the adoption section below.
-Uploading generated files to Git LFS and opening a PR are separate contributor steps.
+Packaging the complete map bundle, publishing candidate archives and opening a metadata/lock PR are separate contributor steps; see [dataset contributions](DATASET_CONTRIBUTING.md).
 
 For a new mod release, copy `config/pc-release.json` into an ignored profile such as
 `local-data/profiles/next-pc.json`. Update `datasetId`, release metadata, mod hashes
@@ -283,7 +283,7 @@ pnpm dev
 The repository includes Home of the Nords as the fourth available landing choice.
 It starts at zoom 4, matching Cyrodiil, and omits the redundant single-region filter.
 Explicit zoom values in shared map URLs are preserved.
-Git/LFS staging, a pull request, and merging are separate steps after visual review.
+Release packaging, JSON/lock staging, a pull request, and merging are separate steps after visual review. Generated WebP tiles remain outside Git.
 
 For future releases, copy the profile to `local-data/profiles/next-shotn.json`, update
 its release metadata, dataset ID and input hashes, and replace the complete Core
