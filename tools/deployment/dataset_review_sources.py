@@ -9,7 +9,7 @@ from pathlib import Path
 from tools.deployment.common import DeploymentError, canonical_json_bytes, strict_json_object
 from tools.deployment.dataset_packages import (
     MAX_LOCK_BYTES, REPOSITORY, _entry_key, _lock, _read_lock, _real_directory,
-    is_product_release, parse_lock, product_release_tag, read_tile_sets, release_tag, validate_lock,
+    is_product_release, parse_lock, read_tile_sets, release_tag, validate_lock,
 )
 from tools.deployment.download_datasets import download_datasets
 
@@ -53,9 +53,7 @@ def parse_sources(payload: bytes) -> list[dict]:
     return sources
 
 
-def _release_source(api, key: tuple, mapping: dict | None, *, tag: str = '',
-                    bootstrap_pin: bool = False) -> tuple[str, dict, str, bool]:
-    tag = tag or release_tag(key)
+def _release_source(api, mapping: dict | None, *, tag: str) -> tuple[str, dict, str, bool]:
     release = api.release_by_tag(REPOSITORY, tag)
     if (isinstance(release, dict) and release.get('draft') is True and mapping is not None
             and release.get('tag_name') == tag and type(release.get('id')) is int
@@ -78,9 +76,6 @@ def _release_source(api, key: tuple, mapping: dict | None, *, tag: str = '',
     if release['draft'] and (not is_product_release(tag) or mapping['repository'] != REPOSITORY
                              or release.get('tag_name') != tag or mapping['assetPrefix']):
         raise DeploymentError('Mapped draft must be the explicitly selected canonical product release')
-    if bootstrap_pin and (mapping['repository'] != REPOSITORY or release.get('tag_name') != tag
-                          or mapping['assetPrefix'] or (not release['draft'] and release.get('immutable') is not True)):
-        raise DeploymentError('Bootstrap source must match its exact immutable release or explicitly mapped draft')
     return mapping['repository'], release, mapping['assetPrefix'], False
 
 
@@ -135,33 +130,28 @@ class _PinnedClient:
         return self.api.read_asset(repository, asset_id)
 
 
-def restore_snapshot(*, public_root: Path, lock_path: Path | None, sources: list,
-                     api, cache_root: Path, bootstrap_release_tag: str = '') -> dict:
+def restore_snapshot(*, public_root: Path, lock_path: Path, sources: list,
+                     api, cache_root: Path) -> dict:
     """Preflight every source, then restore against this snapshot's own inventory."""
-    if bootstrap_release_tag != '':
-        product_release_tag(bootstrap_release_tag)
     sources = parse_sources(canonical_json_bytes(sources))
     tile_sets = read_tile_sets(public_root=public_root)
     mappings = {_entry_key(source): source for source in sources}
     if set(mappings) - {tile_set.key for tile_set in tile_sets}:
         raise DeploymentError('Review source mapping does not belong to this snapshot')
-    committed = _read_lock(lock_path) if lock_path is not None else None
-    if committed is not None:
-        validate_lock(committed, tile_sets)
-    entries = {_entry_key(entry): entry for entry in committed['tileSets']} if committed else {}
+    committed = _read_lock(lock_path)
+    validate_lock(committed, tile_sets)
+    entries = {_entry_key(entry): entry for entry in committed['tileSets']}
     packages = []
     indexes = {}
     for tile_set in tile_sets:
-        entry = entries.get(tile_set.key)
-        pin = bootstrap_release_tag if committed is None else ''
-        tag = entry['releaseTag'] if entry is not None else pin
+        entry = entries[tile_set.key]
         repository, release, prefix, canonical = _release_source(
-            api, tile_set.key, mappings.get(tile_set.key), tag=tag, bootstrap_pin=bool(pin))
+            api, mappings.get(tile_set.key), tag=entry['releaseTag'])
         assets = _assets(api, repository, release['id'])
         # The shared index is publication evidence, never a replacement for a
         # committed descriptor. Only its exact own-inventory projection hydrates.
         index = None
-        if entry is None or is_product_release(entry['releaseTag']):
+        if is_product_release(entry['releaseTag']):
             index_key = repository, release['id'], prefix
             if index_key not in indexes:
                 indexes[index_key] = _index(api, repository, assets, prefix)
@@ -170,12 +160,12 @@ def restore_snapshot(*, public_root: Path, lock_path: Path | None, sources: list
             if len(selected) != 1:
                 raise DeploymentError('Review package index does not contain its exact own inventory')
             validate_lock(_lock(selected), [tile_set])
-            if canonical or release['draft'] or pin:
+            if canonical or release['draft']:
                 if any(e['releaseTag'] != release.get('tag_name') for e in index['tileSets']):
                     raise DeploymentError('Review package index differs from its resolved release tag')
             if release['draft'] and index['schemaVersion'] != 2:
                 raise DeploymentError('Only product bundle indexes may use explicitly mapped drafts')
-            if entry is not None and entry != selected[0]:
+            if entry != selected[0]:
                 raise DeploymentError('Review package index differs from the committed descriptor')
             entry = selected[0]
         pinned = []

@@ -38,10 +38,12 @@ class DatasetReviewGateTests(unittest.TestCase):
         self.pulls = [[self.pr]]
         self.check_pages = [{"check_runs": [self.check]}]
         self.calls: list[str] = []
+        self.lock_bytes = b'{"schemaVersion":2}\n'
         self.snapshots: dict[str, tuple[bytes | None, str]] = {
-            sha: (None, self.graph) for sha in (self.head, self.commit, self.base)
+            sha: (self.lock_bytes, self.graph) for sha in (self.head, self.commit, self.base)
         }
         self.merge_base = self.base
+        self.use_binding()
 
     def snapshot_api(self) -> dict[str, object]:
         responses: dict[str, object] = {}
@@ -73,7 +75,9 @@ class DatasetReviewGateTests(unittest.TestCase):
         binding = {
             "schemaVersion": 2, "repository": self.repo, "prNumber": 17,
             "headSha": self.head, "baseSha": self.base, "toolSha": self.tool,
-            "runId": 1234, "runAttempt": 2, "headLockSha256": None, "baseLockSha256": None,
+            "runId": 1234, "runAttempt": 2,
+            "headLockSha256": hashlib.sha256(self.lock_bytes).hexdigest(),
+            "baseLockSha256": hashlib.sha256(self.lock_bytes).hexdigest(),
             "headGraphSha256": self.graph, "baseGraphSha256": self.graph,
             "sourceMappingSha256": "1" * 64, "receiptSha256": "2" * 64,
             "publicationSha256": "3" * 64,
@@ -108,7 +112,10 @@ class DatasetReviewGateTests(unittest.TestCase):
 
     def test_accepts_exact_merged_head_and_verified_trusted_run(self) -> None:
         result = self.require()
-        self.assertEqual(result, {"repository": self.repo, "commit": self.commit, "pullRequest": 17, "headSha": self.head, "checkRunId": 30, "reviewRunId": 1234})
+        self.assertEqual(result, {"repository": self.repo, "commit": self.commit, "pullRequest": 17,
+                                  "headSha": self.head, "checkRunId": 30, "reviewRunId": 1234,
+                                  "reviewRunAttempt": 2, "receiptSha256": "2" * 64,
+                                  "publicationSha256": "3" * 64})
         self.assertIn(f"repos/{self.repo}/git/commits/{self.base}", self.calls)
         self.run["path"] += "@refs/heads/main"
         self.require()
@@ -143,7 +150,7 @@ class DatasetReviewGateTests(unittest.TestCase):
         with self.assertRaises(review.DatasetReviewError):
             self.require()
 
-    def test_old_success_remains_usable_without_newer_matching_review(self) -> None:
+    def test_success_remains_usable_when_newer_check_is_unrelated(self) -> None:
         unrelated = {**self.check, "id": 31, "name": "Other check", "conclusion": "failure"}
         self.check_pages[0]["check_runs"].append(unrelated)
         self.assertEqual(self.require()["checkRunId"], 30)
@@ -174,20 +181,26 @@ class DatasetReviewGateTests(unittest.TestCase):
         self.pr["base"]["sha"] = "f" * 40
         self.require()
 
-    def test_legacy_review_cannot_authorize_lock_deletion_from_release_base(self) -> None:
-        self.snapshots[self.base] = (b'{"schemaVersion":2}', self.graph)
-        with self.assertRaisesRegex(review.DatasetReviewError, "transport downgrade"):
+    def test_checks_without_durable_v2_binding_are_rejected(self) -> None:
+        for external_id in ("dataset-review:1234", "dataset-review:1234:2", "dataset-review:1234:0:" + "2" * 64):
+            with self.subTest(external_id=external_id):
+                self.check["external_id"] = external_id
+                with self.assertRaisesRegex(review.DatasetReviewError, "workflow run binding"):
+                    self.require()
+        self.use_binding()
+        del self.check["output"]
+        with self.assertRaises(review.DatasetReviewError):
             self.require()
 
-    def test_v2_review_cannot_authorize_bound_lock_deletion(self) -> None:
-        lock = b'{"schemaVersion":2}'
-        self.snapshots[self.base] = (lock, self.graph)
-        self.use_binding(baseLockSha256=hashlib.sha256(lock).hexdigest())
-        with self.assertRaisesRegex(review.DatasetReviewError, "transport downgrade"):
-            self.require()
+    def test_current_binding_requires_both_snapshot_locks_and_graphs(self) -> None:
+        for name in ("headLockSha256", "baseLockSha256", "headGraphSha256", "baseGraphSha256"):
+            with self.subTest(name=name):
+                self.use_binding(**{name: None})
+                with self.assertRaisesRegex(review.DatasetReviewError, name):
+                    self.require()
 
     def test_v2_binds_head_merged_and_base_lock_bytes(self) -> None:
-        lock = b'{"schemaVersion":1}\n'
+        lock = b'{"schemaVersion":2}\n'
         digest = hashlib.sha256(lock).hexdigest()
         for sha in self.snapshots:
             self.snapshots[sha] = (lock, self.graph)
@@ -197,7 +210,7 @@ class DatasetReviewGateTests(unittest.TestCase):
             for bad in (None, lock + b" "):
                 with self.subTest(sha=sha, bad=bad):
                     self.snapshots[sha] = (bad, self.graph)
-                    with self.assertRaisesRegex(review.DatasetReviewError, "lock or graph"):
+                    with self.assertRaisesRegex(review.DatasetReviewError, "lock|graph"):
                         self.require()
                     self.snapshots[sha] = (lock, self.graph)
 
@@ -205,18 +218,18 @@ class DatasetReviewGateTests(unittest.TestCase):
         self.use_binding()
         for sha in self.snapshots:
             with self.subTest(sha=sha):
-                self.snapshots[sha] = (None, "f" * 64)
-                with self.assertRaisesRegex(review.DatasetReviewError, "lock or graph"):
+                self.snapshots[sha] = (self.lock_bytes, "f" * 64)
+                with self.assertRaisesRegex(review.DatasetReviewError, "lock|graph"):
                     self.require()
-                self.snapshots[sha] = (None, self.graph)
+                self.snapshots[sha] = (self.lock_bytes, self.graph)
 
-    def test_legacy_review_rejects_transport_lock_at_head_or_merge(self) -> None:
-        for sha in (self.head, self.commit):
+    def test_current_review_requires_committed_lock_at_head_merge_and_base(self) -> None:
+        for sha in (self.head, self.commit, self.base):
             with self.subTest(sha=sha):
-                self.snapshots[sha] = (b"{}", self.graph)
-                with self.assertRaisesRegex(review.DatasetReviewError, "Legacy review"):
-                    self.require()
                 self.snapshots[sha] = (None, self.graph)
+                with self.assertRaisesRegex(review.DatasetReviewError, "committed transport lock"):
+                    self.require()
+                self.snapshots[sha] = (self.lock_bytes, self.graph)
 
     def test_v2_requires_exact_binding_fields_and_types(self) -> None:
         valid = self.use_binding()

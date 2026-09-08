@@ -137,13 +137,11 @@ For trusted snapshot tooling, `git_datasets.py export` also exports the selected
 commit's upload plan and transport lock to `<output-public-root>/config/` (or
 `--output-config-root`). Use `datasets:download --public-root <exported-public>
 --lock <exported-config>/dataset-releases.lock.json` to hydrate that metadata.
-Release snapshots forbid tracked generated WebP and cannot fall back to LFS
-when the lock is invalid. Trusted callers enforce this boundary with
-`--require-releases` or pin `--release-boundary <first-release-backed-commit>`;
-available lock history also prevents downgrade by lock deletion. Historical
-LFS export remains explicit via `--mode legacy` and uses only locally available
-objects fetched separately from the trusted endpoint. Snapshot tools never run
-candidate code or fetch LFS themselves.
+Every exported snapshot must contain its own valid transport lock and upload
+plan. Tracked generated WebP and LFS pointers are rejected. Snapshot tools read
+Git objects directly as data; they never execute candidate code, run checkout
+filters, or restore LFS objects. Commits from before the Release migration are
+outside the current tooling's supported snapshots.
 
 ## Trusted review and publication
 
@@ -153,16 +151,15 @@ candidate scripts and workflows never execute in this review. Both the PR head
 and base must match the dispatch inputs, which are also recorded in the run
 title. A new head or base requires a fresh review.
 
-For a PR, use its current head/base SHAs. Current snapshots use their own lock;
-the default historical adapter uses Releases and the pinned `v1.0.0` bootstrap:
+For a PR, use its current head/base SHAs. Both snapshots use their own committed
+Release lock:
 
 ```bash
 pr=123
 head_sha=$(gh api "repos/omggga/morrowind-map/pulls/$pr" --jq .head.sha)
 base_sha=$(gh api "repos/omggga/morrowind-map/pulls/$pr" --jq .base.sha)
 gh workflow run dataset-review.yml --repo omggga/morrowind-map --ref main \
-  -f pr_number="$pr" -f expected_head="$head_sha" -f expected_base="$base_sha" \
-  -f legacy_transport=releases -f bootstrap_release_tag=v1.0.0
+  -f pr_number="$pr" -f expected_head="$head_sha" -f expected_base="$base_sha"
 ```
 
 A Release-backed snapshot uses its committed lock automatically. If a package
@@ -226,8 +223,8 @@ each resulting release actually reports `immutable: true` before succeeding.
 The PR check succeeds only after review and publication. The merge gate verifies
 the successful trusted main run, exact head/base run title, current run attempt,
 and committed lock/graph binding. Its compact check record remains available
-after the downloadable report expires. Historical checks are accepted only for
-LFS snapshots. Publishing a package does not activate a map or deploy the site.
+after the downloadable report expires. Checks without this durable binding are
+rejected. Publishing a package does not activate a map or deploy the site.
 
 For a failed publication, dispatch a fresh review or choose **Re-run all jobs**;
 receipts belong to one run attempt. Matching drafts can be resumed on that new
@@ -242,20 +239,9 @@ This maintainer command needs Actions write access and rechecks the current PR,
 CI run and trusted review immediately before retrying failed jobs. The review
 workflow itself has no Actions write permission.
 
-The initial bootstrap is complete. For an explicit historical verification, use
-`pr_number=0`, `bootstrap_sha=<full-main-ancestor-SHA>`,
-`bootstrap_release_tag=v1.0.0` and `source_mapping=[]` to restore the published
-immutable baseline bundle. The adapter derives descriptors from that baseline's
-own metadata, inventories and the shared index, then verifies every byte. It
-never borrows a candidate PR's lock for a historical base.
-
-The workflow defaults to `legacy_transport=releases` and the exact historical
-`bootstrap_release_tag=v1.0.0`. This tag applies only to snapshots without their
-own lock; current head and base snapshots retain their committed selections.
-A different historical graph requires matching verified packages and an explicit
-release selection. The chosen tag is frozen in the receipt, never resolved from
-Latest. Explicit old-snapshot LFS recovery remains available separately: for an
-LFS review, select `legacy_transport=lfs` and clear `bootstrap_release_tag`.
-Current review and deployment do not fetch LFS payloads. Bootstrap has no PR check.
-Publishing a bundle does not change repository visibility or noncommercial
-licensing, and does not itself activate or deploy a map.
+To review and publish a Release-backed baseline without a PR, use
+`pr_number=0`, `bootstrap_sha=<full-main-ancestor-SHA>` and `source_mapping=[]`.
+That commit must be an ancestor of the trusted tools and contain its own lock
+and upload plan. This mode has no PR check and cannot restore snapshots from
+before the Release migration. Publishing a bundle does not change repository
+visibility or noncommercial licensing, and does not activate or deploy a map.

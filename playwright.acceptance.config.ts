@@ -1,9 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
 
-import { loadTrCandidateFromEnvironment } from './tests/acceptance/tr-candidate';
-
-loadTrCandidateFromEnvironment();
-
 const port = 4173;
 const baseURL = `http://127.0.0.1:${port}`;
 

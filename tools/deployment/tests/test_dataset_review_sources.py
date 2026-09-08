@@ -59,10 +59,9 @@ class ReviewSourcesTests(unittest.TestCase):
         self.calls.append(('read', repository, asset_id))
         return io.BytesIO(self.payloads[asset_id])
 
-    def restore(self, *, sources=None, legacy=False, bootstrap_release_tag=''):
-        return restore_snapshot(public_root=self.public, lock_path=None if legacy else self.lock_path,
-                                sources=sources or [], api=self, cache_root=self.root / 'cache',
-                                bootstrap_release_tag=bootstrap_release_tag)
+    def restore(self, *, sources=None):
+        return restore_snapshot(public_root=self.public, lock_path=self.lock_path,
+                                sources=sources or [], api=self, cache_root=self.root / 'cache')
 
     def mapped(self):
         self.release = None
@@ -87,9 +86,9 @@ class ReviewSourcesTests(unittest.TestCase):
         self.lock_path.write_bytes(canonical_json_bytes(_lock([entry])))
         return index
 
-    def test_bootstrap_product_pin_restores_own_projection_and_preserves_full_index(self):
+    def test_committed_product_restores_own_projection_and_preserves_full_index(self):
         index = self.product(extra=True)
-        result = self.restore(legacy=True, bootstrap_release_tag='v1.0.0')
+        result = self.restore()
         self.assertEqual(result['lock'], _lock(index['tileSets'][:1]))
         self.assertEqual(result['packages'][0]['index'], index)
         self.assertEqual([c for c in self.calls if c[0] == 'tag'], [('tag', REPOSITORY, 'v1.0.0')])
@@ -102,25 +101,25 @@ class ReviewSourcesTests(unittest.TestCase):
         self.payloads[1] = canonical_json_bytes(wrong)
         self.assets[0].update(size=len(self.payloads[1]), digest=None)
         with self.assertRaisesRegex(DeploymentError, 'committed descriptor'):
-            self.restore(bootstrap_release_tag='v9.9.9')
+            self.restore()
         self.assertEqual([c for c in self.calls if c[0] == 'tag'], [('tag', REPOSITORY, 'v1.0.0')])
         self.assertEqual([c[2] for c in self.calls if c[0] == 'read'], [1])
 
-    def test_product_pin_cannot_fall_back_to_legacy_release_or_unrelated_mapping(self):
-        self.release = None
-        with self.assertRaisesRegex(DeploymentError, 'explicit review source'):
-            self.restore(legacy=True, bootstrap_release_tag='v1.0.0')
-        with self.assertRaisesRegex(DeploymentError, 'Bootstrap source must match'):
-            self.restore(legacy=True, sources=[self.mapping], bootstrap_release_tag='v1.0.0')
-        self.assertFalse(any(c[0] == 'read' for c in self.calls))
-        with self.assertRaisesRegex(DeploymentError, 'vMAJOR.MINOR.PATCH'):
-            self.restore(legacy=True, bootstrap_release_tag='latest')
+    def test_missing_committed_lock_fails_before_network(self):
+        self.lock_path.unlink()
+        with self.assertRaises(DeploymentError):
+            self.restore()
+        self.assertEqual(self.calls, [])
+        self.assertFalse(list(self.public.rglob('tiles')))
 
-    def test_product_pin_rejects_wrong_index_version_before_archive(self):
+    def test_product_rejects_wrong_index_version_before_archive(self):
         self.product()
-        self.release['tag_name'] = 'v2.0.0'
+        wrong = json.loads(self.payloads[1])
+        wrong['tileSets'][0]['releaseTag'] = 'v2.0.0'
+        self.payloads[1] = canonical_json_bytes(wrong)
+        self.assets[0].update(size=len(self.payloads[1]), digest=None)
         with self.assertRaisesRegex(DeploymentError, 'resolved release tag'):
-            self.restore(legacy=True, bootstrap_release_tag='v2.0.0')
+            self.restore()
         self.assertEqual([c[2] for c in self.calls if c[0] == 'read'], [1])
 
     def test_explicit_canonical_product_draft_can_supply_its_own_complete_index(self):
@@ -129,8 +128,8 @@ class ReviewSourcesTests(unittest.TestCase):
         mapping = dict(self.mapping, repository=REPOSITORY, releaseId=self.release['id'], assetPrefix='')
         self.release_by_id = lambda repository, release_id: self.release
         with self.assertRaisesRegex(DeploymentError, 'published and immutable'):
-            self.restore(legacy=True, bootstrap_release_tag='v1.0.0')
-        result = self.restore(legacy=True, sources=[mapping], bootstrap_release_tag='v1.0.0')
+            self.restore()
+        result = self.restore(sources=[mapping])
         self.assertEqual(result['packages'][0]['index'], index)
         self.assertEqual(result['packages'][0]['source']['releaseId'], self.release['id'])
         self.assertEqual(build_dataset_plan(public_root=self.public), self.before)
@@ -152,7 +151,7 @@ class ReviewSourcesTests(unittest.TestCase):
         self.release = None
         self.release_by_id = lambda repository, release_id: {'id': release_id, 'draft': True}
         with self.assertRaisesRegex(DeploymentError, 'explicitly selected canonical'):
-            self.restore(legacy=True, sources=[self.mapping])
+            self.restore(sources=[self.mapping])
         self.assertFalse(any(c[0] == 'read' for c in self.calls))
 
     def test_mapping_parser_bounds_and_exact_fields(self):
@@ -195,21 +194,14 @@ class ReviewSourcesTests(unittest.TestCase):
         self.assertEqual(source['assets'][0]['name'], 'tiles-0001.tar')
         self.assertEqual(build_dataset_plan(public_root=self.public), self.before)
 
-    def test_bootstrap_index_is_bound_to_own_inventory(self):
-        self.mapped()
-        result = self.restore(sources=[self.mapping], legacy=True)
-        self.assertEqual(result['lock'], self.lock)
-        self.assertEqual([c[2] for c in self.calls if c[0] == 'read'], [1, 2])
-
-    def test_legacy_index_with_other_inventory_fails_before_archive_download(self):
-        wrong = copy.deepcopy(self.lock)
+    def test_product_index_with_other_inventory_fails_before_archive_download(self):
+        self.product()
+        wrong = json.loads(self.payloads[1])
         wrong['tileSets'][0]['inventorySha256'] = 'a' * 64
-        wrong['tileSets'][0]['releaseTag'] = self.entry['releaseTag'].rsplit('/', 1)[0] + '/' + 'a' * 64
-        payload = canonical_json_bytes(wrong)
-        self.payloads[1] = payload
-        self.assets[0].update(size=len(payload), digest=None)
-        with self.assertRaises(DeploymentError):
-            self.restore(legacy=True)
+        self.payloads[1] = canonical_json_bytes(wrong)
+        self.assets[0].update(size=len(self.payloads[1]), digest=None)
+        with self.assertRaisesRegex(DeploymentError, 'exact own inventory'):
+            self.restore()
         self.assertEqual([c[2] for c in self.calls if c[0] == 'read'], [1])
 
     def test_missing_mapping_or_asset_fails_before_archive_fetch(self):

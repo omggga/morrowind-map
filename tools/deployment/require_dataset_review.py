@@ -18,7 +18,7 @@ WORKFLOW_PATH = ".github/workflows/dataset-review.yml"
 _SHA = re.compile(r"[a-f0-9]{40}")
 _SHA256 = re.compile(r"[a-f0-9]{64}")
 _REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9_.-]*")
-_EXTERNAL_ID = re.compile(r"dataset-review:([1-9][0-9]*)(?::([1-9][0-9]*):([a-f0-9]{64}))?")
+_EXTERNAL_ID = re.compile(r"dataset-review:([1-9][0-9]*):([1-9][0-9]*):([a-f0-9]{64})")
 MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024
 MAX_BINDING_BYTES = 16 * 1024
 _BINDING_FIELDS = {
@@ -104,8 +104,6 @@ def _binding(check: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(binding[name], str) or not _SHA.fullmatch(binding[name]):
             raise DatasetReviewError(f"Review binding has an invalid {name}")
     for name in ("headLockSha256", "baseLockSha256", "headGraphSha256", "baseGraphSha256", "sourceMappingSha256", "receiptSha256", "publicationSha256"):
-        if binding[name] is None and name in ("headLockSha256", "baseLockSha256", "baseGraphSha256"):
-            continue
         if not isinstance(binding[name], str) or not _SHA256.fullmatch(binding[name]):
             raise DatasetReviewError(f"Review binding has an invalid {name}")
     return binding
@@ -158,7 +156,7 @@ def _blob(repo: str, entry: dict[str, Any]) -> bytes:
     return payload
 
 
-def _snapshot_binding(repo: str, commit: str, *, graph: bool) -> dict[str, Any]:
+def _snapshot_binding(repo: str, commit: str) -> dict[str, Any]:
     # Inspect only metadata as data. Tree lookup distinguishes an absent lock
     # from permissions/API errors, and blob sizes are bounded before fetching.
     metadata = _object(_gh_api(f"repos/{repo}/git/commits/{commit}"))
@@ -170,23 +168,19 @@ def _snapshot_binding(repo: str, commit: str, *, graph: bool) -> dict[str, Any]:
     root = _tree(repo, tree_sha)
     config = _tree(repo, _entry_sha(root["config"], "tree")) if "config" in root else {}
     lock_entry = config.get("dataset-releases.lock.json")
-    lock_digest = None
-    if lock_entry is not None:
-        # Even legacy checks must reject malformed/non-regular lock entries.
-        _entry_sha(lock_entry, "blob")
-        lock_digest = hashlib.sha256(_blob(repo, lock_entry)).hexdigest() if graph else "present"
-    graph_digest = None
-    if graph:
-        plan_entry = config.get("dataset-upload-plan.json")
-        if plan_entry is None:
-            raise DatasetReviewError("Snapshot is missing the committed upload plan")
-        try:
-            plan = _strict_object(_blob(repo, plan_entry).decode("utf-8"), "committed upload plan")
-        except UnicodeDecodeError as error:
-            raise DatasetReviewError("Committed upload plan is not UTF-8") from error
-        graph_digest = plan.get("graphSha256")
-        if not isinstance(graph_digest, str) or not _SHA256.fullmatch(graph_digest):
-            raise DatasetReviewError("Committed upload plan has an invalid graph digest")
+    if lock_entry is None:
+        raise DatasetReviewError("Snapshot is missing the committed transport lock")
+    plan_entry = config.get("dataset-upload-plan.json")
+    if plan_entry is None:
+        raise DatasetReviewError("Snapshot is missing the committed upload plan")
+    try:
+        plan = _strict_object(_blob(repo, plan_entry).decode("utf-8"), "committed upload plan")
+    except UnicodeDecodeError as error:
+        raise DatasetReviewError("Committed upload plan is not UTF-8") from error
+    graph_digest = plan.get("graphSha256")
+    if not isinstance(graph_digest, str) or not _SHA256.fullmatch(graph_digest):
+        raise DatasetReviewError("Committed upload plan has an invalid graph digest")
+    lock_digest = hashlib.sha256(_blob(repo, lock_entry)).hexdigest()
     return {"lockSha256": lock_digest, "graphSha256": graph_digest, "parents": metadata.get("parents")}
 
 
@@ -259,23 +253,7 @@ def require_dataset_review(*, repo: str, commit: str) -> dict[str, object]:
         "repository": repo, "commit": commit, "pullRequest": number, "headSha": head,
         "checkRunId": check["id"], "reviewRunId": run_id,
     }
-    if matched[2] is None:
-        # Old successful reviews remain deployable without their expired report
-        # artifacts, but they can never authorize the new release transport.
-        snapshots = [_snapshot_binding(repo, sha, graph=False) for sha in (head, commit)]
-        if any(snapshot["lockSha256"] is not None for snapshot in snapshots):
-            raise DatasetReviewError("Legacy review cannot authorize a snapshot with a transport lock")
-        parents = _list(snapshots[1]["parents"])
-        parent = _object(parents[0]).get("sha") if parents else None
-        if not isinstance(parent, str) or not _SHA.fullmatch(parent):
-            raise DatasetReviewError("Legacy reviewed merge must identify its immutable first parent")
-        if _snapshot_binding(repo, parent, graph=False)["lockSha256"] is not None:
-            raise DatasetReviewError("Legacy review cannot authorize a release transport downgrade")
-        return result
-
     binding = _binding(check)
-    if binding["baseLockSha256"] is not None and binding["headLockSha256"] is None:
-        raise DatasetReviewError("Review cannot authorize a release transport downgrade")
     if (
         binding["repository"] != repo or binding["prNumber"] != number
         or binding["headSha"] != head or binding["runId"] != run_id
@@ -285,8 +263,8 @@ def require_dataset_review(*, repo: str, commit: str) -> dict[str, object]:
         or run.get("display_title") != review_run_title(number, head, binding["baseSha"])
     ):
         raise DatasetReviewError("Review binding does not match the PR head or trusted workflow attempt/tool revision")
-    head_snapshot = _snapshot_binding(repo, head, graph=True)
-    merged_snapshot = _snapshot_binding(repo, commit, graph=True)
+    head_snapshot = _snapshot_binding(repo, head)
+    merged_snapshot = _snapshot_binding(repo, commit)
     # GitHub's current PR base.sha can move after review/merge. The deployed
     # commit's first parent is immutable. A later merge base requires a fresh
     # review instead of silently accepting a different before/after comparison.
@@ -296,7 +274,7 @@ def require_dataset_review(*, repo: str, commit: str) -> dict[str, object]:
     for snapshot in (head_snapshot, merged_snapshot):
         if snapshot["lockSha256"] != binding["headLockSha256"] or snapshot["graphSha256"] != binding["headGraphSha256"]:
             raise DatasetReviewError("Reviewed head/merged snapshot lock or graph differs from the durable review binding")
-    base_snapshot = _snapshot_binding(repo, binding["baseSha"], graph=True)
+    base_snapshot = _snapshot_binding(repo, binding["baseSha"])
     if base_snapshot["lockSha256"] != binding["baseLockSha256"] or base_snapshot["graphSha256"] != binding["baseGraphSha256"]:
         raise DatasetReviewError("Reviewed base snapshot lock or graph differs from the durable review binding")
     result.update({"reviewRunAttempt": binding["runAttempt"], "receiptSha256": binding["receiptSha256"], "publicationSha256": binding["publicationSha256"]})

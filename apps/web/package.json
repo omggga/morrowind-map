@@ -16,7 +16,6 @@
     "@fontsource/ibm-plex-mono": "5.2.7",
     "@morrowind-map/contracts": "workspace:*",
     "dexie": "4.4.5",
-    "dexie-react-hooks": "4.4.0",
     "fuse.js": "7.5.0",
     "i18next": "26.4.0",
     "ol": "10.10.0",

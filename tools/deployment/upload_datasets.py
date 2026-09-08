@@ -13,7 +13,6 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any
 
 from tools.deployment.common import (
     ArtifactDescriptor,

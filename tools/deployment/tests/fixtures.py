@@ -200,3 +200,19 @@ def write_dist(root: Path) -> dict[str, str]:
     stale.parent.mkdir(parents=True)
     stale.write_bytes(b"{}\n")
     return paths
+
+
+def legacy_package_fixture(repo_root: Path) -> dict[str, object]:
+    """Construct historical schema-1 inputs for reader and recovery tests only."""
+    from tools.deployment.common import canonical_json_bytes
+    from tools.deployment.dataset_packages import REPOSITORY, _tile_sets, pack_tile_set
+    from tools.deployment.upload_datasets import build_dataset_plan
+
+    public = repo_root / 'apps/web/public'
+    output = repo_root / 'local-data/packages'
+    tile_sets = _tile_sets(build_dataset_plan(public_root=public))
+    entries = [pack_tile_set(tile_set, generated_root=public / 'datasets/generated', package_root=output)
+               for tile_set in tile_sets]
+    lock_path = output / 'dataset-releases.lock.json'
+    lock_path.write_bytes(canonical_json_bytes({'schemaVersion': 1, 'repository': REPOSITORY, 'tileSets': entries}))
+    return {'lockPath': str(lock_path), 'tileSets': len(entries)}

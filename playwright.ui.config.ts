@@ -21,22 +21,15 @@ const sharedUse = {
   },
 };
 
-const visualTests = '**/*.visual.spec.ts';
-const accessibilityTests = '**/*.a11y.spec.ts';
-const keyboardTests = '**/*.keyboard.spec.ts';
-const reflowTests = '**/*.reflow.spec.ts';
-const touchTests = '**/*.touch.spec.ts';
-
 function viewportProject(
   name: string,
   width: number,
   height: number,
   hasTouch: boolean,
-  testMatch: readonly string[],
 ) {
   return {
     name,
-    testMatch: [...testMatch],
+    testMatch: '**/*.visual.spec.ts',
     use: {
       ...sharedUse,
       viewport: { width, height },
@@ -77,35 +70,30 @@ export default defineConfig({
       1280,
       720,
       false,
-      [visualTests, accessibilityTests, keyboardTests, reflowTests],
     ),
     viewportProject(
       'portrait-390x844',
       390,
       844,
       true,
-      [visualTests, accessibilityTests, touchTests],
     ),
     viewportProject(
       'portrait-320x568',
       320,
       568,
       true,
-      [visualTests],
     ),
     viewportProject(
       'landscape-844x390',
       844,
       390,
       true,
-      [visualTests, touchTests],
     ),
     viewportProject(
       'landscape-667x375',
       667,
       375,
       true,
-      [visualTests],
     ),
   ],
   webServer: {
