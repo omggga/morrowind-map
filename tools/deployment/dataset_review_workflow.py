@@ -47,11 +47,29 @@ def _write(path: Path, value) -> None:
 
 def _pull(api, number: int) -> tuple[str, str]:
     pr = api.get_pull(positive_id(number))
-    if (not isinstance(pr, dict) or pr.get('number') != number or pr.get('state') != 'open'
-            or pr.get('base', {}).get('ref') != 'main'
-            or pr.get('base', {}).get('repo', {}).get('full_name') != REPOSITORY):
-        raise DeploymentError('Review requires an open PR into this repository main')
-    return sha(pr.get('head', {}).get('sha')), sha(pr['base'].get('sha'))
+    if not isinstance(pr, dict) or type(pr.get('number')) is not int or pr['number'] != number:
+        raise DeploymentError('Review requires a matching PR identity')
+    base, head_record = pr.get('base'), pr.get('head')
+    if (not isinstance(base, dict) or not isinstance(head_record, dict)
+            or base.get('ref') != 'main' or not isinstance(base.get('repo'), dict)
+            or base['repo'].get('full_name') != REPOSITORY):
+        raise DeploymentError('Review requires a PR into this repository main')
+    head = sha(head_record.get('sha'))
+    if pr.get('state') == 'open' and pr.get('merged') is False:
+        return head, sha(base.get('sha'))
+    if pr.get('state') != 'closed' or pr.get('merged') is not True:
+        raise DeploymentError('Review requires an open or merged PR, not an unmerged closed PR')
+    merge_sha = sha(api.get_pull_merge_sha(number))
+    merge = api.get_commit(merge_sha)
+    parents = merge.get('parents') if isinstance(merge, dict) else None
+    if (not isinstance(merge, dict) or merge.get('sha') != merge_sha
+            or not isinstance(parents, list) or len(parents) != 2
+            or not all(isinstance(parent, dict) for parent in parents)
+            or parents[1].get('sha') != head):
+        raise DeploymentError('Merged PR must identify a two-parent merge commit with its exact head')
+    # The live base branch may advance after merging. The deployment gate also
+    # binds to this immutable first parent, never to the current branch tip.
+    return head, sha(parents[0].get('sha'))
 
 
 def freeze(*, api, pr_number: int, bootstrap_sha: str, tool_sha: str,

@@ -15,6 +15,46 @@ from tools.deployment.tests.test_dataset_github import Response, redirect
 
 
 class ReviewAPITests(unittest.TestCase):
+    def test_merge_lookup_reads_the_complete_canonical_timeline(self):
+        api = ReleaseAPI()
+        merged = {'event': 'merged', 'commit_id': 'a' * 40}
+        first = [merged] + [{'event': 'commented'} for _ in range(99)]
+        with mock.patch.object(api, '_request', side_effect=[first, []]) as request:
+            self.assertEqual(api.get_pull_merge_sha(19), 'a' * 40)
+            self.assertEqual(request.call_args_list, [
+                mock.call('repos/omggga/morrowind-map/issues/19/timeline?per_page=100&page=1'),
+                mock.call('repos/omggga/morrowind-map/issues/19/timeline?per_page=100&page=2')])
+        with mock.patch.object(api, '_request', side_effect=[first, [merged]]):
+            with self.assertRaisesRegex(DeploymentError, 'conflicting'):
+                api.get_pull_merge_sha(19)
+
+    def test_merge_lookup_rejects_missing_invalid_or_unbounded_events(self):
+        api = ReleaseAPI()
+        for batch in (None, {}, [], [None], [{}], [{'event': 'merged'}],
+                      [{'event': 'merged', 'commit_id': 'A' * 40}],
+                      [{'event': 'commented'}] * 101):
+            with self.subTest(batch=batch), mock.patch.object(api, '_request', return_value=batch):
+                with self.assertRaises(DeploymentError):
+                    api.get_pull_merge_sha(19)
+        with mock.patch.object(api, '_request', return_value=[{'event': 'commented'}] * 100) as request:
+            with self.assertRaisesRegex(DeploymentError, 'limit'):
+                api.get_pull_merge_sha(19)
+            self.assertEqual(request.call_count, 11)
+        with mock.patch.object(api, '_request') as request:
+            with self.assertRaises(DeploymentError):
+                api.get_pull_merge_sha(True)
+            request.assert_not_called()
+
+    def test_commit_lookup_uses_only_a_canonical_repository_and_full_sha(self):
+        api = ReleaseAPI()
+        with mock.patch.object(api, '_request', return_value={}) as request:
+            api.get_commit('a' * 40)
+            request.assert_called_once_with('repos/omggga/morrowind-map/git/commits/' + 'a' * 40)
+            for revision in ('main', '../other', 'A' * 40, None):
+                with self.subTest(revision=revision), self.assertRaises(DeploymentError):
+                    api.get_commit(revision)
+            self.assertEqual(request.call_count, 1)
+
     def test_source_read_redirect_never_carries_token_to_storage(self):
         api = ReleaseAPI()
         with mock.patch('tools.deployment.dataset_review_api._credential', return_value='credential'), \

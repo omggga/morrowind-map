@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: PR to review (zero when bootstrapping a baseline)
+        description: Open or merged PR to review (zero for a baseline)
         required: false
         default: 0
         type: number
@@ -15,12 +15,12 @@ on:
         default: ''
         type: string
       expected_head:
-        description: Exact current PR head SHA (required for a PR review)
+        description: Exact PR head SHA (required for a PR review)
         required: false
         default: ''
         type: string
       expected_base:
-        description: Exact current PR base SHA (required for a PR review)
+        description: Exact PR base SHA (merge commit first parent for a merged PR)
         required: false
         default: ''
         type: string
