@@ -70,7 +70,8 @@ class ReviewAPITests(unittest.TestCase):
     def test_only_real_missing_release_is_none_and_errors_are_redacted(self):
         api = ReleaseAPI()
         with mock.patch('tools.deployment.dataset_review_api._credential', return_value=None):
-            with mock.patch.object(api._opener, 'open', side_effect=HTTPError('hidden', 404, 'missing', {}, None)):
+            with mock.patch.object(api._opener, 'open', side_effect=[
+                    HTTPError('hidden', 404, 'missing', {}, None), Response(b'[]')]):
                 self.assertIsNone(api.release_by_tag('owner/repo', 'tag'))
             for error in (HTTPError('secret signed URL', 403, 'credential', {}, None), URLError('credential secret signed URL')):
                 with mock.patch.object(api._opener, 'open', side_effect=error):
@@ -78,6 +79,55 @@ class ReviewAPITests(unittest.TestCase):
                         api.release_by_tag('owner/repo', 'tag')
                 self.assertNotIn('credential', str(raised.exception))
                 self.assertNotIn('signed URL', str(raised.exception))
+
+    def test_missing_published_tag_resolves_matching_draft_from_release_listing(self):
+        api = ReleaseAPI(writable=True)
+        draft = {'id': 12, 'tag_name': 'tiles-v1/test/main/' + 'a' * 64, 'draft': True}
+        with mock.patch('tools.deployment.dataset_review_api._credential', return_value=None), \
+             mock.patch.object(api._opener, 'open', side_effect=[
+                 HTTPError('hidden', 404, 'missing', {}, None), Response(json.dumps([draft]).encode())]) as opened:
+            self.assertEqual(api.release_by_tag('owner/repo', draft['tag_name']), draft)
+        self.assertEqual(opened.call_args_list[1].args[0].full_url,
+                         'https://api.github.com/repos/owner/repo/releases?per_page=100&page=1')
+
+    def test_draft_lookup_paginates_and_checks_for_multiple_matches(self):
+        api = ReleaseAPI(writable=True)
+        first = [{'id': n + 1, 'tag_name': f'other-{n}', 'draft': False} for n in range(100)]
+        draft = {'id': 101, 'tag_name': 'target', 'draft': True}
+        with mock.patch.object(api, '_request', side_effect=[None, first, [draft]]) as request:
+            self.assertEqual(api.release_by_tag('owner/repo', 'target'), draft)
+            self.assertEqual(request.call_args_list[-1].args[0], 'repos/owner/repo/releases?per_page=100&page=2')
+        first[0] = {**draft, 'id': 102}
+        with mock.patch.object(api, '_request', side_effect=[None, first, [draft]]):
+            with self.assertRaises(DeploymentError):
+                api.release_by_tag('owner/repo', 'target')
+
+    def test_draft_lookup_is_bounded_and_rejects_conflicting_or_invalid_records(self):
+        api = ReleaseAPI(writable=True)
+        for record in ({'id': True, 'tag_name': 'target', 'draft': True},
+                       {'id': 12, 'tag_name': 'target', 'draft': 'true'},
+                       {'id': 12, 'tag_name': 'target', 'draft': False}):
+            with self.subTest(record=record), mock.patch.object(api, '_request', side_effect=[None, [record]]):
+                with self.assertRaises(DeploymentError):
+                    api.release_by_tag('owner/repo', 'target')
+        pages = [[{'id': page * 100 + n + 1, 'tag_name': f'other-{page}-{n}', 'draft': False}
+                  for n in range(100)] for page in range(11)]
+        with mock.patch.object(api, '_request', side_effect=[None, *pages]) as request:
+            with self.assertRaisesRegex(DeploymentError, 'limit|count'):
+                api.release_by_tag('owner/repo', 'target')
+            self.assertLessEqual(request.call_count, 12)
+
+    def test_published_tag_skips_draft_listing_and_permission_errors_never_fall_back(self):
+        api = ReleaseAPI()
+        published = {'id': 12, 'tag_name': 'target', 'draft': False}
+        with mock.patch.object(api, '_request', return_value=published) as request:
+            self.assertEqual(api.release_by_tag('owner/repo', 'target'), published)
+            self.assertEqual(request.call_count, 1)
+        for responses in ([DeploymentError('HTTP 403')], [None, DeploymentError('HTTP 403')]):
+            with mock.patch.object(api, '_request', side_effect=responses) as request:
+                with self.assertRaisesRegex(DeploymentError, 'HTTP 403'):
+                    api.release_by_tag('owner/repo', 'target')
+                self.assertEqual(request.call_count, len(responses))
 
     def test_policy_confirmation_does_not_require_admin_api(self):
         api = ReleaseAPI()

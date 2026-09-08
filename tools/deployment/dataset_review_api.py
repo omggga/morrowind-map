@@ -99,7 +99,38 @@ class ReleaseAPI:
     def release_by_tag(self, repo: str, tag: str):
         if not isinstance(tag, str) or len(tag) > 400:
             raise DeploymentError('Release tag is invalid')
-        return self._request(f'repos/{repository(repo)}/releases/tags/{quote(tag, safe="")}', missing=True)
+        prefix = f'repos/{repository(repo)}/releases'
+        release = self._request(f'{prefix}/tags/{quote(tag, safe="")}', missing=True)
+        if release is not None:
+            if (not isinstance(release, dict) or release.get('tag_name') != tag
+                    or type(release.get('draft')) is not bool):
+                raise DeploymentError('Release tag lookup returned a conflicting identity or state')
+            positive_id(release.get('id'))
+            return release
+        # The tag endpoint returns published releases only. Drafts remain
+        # discoverable in the authenticated listing, including after a partial
+        # upload. Scan the bounded listing fully before selecting a unique draft.
+        matched = None
+        seen = set()
+        for page in range(1, 12):
+            batch = self._request(f'{prefix}?per_page=100&page={page}')
+            if not isinstance(batch, list) or len(batch) > 100 or len(seen) + len(batch) > 1000:
+                raise DeploymentError('Release listing count exceeds its limit')
+            for item in batch:
+                if (not isinstance(item, dict) or not isinstance(item.get('tag_name'), str)
+                        or type(item.get('draft')) is not bool):
+                    raise DeploymentError('Release listing contains an invalid identity or state')
+                release_id = positive_id(item.get('id'))
+                if release_id in seen:
+                    raise DeploymentError('Release listing contains a duplicate identity')
+                seen.add(release_id)
+                if item['tag_name'] == tag:
+                    if item['draft'] is not True or matched is not None:
+                        raise DeploymentError('Release listing contains conflicting matches for this tag')
+                    matched = item
+            if len(batch) < 100:
+                return matched
+        raise DeploymentError('Release listing pagination exceeded its limit')
 
     def release_by_id(self, repo: str, release_id: int):
         return self._request(f'repos/{repository(repo)}/releases/{positive_id(release_id)}')
