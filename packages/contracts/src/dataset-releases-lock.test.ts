@@ -31,7 +31,72 @@ function lockFixture() {
   };
 }
 
+function productLockFixture() {
+  const input = lockFixture();
+  input.schemaVersion = 2;
+  input.tileSets[0]!.releaseTag = "v1.0.0";
+  input.tileSets[0]!.parts[0]!.name = "morrowind.tar";
+  input.tileSets.push({
+    ...input.tileSets[0]!,
+    datasetId: "poison-song-26.08",
+    pyramidId: "poison-song-26.08.basemap",
+    parts: [{ ...input.tileSets[0]!.parts[0]!, name: "tamriel-rebuilt.tar" }],
+  });
+  return input;
+}
+
 describe("dataset release transport schema", () => {
+  it("accepts short map archives in one versioned product release", () => {
+    expect(validate(productLockFixture())).toBe(true);
+    const input = productLockFixture();
+    input.tileSets[1]!.parts = ["tamriel-rebuilt-0001.tar", "tamriel-rebuilt-0002.tar"].map(
+      (name) => ({ ...input.tileSets[1]!.parts[0]!, name }),
+    );
+    expect(validate(input)).toBe(true);
+  });
+
+  it("keeps version-specific release tags and archive names separate", () => {
+    expect(validate({ ...productLockFixture(), schemaVersion: 1 })).toBe(false);
+    expect(validate({ ...lockFixture(), schemaVersion: 2 })).toBe(false);
+    expect(validate({ ...productLockFixture(), schemaVersion: 3 })).toBe(false);
+    const legacy = lockFixture();
+    legacy.tileSets[0]!.parts[0]!.name = "morrowind.tar";
+    expect(validate(legacy)).toBe(false);
+  });
+
+  it.each(["v0.0.0", "v1.20.300", "v999999999.999999999.999999999"])(
+    "accepts bounded product versions: %j",
+    (releaseTag) => {
+      const input = productLockFixture();
+      for (const tileSet of input.tileSets) tileSet.releaseTag = releaseTag;
+      expect(validate(input)).toBe(true);
+    },
+  );
+
+  it.each([
+    "1.0.0", "V1.0.0", "v01.0.0", "v1.00.0", "v1.0.00", "v1000000000.0.0",
+    "v1.0", "v1.0.0.0", "v1.0.0-beta", "v1.0.0+build", "v1.0.0\n", "../v1.0.0",
+  ])("rejects unsafe or noncanonical product versions: %j", (releaseTag) => {
+    const input = productLockFixture();
+    input.tileSets[0]!.releaseTag = releaseTag;
+    expect(validate(input)).toBe(false);
+  });
+
+  it.each([
+    ".tar", "../morrowind.tar", "Morrowind.tar", "morrowind_map.tar", "map..name.tar",
+    "map--name.tar", "-map.tar", "map-.tar", "map.tar.gz", "map.tar\n", `${"a".repeat(125)}.tar`,
+  ])("rejects unsafe or oversized product archive names: %j", (name) => {
+    const input = productLockFixture();
+    input.tileSets[0]!.parts[0]!.name = name;
+    expect(validate(input)).toBe(false);
+  });
+
+  it("accepts the full product archive filename length bound", () => {
+    const input = productLockFixture();
+    input.tileSets[0]!.parts[0]!.name = `${"a".repeat(124)}.tar`;
+    expect(validate(input)).toBe(true);
+  });
+
   it("accepts one archive per map and independent multipart archives", () => {
     const input = lockFixture();
     expect(validate(input)).toBe(true);
@@ -43,17 +108,17 @@ describe("dataset release transport schema", () => {
     expect(validate(input)).toBe(true);
   });
 
-  it("rejects unknown or missing properties at every object level", () => {
+  it.each([lockFixture, productLockFixture])("rejects unknown or missing properties at every object level (%#)", (fixture) => {
     for (const select of [
       (input: ReturnType<typeof lockFixture>) => input,
       (input: ReturnType<typeof lockFixture>) => input.tileSets[0]!,
       (input: ReturnType<typeof lockFixture>) => input.tileSets[0]!.parts[0]!,
     ]) {
-      const withExtra = lockFixture();
+      const withExtra = fixture();
       Object.assign(select(withExtra), { unexpected: true });
       expect(validate(withExtra)).toBe(false);
-      for (const key of Object.keys(select(lockFixture()))) {
-        const missing = lockFixture();
+      for (const key of Object.keys(select(fixture()))) {
+        const missing = fixture();
         Reflect.deleteProperty(select(missing), key);
         expect(validate(missing), `missing ${key}`).toBe(false);
       }

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from tools.deployment.common import DeploymentError, canonical_json_bytes
-from tools.deployment.dataset_packages import REPOSITORY, parse_lock
+from tools.deployment.dataset_packages import REPOSITORY, _lock, is_product_release, parse_lock
 
 
 def _positive_id(value: object, label: str) -> int:
@@ -123,60 +123,83 @@ def publish_packages(packages: list[dict], *, api: Any, work_root: Path, tool_sh
     """
     if not re.fullmatch(r'[0-9a-f]{40}', tool_sha):
         raise DeploymentError('Publication requires the full trusted tool commit SHA')
-    tags = set()
+    if not packages:
+        return []
+    groups = {}
     for package in packages:
-        parse_lock(canonical_json_bytes({'schemaVersion': 1, 'repository': REPOSITORY,
-                                         'tileSets': [package['entry']]}))
-        tag = package['entry']['releaseTag']
-        if tag in tags:
-            raise DeploymentError('Duplicate publication package')
-        tags.add(tag)
-    # Metadata preflight covers every package before the first write.
-    sources = [_source(api, package) for package in packages]
+        parse_lock(canonical_json_bytes(_lock([package['entry']])))
+        groups.setdefault(package['entry']['releaseTag'], []).append(package)
+    # Metadata preflight covers every source and destination before the first write.
+    sources = {id(package): _source(api, package) for package in packages}
+    prepared = []
+    for tag, group in groups.items():
+        selected = _lock([package['entry'] for package in group])
+        parse_lock(canonical_json_bytes(selected))
+        index_lock = selected
+        if is_product_release(tag):
+            index_lock = group[0].get('index')
+            if not isinstance(index_lock, dict):
+                raise DeploymentError('Product publication requires its complete reviewed package index')
+            parse_lock(canonical_json_bytes(index_lock))
+            if (index_lock['schemaVersion'] != 2
+                    or any(entry['releaseTag'] != tag for entry in index_lock['tileSets'])
+                    or any(package.get('index') != index_lock or package['entry'] not in index_lock['tileSets']
+                           for package in group)):
+                raise DeploymentError('Product publication packages disagree with their complete reviewed index')
+        index = canonical_json_bytes(index_lock)
+        expected = {}
+        for indexed_entry in index_lock['tileSets']:
+            for part in indexed_entry['parts']:
+                if part['name'] in expected:
+                    raise DeploymentError('Duplicate publication archive name')
+                expected[part['name']] = part
+        expected['package-index.json'] = {'name': 'package-index.json', 'bytes': len(index),
+                                         'sha256': hashlib.sha256(index).hexdigest()}
+        release = api.release_by_tag(REPOSITORY, tag)
+        assets = {}
+        if release is not None:
+            _release(release, _positive_id(release.get('id'), 'Canonical release ID'), tag)
+            if not release['draft'] and release.get('immutable') is not True:
+                raise DeploymentError('Published canonical release is not immutable')
+            assets = _canonical_assets(api, release, expected, complete=not release['draft'])
+        if ((release is None or release['draft']) and selected != _lock(index_lock['tileSets'])):
+            raise DeploymentError('Product publication requires every map from the complete reviewed index')
+        prepared.append((tag, group, index, expected, release, assets))
     _immutable(api)
     if work_root.is_symlink():
         raise DeploymentError('Publication work directory must not be a symlink')
     work_root.mkdir(parents=True, exist_ok=True)
     results = []
-    for package, source_assets in zip(packages, sources, strict=True):
-        entry, source = package['entry'], package['source']
-        index = canonical_json_bytes({'schemaVersion': 1, 'repository': REPOSITORY, 'tileSets': [entry]})
-        expected = {p['name']: p for p in entry['parts']}
-        expected['package-index.json'] = {'name': 'package-index.json', 'bytes': len(index),
-                                          'sha256': hashlib.sha256(index).hexdigest()}
-        release = api.release_by_tag(REPOSITORY, entry['releaseTag'])
-        assets = {}
-        if release is not None:
-            _release(release, _positive_id(release.get('id'), 'Canonical release ID'), entry['releaseTag'])
-            if not release['draft'] and release.get('immutable') is not True:
-                raise DeploymentError('Published canonical release is not immutable')
-            assets = _canonical_assets(api, release, expected, complete=not release['draft'])
+    for tag, group, index, expected, release, assets in prepared:
         with tempfile.TemporaryDirectory(prefix='dataset-publication-', dir=work_root) as temporary:
             directory = Path(temporary)
-            for part in entry['parts']:
-                # Re-read membership at the point of use, not only at preflight.
-                current_source = _source(api, package)
-                asset = current_source[part['name']]
-                if any(asset.get(field) != source_assets[part['name']].get(field)
-                       for field in ('id', 'name', 'size', 'state', 'digest')):
-                    raise DeploymentError('Reviewed source metadata changed during publication')
-                path = directory / part['name']
-                with path.open('xb') as output:
-                    _stream(api, source['repository'], asset['id'], part['bytes'], part['sha256'], output)
-                if part['name'] not in assets:
-                    _immutable(api)
-                    if release is None:
-                        release = api.create_draft(entry['releaseTag'], tool_sha,
-                                                   'Validated dataset tile package. Contents are pinned by package-index.json.')
-                        _release(release, _positive_id(release.get('id'), 'Canonical release ID'), entry['releaseTag'])
-                        if release['draft'] is not True:
-                            raise DeploymentError('New canonical release is not a draft')
-                    uploaded = api.upload_asset(release['id'], part['name'], path)
-                    _asset(uploaded, part['name'], part['bytes'], part['sha256'])
-                    assets = _canonical_assets(api, release, expected, complete=False)
-                    if assets.get(part['name'], {}).get('id') != uploaded['id']:
-                        raise DeploymentError('Uploaded asset does not match refreshed release membership')
-                path.unlink()
+            for package in group:
+                entry, source = package['entry'], package['source']
+                source_assets = sources[id(package)]
+                for part in entry['parts']:
+                    # Re-read membership at the point of use, not only at preflight.
+                    current_source = _source(api, package)
+                    asset = current_source[part['name']]
+                    if any(asset.get(field) != source_assets[part['name']].get(field)
+                           for field in ('id', 'name', 'size', 'state', 'digest')):
+                        raise DeploymentError('Reviewed source metadata changed during publication')
+                    path = directory / part['name']
+                    with path.open('xb') as output:
+                        _stream(api, source['repository'], asset['id'], part['bytes'], part['sha256'], output)
+                    if part['name'] not in assets:
+                        _immutable(api)
+                        if release is None:
+                            release = api.create_draft(tag, tool_sha,
+                                                       'Validated map packages. Contents are pinned by package-index.json.')
+                            _release(release, _positive_id(release.get('id'), 'Canonical release ID'), tag)
+                            if release['draft'] is not True:
+                                raise DeploymentError('New canonical release is not a draft')
+                        uploaded = api.upload_asset(release['id'], part['name'], path)
+                        _asset(uploaded, part['name'], part['bytes'], part['sha256'])
+                        assets = _canonical_assets(api, release, expected, complete=False)
+                        if assets.get(part['name'], {}).get('id') != uploaded['id']:
+                            raise DeploymentError('Uploaded asset does not match refreshed release membership')
+                    path.unlink()
             if 'package-index.json' not in assets:
                 path = directory / 'package-index.json'
                 path.write_bytes(index)
@@ -189,15 +212,18 @@ def publish_packages(packages: list[dict], *, api: Any, work_root: Path, tool_sh
             if release['draft']:
                 _immutable(api)
                 _canonical_assets(api, release, expected, complete=True)
-                api.publish_release(release['id'])
+                api.publish_release(release['id'], tag=tag)
             release_id = release['id']
             release = api.release_by_id(REPOSITORY, release_id)
-            _release(release, release_id, entry['releaseTag'])
+            _release(release, release_id, tag)
             if release['draft'] or release.get('immutable') is not True:
                 raise DeploymentError('Canonical publication did not produce an immutable release')
             _immutable(api)
             assets = _canonical_assets(api, release, expected, complete=True)
-        results.append({'entry': entry, 'releaseId': release['id'], 'assets': [
-            {'name': name, 'assetId': assets[name]['id'], 'sha256': part['sha256'], 'bytes': part['bytes']}
-            for name, part in expected.items()]})
+        for package in group:
+            entry = package['entry']
+            names = [part['name'] for part in entry['parts']] + ['package-index.json']
+            results.append({'entry': entry, 'releaseId': release['id'], 'assets': [
+                {'name': name, 'assetId': assets[name]['id'], 'sha256': expected[name]['sha256'],
+                 'bytes': expected[name]['bytes']} for name in names]})
     return results

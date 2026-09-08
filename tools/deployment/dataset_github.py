@@ -11,7 +11,7 @@ from urllib.parse import quote, urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from tools.deployment.common import DeploymentError, strict_json_object
-from tools.deployment.dataset_packages import REPOSITORY, release_tag
+from tools.deployment.dataset_packages import REPOSITORY, is_product_release, release_tag
 
 
 API = f'https://api.github.com/repos/{REPOSITORY}/releases'
@@ -106,8 +106,12 @@ class GitHubClient:
         return strict_json_object(b'{"value":' + payload + b'}', 'GitHub response')['value']
 
     def fetch(self, entry: dict, part: dict):
-        tag = release_tag((entry['datasetId'], entry['pyramidId'], entry['inventorySha256']))
-        if entry['releaseTag'] != tag or not re.fullmatch(r'tiles-[0-9]{4}\.tar', part['name']):
+        tag = entry['releaseTag']
+        product = is_product_release(tag)
+        legacy_tag = release_tag((entry['datasetId'], entry['pyramidId'], entry['inventorySha256']))
+        pattern = r'[a-z0-9]+(?:[.-][a-z0-9]+)*\.tar' if product else r'tiles-[0-9]{4}\.tar'
+        if ((not product and tag != legacy_tag) or not isinstance(part['name'], str)
+                or len(part['name']) > 137 or not re.fullmatch(pattern, part['name'])):
             raise DeploymentError('Invalid canonical release coordinates')
         if tag not in self._assets:
             release = self._json(API + '/tags/' + quote(tag, safe=''))

@@ -48,33 +48,66 @@ The package tooling and trusted publication support Release transport while the
 active contribution, CI and deployment workflow above still uses Git LFS. Packaging is local: it does
 not upload assets, change the active dataset, or remove LFS tracking.
 
-With ready tiles already present, build one independent package for each active
-map and write descriptors only under ignored `local-data/packages/`:
+With ready tiles already present, build one versioned product release containing
+an independent archive for every active map. Write the initial descriptors only
+under ignored `local-data/packages/`:
 
 ```bash
-pnpm datasets:pack all --bootstrap
-pnpm datasets:verify --lock local-data/packages/dataset-releases.lock.json
+pnpm datasets:pack all --bootstrap --release v1.0.0
+pnpm datasets:verify --package-root local-data/packages/releases/v1.0.0 --lock local-data/packages/dataset-releases.lock.json
 ```
 
-Python 3.10+ is required. No renderer runs during packaging. Each map package
-contains only the inventory's generated WebP tiles, under
-`local-data/packages/<datasetId>/<pyramidId>/<inventorySha256>/`. The directory
-contains `tiles-0001.tar` and a small `package-index.json`. A future larger map
-can have independent numbered parts; each finished USTAR archive is at most
-2,137,483,648 bytes, including headers and padding. Source inputs and metadata
-are never packed into the tile archive.
+Python 3.10+ is required. No renderer runs during packaging. The directory
+`local-data/packages/releases/v1.0.0/` contains one shared `package-index.json`
+and these five archives:
+
+- `morrowind.tar`
+- `tamriel-rebuilt.tar`
+- `project-cyrodiil.tar`
+- `home-of-nords.tar`
+- `azurian-isles.tar`
+
+Each archive contains only its map inventory's generated WebP tiles. It uses
+deterministic, uncompressed USTAR; the WebP payloads are already compressed.
+A future larger map uses independent parts such as `tamriel-rebuilt-0001.tar`
+and `tamriel-rebuilt-0002.tar`. Each finished archive is at most 2,137,483,648
+bytes, including headers and padding. A release can contain at most 999 archive
+assets plus its shared index. Source inputs and runtime metadata are never
+packed into the tile archives.
+
+The schema-version-2 index describes the complete active map selection: every
+entry shares the exact `v1.0.0` release tag, and archive names are unique across
+the release. Full hashes stay in the index and transport lock rather than
+release titles or filenames. The published release is named **Morrowind
+Interactive Map v1.0.0**, uses the stable `v1.0.0` tag, and becomes **Latest**.
+It is one product release with all five maps in Assets.
 
 `datasets:verify` checks archive hashes, canonical headers and every expected
 tile against the snapshot metadata. It does not extract or install anything.
-Do not commit these bootstrap descriptors as an active transport lock yet.
+Do not commit these bootstrap descriptors as an active transport lock yet;
+the migration of contribution, CI and deployment from LFS remains a separate
+step.
 
 Once an active `config/dataset-releases.lock.json` has been adopted by the future
-transport workflow, `pnpm datasets:pack azurian-isles` (or another active map key
-or dataset ID) updates only that map's changed tile entries. An unchanged
-inventory reuses its pinned package, including for catalog-only updates.
-`pnpm datasets:pack all` handles several changed maps. The lock is replaced only
-after the complete resulting package selection validates; other map entries
-must already match their current inventories.
+transport workflow, build the next complete bundle with:
+
+```bash
+pnpm datasets:pack all --release v1.0.1
+pnpm datasets:verify --package-root local-data/packages/releases/v1.0.1 --lock config/dataset-releases.lock.json
+```
+
+`--release` is required, and the CLI accepts only `all`: a product release always
+contains every active map. A changed bundle needs a new `vMAJOR.MINOR.PATCH` tag;
+leading zeroes, prerelease suffixes and build suffixes are not accepted. An
+existing version is reusable only when its complete package selection matches.
+The lock is replaced only after that complete selection validates. Unchanged
+maps reuse verified local TAR bytes and hashes, including for catalog-only
+updates, while every lock entry moves to the new shared release tag. The
+downloader also reuses unchanged archives from its SHA-256 cache.
+
+Keep published versions needed by committed locks, historical snapshots and
+rollbacks. Replacing the initial, unadopted migration artifacts is a one-time
+cleanup; future releases do not authorize deleting their predecessors.
 
 ## Restoring a Release-backed snapshot
 
@@ -95,8 +128,10 @@ GitHub's [Release asset API](https://docs.github.com/en/rest/releases/assets#get
 supports API delivery and redirects; credentials are sent only to the initial
 canonical GitHub API request, never to redirected storage hosts.
 
-The committed lock selects exact immutable releases and archive hashes; remote
-metadata cannot replace it. Downloads use a SHA-256 cache under ignored
+The committed lock selects an exact immutable product release and archive
+hashes; remote metadata cannot replace it. Downloads never resolve `Latest`.
+Historical schema-version-1 locks still use their original inventory-bound
+release tags. Downloads use a SHA-256 cache under ignored
 `local-data/cache/dataset-releases/`. Interrupted or corrupt transfers are safe
 to retry. Existing complete maps are verified and reused; a map is installed
 only after every expected tile in all its parts passes verification. Other
@@ -137,7 +172,7 @@ gh workflow run dataset-review.yml --repo omggga/morrowind-map --ref main \
 
 A Release-backed snapshot uses its committed lock automatically. If a package
 is not yet canonical, supply `source_mapping`: a JSON array with one object per
-new package identity. For example:
+map package identity that needs a source. For example:
 
 ```json
 [
@@ -154,25 +189,38 @@ new package identity. For example:
 
 Pass the JSON as the `source_mapping` dispatch input, for example
 `-f source_mapping="$(cat local-data/source-mapping.json)"`. Use numeric GitHub
-release IDs, not URLs or tags. The source release must be published and
-readable by the trusted workflow token. It contains `<assetPrefix>tiles-0001.tar`
-and every other part in that map's descriptor. The prefix is optional (`""`);
-a nonempty prefix starts with a letter or digit and contains only letters,
-digits, dots, underscores and hyphens. Several maps may share one source release
-with different prefixes. Sources are bounded to 100 identities and 128 KiB.
-Unchanged packages are restored from their canonical immutable releases.
+release IDs, not URLs or tags. A published source release may belong to a
+contributor repository, provided the trusted workflow token can read it. It
+contains `<assetPrefix>package-index.json` and the indexed archive names with
+the same prefix. For a product bundle these are the short map names above;
+historical version-1 sources retain names such as `tiles-0001.tar`. The prefix
+is optional (`""`); a nonempty prefix starts with a letter or digit and contains
+only letters, digits, dots, underscores and hyphens. Several maps may share one
+source release. Sources are bounded to 100 identities and 128 KiB.
+
+There is one narrowly defined draft-source option: upload the complete product
+bundle to a draft in `omggga/morrowind-map` with the exact intended product tag,
+then explicitly map its numeric release ID for the map identities. Its shared
+schema-version-2 `package-index.json` must describe the complete bundle. With an
+empty prefix, the source asset names are already the canonical product asset
+names, so trusted publication can verify and publish that same draft. Other
+draft sources are rejected. A draft is never selected implicitly by `Latest`,
+by a mutable source tag, or from another repository. All sources are frozen in
+the review receipt before publication.
 
 The review checks every map, archive and tile, compares the complete graphs,
 and retains a small HTML/JSON report and hash-bound receipt for seven days.
 The report lists all changes and samples previews. Archive payloads are not
 uploaded as Actions artifacts. A separate `dataset-publication` environment job
-re-fetches the pinned source assets, checks their hashes, and publishes canonical
-releases. Publication is serialized. It reuses an exact immutable release or
-resumes an exact matching draft; conflicting assets are never overwritten.
+re-fetches the pinned source assets, checks their hashes, and publishes one
+canonical product release containing the complete bundle and its shared index.
+Publication is serialized. It reuses an exact immutable release or resumes an
+exact matching draft; conflicting assets are never overwritten. Every map
+entry, archive and the full shared index must match the reviewed snapshot.
 Missing API digests are checked by downloading and hashing the bytes.
-Data transport releases use GitHub's prerelease category so they cannot become
-the repository's Latest release. This category does not weaken their validation
-or immutability; downloads use exact inventory-bound tags.
+The stable product release becomes Latest for people browsing GitHub; trusted
+review, downloads and publication still use only exact tags, numeric source IDs
+and the hashes bound to the receipt.
 
 Only this publication job has Contents write access. The environment must allow
 only `main`, contain no production SSH secrets, and have the nonsecret variable
@@ -201,10 +249,18 @@ This maintainer command needs Actions write access and rechecks the current PR,
 CI run and trusted review immediately before retrying failed jobs. The review
 workflow itself has no Actions write permission.
 
-The explicit bootstrap mode uses `pr_number=0`, `bootstrap_sha=<full-main-ancestor-SHA>`
-and source mappings. It derives each descriptor from that baseline's own metadata,
-inventory and prefixed `package-index.json`, then verifies all bytes. It never
-borrows a candidate PR's lock for a historical base. `legacy_transport=releases`
-uses the same adapter when reviewing an old LFS base after packages exist; it
-does not fetch LFS payloads. Bootstrap has no PR check. These operations require
-the publication tools to have been merged into trusted `main` first.
+The explicit bootstrap mode uses `pr_number=0`,
+`bootstrap_sha=<full-main-ancestor-SHA>`, `bootstrap_release_tag=v1.0.0` and source
+mappings. It derives descriptors from that baseline's own metadata, inventories
+and the shared `package-index.json`, then verifies all bytes. It never borrows a
+candidate PR's lock for a historical base. The exact `bootstrap_release_tag`
+input is used only for historical snapshots without their own transport lock;
+a snapshot with a committed lock always retains that lock's selection.
+
+`legacy_transport=releases` uses the same adapter when reviewing an old LFS base
+after packages exist; supply the exact historical product tag through
+`bootstrap_release_tag` instead of resolving Latest. It does not fetch LFS
+payloads. The chosen product tag is frozen into the receipt. Bootstrap has no
+PR check. These operations require the publication tools to have been merged
+into trusted `main` first. Publishing the bundle does not change the active LFS
+workflow, repository visibility, or the project's noncommercial licensing.

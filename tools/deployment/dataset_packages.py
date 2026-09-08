@@ -36,6 +36,7 @@ MAX_PARTS = 999  # Leave one of GitHub's 1000 asset slots for package-index.json
 MAX_LOCK_BYTES = 32 * 1024 * 1024
 RECORD_BYTES = 10240
 _ID = re.compile(r'[a-z0-9]+(?:[.-][a-z0-9]+)*')
+_PRODUCT_TAG = re.compile(r'v(?:0|[1-9][0-9]{0,8})\.(?:0|[1-9][0-9]{0,8})\.(?:0|[1-9][0-9]{0,8})')
 _TILE_PATH = re.compile(r'tiles/(?:0|[1-9][0-9]*)/(?:0|[1-9][0-9]*)/(?:0|[1-9][0-9]*)\.webp')
 
 
@@ -86,6 +87,35 @@ def release_tag(key: tuple[str, str, str]) -> str:
                      _identifier(pyramid_id, 'pyramidId'), require_sha256(inventory, 'inventorySha256')))
 
 
+def is_product_release(tag: object) -> bool:
+    return isinstance(tag, str) and _PRODUCT_TAG.fullmatch(tag) is not None
+
+
+def product_release_tag(tag: object) -> str:
+    if not is_product_release(tag):
+        raise DeploymentError('Product release must use an exact vMAJOR.MINOR.PATCH tag')
+    return tag
+
+
+def archive_basename(dataset_id: str) -> str:
+    """Keep familiar map names independent of upstream dataset version strings."""
+    dataset_id = _identifier(dataset_id, 'datasetId')
+    for prefix, name in (('original-goty-', 'morrowind'), ('poison-song-', 'tamriel-rebuilt'),
+                         ('abecean-shores-', 'project-cyrodiil'), ('dragonstar-', 'home-of-nords'),
+                         ('azurian-isles-', 'azurian-isles')):
+        if dataset_id.startswith(prefix):
+            return name
+    return dataset_id
+
+
+def product_part_name(dataset_id: str, number: int, count: int) -> str:
+    base = archive_basename(dataset_id)
+    name = f'{base}.tar' if count == 1 else f'{base}-{number:04d}.tar'
+    if len(name) > 128:
+        raise DeploymentError('Product archive name exceeds 128 characters')
+    return name
+
+
 def _entry_key(entry: dict[str, Any]) -> tuple[str, str, str]:
     return entry['datasetId'], entry['pyramidId'], entry['inventorySha256']
 
@@ -100,7 +130,7 @@ def parse_lock(payload: bytes) -> dict[str, Any]:
         raise DeploymentError('Transport lock must be UTF-8 JSON') from error
     lock = _object(strict_json_object(payload, 'transport lock'),
                    {'schemaVersion', 'repository', 'tileSets'}, 'transport lock')
-    if type(lock['schemaVersion']) is not int or lock['schemaVersion'] != 1:
+    if type(lock['schemaVersion']) is not int or lock['schemaVersion'] not in (1, 2):
         raise DeploymentError('Unsupported transport lock schemaVersion')
     if lock['repository'] != REPOSITORY:
         raise DeploymentError('Transport lock must use the canonical repository')
@@ -108,6 +138,8 @@ def parse_lock(payload: bytes) -> dict[str, Any]:
     if not 1 <= len(entries) <= MAX_TILE_SETS:
         raise DeploymentError('Transport lock tileSets count is out of bounds')
     identities: set[tuple[str, str]] = set()
+    product_tag = None
+    asset_names = set()
     total_tiles = total_bytes = 0
     for raw in entries:
         entry = _object(raw, {'datasetId', 'pyramidId', 'inventorySha256', 'format', 'releaseTag', 'parts'}, 'tile set')
@@ -117,15 +149,29 @@ def parse_lock(payload: bytes) -> dict[str, Any]:
         if key[:2] in identities:
             raise DeploymentError('Duplicate tile set identity')
         identities.add(key[:2])
-        if entry['format'] != FORMAT or entry['releaseTag'] != release_tag(key):
+        if entry['format'] != FORMAT:
             raise DeploymentError('Tile set format or releaseTag differs from its identity')
+        if lock['schemaVersion'] == 1:
+            if entry['releaseTag'] != release_tag(key):
+                raise DeploymentError('Tile set format or releaseTag differs from its identity')
+        else:
+            tag = product_release_tag(entry['releaseTag'])
+            if product_tag is not None and product_tag != tag:
+                raise DeploymentError('All maps must belong to the same product release')
+            product_tag = tag
         parts = require_sequence(entry['parts'], 'parts')
         if not 1 <= len(parts) <= MAX_PARTS:
             raise DeploymentError('Package part count is out of bounds')
         for number, raw_part in enumerate(parts, 1):
             part = _object(raw_part, {'name', 'sha256', 'bytes', 'tileCount', 'unpackedBytes'}, 'part')
-            if part['name'] != f'tiles-{number:04d}.tar':
+            expected_name = (f'tiles-{number:04d}.tar' if lock['schemaVersion'] == 1 else
+                             product_part_name(key[0], number, len(parts)))
+            if part['name'] != expected_name:
                 raise DeploymentError('Package part names must be contiguous and ordered')
+            if lock['schemaVersion'] == 2:
+                if part['name'] in asset_names or len(asset_names) >= MAX_PARTS:
+                    raise DeploymentError('Product release has duplicate or excessive archive names')
+                asset_names.add(part['name'])
             require_sha256(part['sha256'], 'part.sha256')
             size = _integer(part['bytes'], 'part.bytes', MAX_ARCHIVE_BYTES, RECORD_BYTES)
             if size % RECORD_BYTES:
@@ -310,7 +356,8 @@ def _write_json(path: Path, value: object) -> None:
 
 
 def _lock(entries: Sequence[dict[str, Any]]) -> dict[str, Any]:
-    return {'schemaVersion': 1, 'repository': REPOSITORY,
+    return {'schemaVersion': 2 if any(is_product_release(e['releaseTag']) for e in entries) else 1,
+            'repository': REPOSITORY,
             'tileSets': sorted(entries, key=_entry_key)}
 
 
@@ -318,7 +365,8 @@ def _verify_entry(tile_set: TileSet, entry: dict[str, Any], package_root: Path) 
     validate_lock(_lock([entry]), [tile_set])
     offset = 0
     for part in entry['parts']:
-        path = safe_file(package_root, tile_set.package_path / part['name'], 'package archive')
+        relative = Path(part['name']) if is_product_release(entry['releaseTag']) else tile_set.package_path / part['name']
+        path = safe_file(package_root, relative, 'package archive')
         tiles = tile_set.tiles[offset:offset + part['tileCount']]
         read_part(path, tiles, part)
         offset += len(tiles)
@@ -413,7 +461,60 @@ def pack_tile_set(tile_set: TileSet, *, generated_root: Path, package_root: Path
     return entry
 
 
-def pack_datasets(*, repo_root: Path, selector: str, bootstrap: bool = False) -> dict[str, Any]:
+def pack_product_release(*, repo_root: Path, tag: str, bootstrap: bool) -> dict[str, Any]:
+    """Assemble all active maps into one versioned release using verified cached TARs."""
+    tag = product_release_tag(tag)
+    root = Path(repo_root).resolve(strict=True)
+    public = root / 'apps/web/public'
+    active_lock = root / 'config/dataset-releases.lock.json'
+    if not bootstrap and not active_lock.exists():
+        raise DeploymentError('No active transport lock; use --bootstrap to write ignored descriptors')
+    tile_sets = _tile_sets(build_dataset_plan(public_root=public))
+    output = _real_directory(root / 'local-data/packages')
+    lock_file = output / '.pack.lock'
+    if lock_file.is_symlink():
+        raise DeploymentError('Package lock must not be a symlink')
+    destination = _real_directory(output / 'releases') / tag
+    with lock_file.open('a') as process_lock:
+        fcntl.flock(process_lock, fcntl.LOCK_EX)
+        if destination.exists() or destination.is_symlink():
+            if destination.is_symlink() or not destination.is_dir():
+                raise DeploymentError('Existing product package is not a real directory')
+            lock = _read_lock(destination / 'package-index.json')
+            validate_lock(lock, tile_sets)
+            if lock['schemaVersion'] != 2 or lock['tileSets'][0]['releaseTag'] != tag:
+                raise DeploymentError('Existing product package differs from its release version')
+            verify_packages(public_root=public, package_root=destination,
+                            lock_path=destination / 'package-index.json')
+        else:
+            entries = []
+            with tempfile.TemporaryDirectory(prefix='.product-', dir=destination.parent) as temporary:
+                stage = Path(temporary)
+                for tile_set in tile_sets:
+                    cached = pack_tile_set(tile_set, generated_root=public / 'datasets/generated', package_root=output)
+                    entry = {**cached, 'releaseTag': tag, 'parts': []}
+                    for number, part in enumerate(cached['parts'], 1):
+                        name = product_part_name(tile_set.dataset_id, number, len(cached['parts']))
+                        source = safe_file(output, tile_set.package_path / part['name'], 'cached archive')
+                        os.link(source, stage / name)
+                        entry['parts'].append({**part, 'name': name})
+                    entries.append(entry)
+                lock = _lock(entries)
+                validate_lock(lock, tile_sets)
+                _write_json(stage / 'package-index.json', lock)
+                os.rename(stage, destination)
+        target = output / 'dataset-releases.lock.json' if bootstrap else active_lock
+        _write_json(target, lock)
+    return {'lockPath': str(target), 'packageRoot': str(destination), 'releaseTag': tag,
+            'tileSets': len(tile_sets), 'parts': sum(len(e['parts']) for e in lock['tileSets'])}
+
+
+def pack_datasets(*, repo_root: Path, selector: str, bootstrap: bool = False,
+                  release: str | None = None) -> dict[str, Any]:
+    if release is not None:
+        if selector != 'all':
+            raise DeploymentError('A product release includes every active map; use selector all')
+        return pack_product_release(repo_root=repo_root, tag=release, bootstrap=bootstrap)
     root = Path(repo_root).resolve(strict=True)
     public = root / 'apps/web/public'
     if bootstrap and selector != 'all':
@@ -468,6 +569,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     pack.add_argument('map', help='An active map key/dataset ID, or all')
     pack.add_argument('--repo-root', type=Path, default=Path(__file__).resolve().parents[2])
     pack.add_argument('--bootstrap', action='store_true', help='Pack all maps and write only ignored descriptors')
+    pack.add_argument('--release', required=True, help='Product release tag, for example v1.0.0')
     verify = subcommands.add_parser('verify', help='Verify packages against a complete snapshot')
     verify.add_argument('--public-root', type=Path, default=Path('apps/web/public'))
     verify.add_argument('--package-root', type=Path, default=Path('local-data/packages'))
@@ -475,7 +577,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == 'pack':
-            result = pack_datasets(repo_root=args.repo_root, selector=args.map, bootstrap=args.bootstrap)
+            result = pack_datasets(repo_root=args.repo_root, selector=args.map, bootstrap=args.bootstrap, release=args.release)
         else:
             result = verify_packages(public_root=args.public_root, package_root=args.package_root, lock_path=args.lock)
     except (DeploymentError, OSError, ValueError) as error:
