@@ -74,5 +74,45 @@ or dataset ID) updates only that map's changed tile entries. An unchanged
 inventory reuses its pinned package, including for catalog-only updates.
 `pnpm datasets:pack all` handles several changed maps. The lock is replaced only
 after the complete resulting package selection validates; other map entries
-must already match their current inventories. No download or publication command
-is provided by this packaging stage.
+must already match their current inventories.
+
+## Restoring a Release-backed snapshot
+
+The current snapshot still uses the LFS workflow above. Once a snapshot includes
+the complete `config/dataset-releases.lock.json`, restore every active map with:
+
+```bash
+pnpm datasets:download
+```
+
+Python 3.10+ on macOS or Linux is sufficient; the downloader uses the standard
+library. It also works from a source ZIP without Git, Docker, or game inputs.
+It reads `GH_TOKEN` / `GITHUB_TOKEN` from the environment or an existing
+`gh auth login` session for private releases. A fine-grained token needs only
+repository Contents read access. Public releases support `--anonymous`, which
+does not read credentials or require `gh`. Never put tokens in command arguments.
+GitHub's [Release asset API](https://docs.github.com/en/rest/releases/assets#get-a-release-asset)
+supports API delivery and redirects; credentials are sent only to the initial
+canonical GitHub API request, never to redirected storage hosts.
+
+The committed lock selects exact immutable releases and archive hashes; remote
+metadata cannot replace it. Downloads use a SHA-256 cache under ignored
+`local-data/cache/dataset-releases/`. Interrupted or corrupt transfers are safe
+to retry. Existing complete maps are verified and reused; a map is installed
+only after every expected tile in all its parts passes verification. Other
+installed maps and older content-addressed versions remain available if a later
+download fails. There is no automatic download from `pnpm dev` and no partial-map
+developer mode. `--discard-cache` removes each verified archive after extraction
+when disk space matters.
+
+For trusted snapshot tooling, `git_datasets.py export` also exports the selected
+commit's upload plan and transport lock to `<output-public-root>/config/` (or
+`--output-config-root`). Use `datasets:download --public-root <exported-public>
+--lock <exported-config>/dataset-releases.lock.json` to hydrate that metadata.
+Release snapshots forbid tracked generated WebP and cannot fall back to LFS
+when the lock is invalid. At cutover, trusted callers must use
+`--require-releases` or pin `--release-boundary <first-release-backed-commit>`;
+available lock history also prevents downgrade by lock deletion. Historical
+LFS export remains explicit via `--mode legacy` and uses only locally available
+objects fetched separately from the trusted endpoint. Snapshot tools never run
+candidate code or fetch LFS themselves.

@@ -66,6 +66,7 @@
     "datasets:stage": "python3 -m tools.deployment.stage_dataset_files",
     "datasets:pack": "python3 -m tools.deployment.dataset_packages pack",
     "datasets:verify": "python3 -m tools.deployment.dataset_packages verify",
+    "datasets:download": "python3 -m tools.deployment.download_datasets",
     "deploy:package": "python3 -m tools.deployment.package_release",
     "deploy:datasets:plan": "python3 -m tools.deployment.upload_datasets --plan-output artifacts/deployment/dataset-upload-plan.json",
     "deploy:datasets:upload": "python3 -m tools.deployment.upload_datasets",
