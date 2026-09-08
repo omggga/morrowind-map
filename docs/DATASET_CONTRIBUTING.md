@@ -170,6 +170,9 @@ re-fetches the pinned source assets, checks their hashes, and publishes canonica
 releases. Publication is serialized. It reuses an exact immutable release or
 resumes an exact matching draft; conflicting assets are never overwritten.
 Missing API digests are checked by downloading and hashing the bytes.
+Data transport releases use GitHub's prerelease category so they cannot become
+the repository's Latest release. This category does not weaken their validation
+or immutability; downloads use exact inventory-bound tags.
 
 Only this publication job has Contents write access. The environment must allow
 only `main`, contain no production SSH secrets, and have the nonsecret variable

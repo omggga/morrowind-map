@@ -46,9 +46,10 @@ class ReviewAPITests(unittest.TestCase):
         self.assertEqual(create.method, 'POST')
         self.assertEqual(json.loads(create.data)['target_commitish'], 'b' * 40)
         self.assertTrue(json.loads(create.data)['draft'])
+        self.assertTrue(json.loads(create.data)['prerelease'])
         self.assertEqual(json.loads(create.data)['make_latest'], 'false')
         self.assertEqual(publish.method, 'PATCH')
-        self.assertEqual(json.loads(publish.data), {'draft': False, 'make_latest': 'false'})
+        self.assertEqual(json.loads(publish.data), {'draft': False, 'prerelease': True, 'make_latest': 'false'})
 
     def test_upload_stream_is_bounded_and_upload_redirect_is_rejected(self):
         api = ReleaseAPI(writable=True)
