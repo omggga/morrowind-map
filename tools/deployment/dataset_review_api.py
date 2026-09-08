@@ -162,7 +162,8 @@ class ReleaseAPI:
             raise DeploymentError('Draft target must be the trusted tool commit')
         return self._request(f'repos/{REPOSITORY}/releases', method='POST',
                              body={'tag_name': tag, 'target_commitish': tool_sha, 'draft': True,
-                                   'make_latest': 'false', 'generate_release_notes': False, 'body': body})
+                                   'prerelease': True, 'make_latest': 'false',
+                                   'generate_release_notes': False, 'body': body})
 
     def upload_asset(self, release_id: int, name: str, path: Path):
         if not re.fullmatch(r'(?:tiles-[0-9]{4}\.tar|package-index\.json)', name):
@@ -172,7 +173,7 @@ class ReleaseAPI:
 
     def publish_release(self, release_id: int):
         return self._request(f'repos/{REPOSITORY}/releases/{positive_id(release_id)}', method='PATCH',
-                             body={'draft': False, 'make_latest': 'false'})
+                             body={'draft': False, 'prerelease': True, 'make_latest': 'false'})
 
     def get_pull(self, number: int):
         return self._request(f'repos/{REPOSITORY}/pulls/{positive_id(number)}')
