@@ -129,13 +129,10 @@ class DockerCommandTests(unittest.TestCase):
                 "--mount",
                 "type=bind,src=/host/game/bsa,dst=/game/bsa,readonly",
                 "--mount",
-                "type=bind,src=/host/game/Tamriel Data (SD) 44537 26.08 "
-                "2026-08-23T18-34Z 9AnoA0Zl/00 Data Files,dst=/game/Tamriel "
-                "Data (SD) 44537 26.08 2026-08-23T18-34Z 9AnoA0Zl/00 Data "
-                "Files,readonly",
+                "type=bind,src=/host/game/tamriel-data,dst=/game/tamriel-data,readonly",
                 "--mount",
-                "type=bind,src=/host/game/tamriel/00 Core/Data Files,"
-                "dst=/game/tamriel/00 Core/Data Files,readonly",
+                "type=bind,src=/host/game/tamriel-rebuilt/00 Core/Data Files,"
+                "dst=/game/tamriel-rebuilt/00 Core/Data Files,readonly",
                 "--mount",
                 "type=bind,src=/host/run/profile,dst=/profile",
                 "--mount",

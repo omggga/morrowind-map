@@ -77,10 +77,8 @@ PLUGIN_PATHS = (
     "bsa/Morrowind.esm",
     "bsa/Tribunal.esm",
     "bsa/Bloodmoon.esm",
-    "Tamriel Data (SD) 44537 26.08 2026-08-23T18-34Z 9AnoA0Zl/00 Data Files/Tamriel_Data.esm",
-    "tamriel/00 Core/Data Files/TR_Mainland.esm",
-    "tamriel/01 Faction Integration/Data Files/TR_Factions.esp",
-    "tamriel/02 Firemoth Remover/Data Files/TR_Firemoth_Vanilla_patch.esp",
+    "tamriel-data/Tamriel_Data.esm",
+    "tamriel-rebuilt/00 Core/Data Files/TR_Mainland.esm",
 )
 
 BSA_PATHS = (
@@ -90,10 +88,8 @@ BSA_PATHS = (
 )
 
 LOOSE_PATHS = (
-    "Tamriel Data (SD) 44537 26.08 2026-08-23T18-34Z 9AnoA0Zl/00 Data Files",
-    "tamriel/00 Core/Data Files",
-    "tamriel/01 Faction Integration/Data Files",
-    "tamriel/02 Firemoth Remover/Data Files",
+    "tamriel-data",
+    "tamriel-rebuilt/00 Core/Data Files",
 )
 
 EXPECTED_SHA256 = {
@@ -105,8 +101,6 @@ EXPECTED_SHA256 = {
     "bsa/Bloodmoon.bsa": "7c20956791400d958cb407f0b7c1c19ceaf46719df7eb724d0b450299360bd7c",
     PLUGIN_PATHS[3]: "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f",
     PLUGIN_PATHS[4]: "661c96c6aa5e517d897f8b9de93c814d2aca16fd17b6e4ce7869486e3737064b",
-    PLUGIN_PATHS[5]: "5a645aae80d02b9634f5da482f97df87fb1cc77aaf20bf0fdb26c272996b671e",
-    PLUGIN_PATHS[6]: "c8aa89d6446b1cfb1cacbaf84fe78d62b2fa8b0f804f69f755a8c80f5067bab3",
 }
 
 MIM_REFERENCE = {
@@ -573,8 +567,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--source-root",
         type=Path,
-        default=Path(__file__).resolve().parents[3] / "morr-dev",
-        help="Directory containing bsa/, tamriel/ and Tamriel Data 26.08.",
+        default=Path(__file__).resolve().parents[2] / "local-data/inputs",
+        help="Directory containing bsa/, tamriel-data/ and tamriel-rebuilt/ (default: local-data/inputs).",
     )
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--magick", default="magick", help="ImageMagick executable")

@@ -751,7 +751,7 @@ def activate_after_gates() -> int:
         argparse.Namespace(
             profile=DEFAULT_PROFILE,
             lock=DEFAULT_LOCK,
-            source_root=_repo_root().parent / "morr-dev",
+            source_root=_repo_root() / "local-data/inputs",
         )
     )
 
@@ -764,7 +764,7 @@ def _parser() -> argparse.ArgumentParser:
     common.add_argument("--work-root", type=Path)
     common.add_argument("--public-root", type=Path)
     common.add_argument("--baseline-public-root", type=Path)
-    common.add_argument("--source-root", type=Path, default=repo_root.parent / "morr-dev")
+    common.add_argument("--source-root", type=Path, default=repo_root / "local-data/inputs")
     parser = argparse.ArgumentParser(description="Tamriel Rebuilt release workflow")
     subparsers = parser.add_subparsers(dest="command", required=True)
     for name in (

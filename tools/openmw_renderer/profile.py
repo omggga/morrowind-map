@@ -59,30 +59,30 @@ SOURCE_INPUTS = (
     ),
     SourceInput(
         "tamriel-data-esm",
-        "Tamriel Data (SD) 44537 26.08 2026-08-23T18-34Z 9AnoA0Zl/00 Data Files/Tamriel_Data.esm",
+        "tamriel-data/Tamriel_Data.esm",
         "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f",
     ),
     SourceInput(
         "tamriel-data-scripts",
-        "Tamriel Data (SD) 44537 26.08 2026-08-23T18-34Z 9AnoA0Zl/00 Data Files/Tamriel_Data.omwscripts",
+        "tamriel-data/Tamriel_Data.omwscripts",
         "468251f4f9f23eab9a97e2bfcd9de9c979ba9b4a3d2d8095e3a6317931a8ef45",
     ),
     SourceInput(
         "tr-mainland-esm",
-        "tamriel/00 Core/Data Files/TR_Mainland.esm",
+        "tamriel-rebuilt/00 Core/Data Files/TR_Mainland.esm",
         "661c96c6aa5e517d897f8b9de93c814d2aca16fd17b6e4ce7869486e3737064b",
     ),
     SourceInput(
         "tr-mainland-scripts",
-        "tamriel/00 Core/Data Files/tamrielrebuilt.omwscripts",
+        "tamriel-rebuilt/00 Core/Data Files/tamrielrebuilt.omwscripts",
         "c5ddb0c00ea906fd52122a17b64ae680c14001813da406b69112441a326644ab",
     ),
 )
 
 DATA_DIRECTORIES = (
     "bsa",
-    "Tamriel Data (SD) 44537 26.08 2026-08-23T18-34Z 9AnoA0Zl/00 Data Files",
-    "tamriel/00 Core/Data Files",
+    "tamriel-data",
+    "tamriel-rebuilt/00 Core/Data Files",
 )
 
 FALLBACK_ARCHIVES = (
