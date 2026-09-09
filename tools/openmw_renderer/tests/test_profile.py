@@ -27,8 +27,8 @@ class ProfileContractTests(unittest.TestCase):
             DATA_DIRECTORIES,
             (
                 "bsa",
-                "Tamriel Data (SD) 44537 26.08 2026-08-23T18-34Z 9AnoA0Zl/00 Data Files",
-                "tamriel/00 Core/Data Files",
+                "tamriel-data",
+                "tamriel-rebuilt/00 Core/Data Files",
             ),
         )
         self.assertEqual(
@@ -72,10 +72,10 @@ class ProfileContractTests(unittest.TestCase):
                 "bsa/Morrowind.bsa",
                 "bsa/Tribunal.bsa",
                 "bsa/Bloodmoon.bsa",
-                "Tamriel Data (SD) 44537 26.08 2026-08-23T18-34Z 9AnoA0Zl/00 Data Files/Tamriel_Data.esm",
-                "Tamriel Data (SD) 44537 26.08 2026-08-23T18-34Z 9AnoA0Zl/00 Data Files/Tamriel_Data.omwscripts",
-                "tamriel/00 Core/Data Files/TR_Mainland.esm",
-                "tamriel/00 Core/Data Files/tamrielrebuilt.omwscripts",
+                "tamriel-data/Tamriel_Data.esm",
+                "tamriel-data/Tamriel_Data.omwscripts",
+                "tamriel-rebuilt/00 Core/Data Files/TR_Mainland.esm",
+                "tamriel-rebuilt/00 Core/Data Files/tamrielrebuilt.omwscripts",
             ),
         )
         self.assertTrue(all(len(source.sha256) == 64 for source in SOURCE_INPUTS))
@@ -91,8 +91,8 @@ class ProfileContractTests(unittest.TestCase):
             "fallback-archive=Tribunal.bsa",
             "fallback-archive=Bloodmoon.bsa",
             'data="/game/bsa"',
-            'data="/game/Tamriel Data (SD) 44537 26.08 2026-08-23T18-34Z 9AnoA0Zl/00 Data Files"',
-            'data="/game/tamriel/00 Core/Data Files"',
+            'data="/game/tamriel-data"',
+            'data="/game/tamriel-rebuilt/00 Core/Data Files"',
             "content=Morrowind.esm",
             "content=Tribunal.esm",
             "content=Bloodmoon.esm",
@@ -101,7 +101,7 @@ class ProfileContractTests(unittest.TestCase):
         )
         self.assertEqual(generated, "\n".join(expected_lines) + "\n")
         self.assertNotIn("/Users/", generated)
-        self.assertNotIn("morr-dev", generated)
+        self.assertNotIn("local-data/inputs", generated)
         self.assertNotIn("TR_Factions", generated)
         self.assertNotIn("Firemoth", generated)
         self.assertNotIn(".omwscripts", generated)

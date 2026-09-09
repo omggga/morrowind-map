@@ -1909,7 +1909,7 @@ def _add_source_and_cells(parser: argparse.ArgumentParser, repo_root: Path) -> N
     parser.add_argument(
         "--source-root",
         type=Path,
-        default=repo_root.parent / "morr-dev",
+        default=repo_root / "local-data/inputs",
     )
     parser.add_argument(
         "--cells",
@@ -1953,7 +1953,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "provenance",
         help="Validate the exact profile/image/encoder and print its resume identity.",
     )
-    provenance.add_argument("--source-root", type=Path, default=repo_root.parent / "morr-dev")
+    provenance.add_argument("--source-root", type=Path, default=repo_root / "local-data/inputs")
     provenance.add_argument("--output", type=Path)
     _add_runtime_identity(provenance)
 
@@ -1996,7 +1996,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "smoke",
         help="Render one explicit nine-target 3x3 shard in one OpenMW process.",
     )
-    smoke.add_argument("--source-root", type=Path, default=repo_root.parent / "morr-dev")
+    smoke.add_argument("--source-root", type=Path, default=repo_root / "local-data/inputs")
     smoke.add_argument("--output", type=Path, default=repo_root / DEFAULT_OUTPUT / "smoke")
     smoke.add_argument("--center", type=_parse_cell, default=(-3, -3))
     _add_runtime_identity(smoke)

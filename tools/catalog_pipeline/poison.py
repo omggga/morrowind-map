@@ -715,7 +715,7 @@ def _parser(repo_root: Path) -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     default_build = repo_root / "local-data/catalog-production" / DATASET_ID
     build = subparsers.add_parser("build")
-    build.add_argument("--source-root", type=Path, default=repo_root.parent / "morr-dev")
+    build.add_argument("--source-root", type=Path, default=repo_root / "local-data/inputs")
     build.add_argument("--output", type=Path, default=default_build)
     validate = subparsers.add_parser("validate")
     validate.add_argument("--source", type=Path, default=default_build)

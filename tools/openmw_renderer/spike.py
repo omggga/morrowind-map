@@ -1034,8 +1034,8 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--source-root",
         type=Path,
-        default=repo_root.parent / "morr-dev",
-        help="External proprietary game/mod input root (default: ../morr-dev).",
+        default=repo_root / "local-data/inputs",
+        help="External proprietary game/mod input root (default: local-data/inputs).",
     )
     parser.add_argument(
         "--output",

@@ -20,11 +20,11 @@
     },
     {
       "id": "tamriel-data",
-      "path": "Tamriel Data (SD) 44537 26.08 2026-08-23T18-34Z 9AnoA0Zl/00 Data Files"
+      "path": "tamriel-data"
     },
     {
       "id": "tamriel-rebuilt-core",
-      "path": "tamriel/00 Core/Data Files"
+      "path": "tamriel-rebuilt/00 Core/Data Files"
     }
   ],
   "fallbackArchives": [
@@ -46,11 +46,11 @@
   "excludedOptionalModules": [
     {
       "id": "tr-factions",
-      "relativePath": "tamriel/01 Faction Integration/Data Files/TR_Factions.esp"
+      "relativePath": "tamriel-rebuilt/01 Faction Integration/Data Files/TR_Factions.esp"
     },
     {
       "id": "vanilla-firemoth-patch",
-      "relativePath": "tamriel/02 Firemoth Remover/Data Files/TR_Firemoth_Vanilla_patch.esp"
+      "relativePath": "tamriel-rebuilt/02 Firemoth Remover/Data Files/TR_Firemoth_Vanilla_patch.esp"
     }
   ],
   "regions": [

@@ -29,7 +29,7 @@ from tools.original_renderer.bootstrap import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SOURCE_ROOT = REPO_ROOT.parent / "morr-dev"
+SOURCE_ROOT = REPO_ROOT / "local-data/inputs"
 
 
 def _subprocess_json(source: str) -> dict[str, object]:

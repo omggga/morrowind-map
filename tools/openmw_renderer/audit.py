@@ -2567,7 +2567,7 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     full = subparsers.add_parser("full", help="Run every release quality gate")
     full.add_argument("--output", type=Path, default=repo_root / DEFAULT_STABILIZED_OUTPUT)
-    full.add_argument("--source-root", type=Path, default=repo_root.parent / "morr-dev")
+    full.add_argument("--source-root", type=Path, default=repo_root / "local-data/inputs")
     full.add_argument("--audit-root", type=Path)
     full.add_argument("--workers", type=int, default=min(4, os.cpu_count() or 1))
     full.add_argument("--render-workers", type=int, default=2)
