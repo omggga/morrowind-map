@@ -12,9 +12,27 @@ Five interactive maps for The Elder Scrolls III: Morrowind, available at [morrow
 
 Search places, filter locations, share map links, and keep progress, notes, and personal markers. Mod titles in the map header link to their Nexus Mods pages in a new tab. Personal data stays in your browser; use JSON export/import to transfer it or keep a backup. Records are associated with a specific map version.
 
+## Requirements
+
+Local development, dataset preparation, and builds currently require a Unix-like
+environment: Linux or macOS with a POSIX-compatible shell. CI runs on Linux.
+
+- Node.js `^20.19.0` or `>=22.12.0` (CI uses Node.js 24).
+- pnpm `11.19.0`.
+- Python 3.10+ available as `python3` in the same shell as `node` and `pnpm`.
+- Network access for dependencies and map archives, plus disk space for about
+  2.8 GB of extracted maps, downloaded archives, and a separate production build.
+
+**Native Windows build support is in development and is not currently available.**
+The commands below assume a Unix environment; the dataset tools use Unix-only
+Python file locking (`fcntl`). Installing Git Bash alone does not provide this
+Python support. These restrictions apply to local tooling; the hosted website
+can be used from a Windows browser.
+
 ## Run locally
 
-Install Node.js `^20.19.0` or `>=22.12.0`, pnpm `11.19.0`, and Python 3.10+. From your clone or extracted source ZIP:
+After installing the requirements above, run these commands from your clone or
+extracted source ZIP:
 
 ```bash
 pnpm install --frozen-lockfile

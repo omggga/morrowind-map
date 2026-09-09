@@ -7,6 +7,11 @@ it does not modify the website or the tracked active dataset.
 
 ## Prerequisites
 
+Use Linux or macOS with the Unix shell and tool versions listed in the
+[project requirements](../README.md#requirements). Native Windows build and
+rendering support is still in development; Docker alone does not make the host
+Python tools compatible with Windows.
+
 Follow [README.md](../README.md) to install dependencies and run `pnpm datasets:download` to restore all five active maps from their pinned product release. Candidates preserve all active maps, so a single-map rerender also needs the other maps' prepared baselines. Install Chromium for candidate browser checks:
 
 ```bash
