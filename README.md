@@ -24,7 +24,9 @@ pnpm dev
 
 Open `http://127.0.0.1:5173`. The downloader restores all five maps, approximately 2.8 GB of ready tiles, from the immutable product release selected by `config/dataset-releases.lock.json`. It uses the Python standard library; no Git LFS, game installation, Docker, or OpenMW is needed. `pnpm dev` does not download missing maps.
 
-The repository is currently private. Authenticate with an existing `gh auth login` session or provide `GH_TOKEN` / `GITHUB_TOKEN` in the environment with repository Contents read access. Do not put tokens in commands or files. If the repository becomes public, `pnpm datasets:download --anonymous` works without credentials or `gh`. Downloads verify hashes, reuse complete maps and cached archives, and can safely be retried; `--discard-cache` removes verified archives after extraction to save disk space.
+Public releases can be downloaded without a GitHub account, token, or `gh`: use `pnpm datasets:download --anonymous` to explicitly disable credential lookup. Downloads verify hashes, reuse complete maps and cached archives, and can safely be retried; `--discard-cache` removes verified archives after extraction to save disk space.
+
+For a private repository or private source release, authenticate with an existing `gh auth login` session or provide `GH_TOKEN` / `GITHUB_TOKEN` in the environment with repository Contents read access. Anonymous access works only when the source repository and release are public. Do not put tokens in commands or files.
 
 ## Build
 

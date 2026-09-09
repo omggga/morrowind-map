@@ -29,6 +29,13 @@ Never commit game source files, archives, meshes, textures, credentials, interme
 
 Maintainers review the final diff and CI results before merging. Dataset changes also receive a review report for the exact PR commit. Keep unrelated changes out of the PR and resolve review feedback before merge.
 
+For changes to datasets, deployment tools or their workflows, maintainers must
+dispatch `Dataset review (trusted)` from `main` and wait for its successful result
+on the exact PR head and base before merging. Ordinary CI does not replace this
+review. A changed head or base needs a fresh review. Contributors provide prepared
+packages through their own published source releases; they do not need server
+credentials or permission to publish canonical releases.
+
 ## Licensing contributions
 
 Submit original code and documentation under the same
