@@ -151,6 +151,11 @@ candidate scripts and workflows never execute in this review. Both the PR head
 and base must match the dispatch inputs, which are also recorded in the run
 title. A new head or base requires a fresh review.
 
+Run this review before merging changes to datasets, deployment tools or their
+workflows, even when the active map graph is unchanged. Ordinary CI and prepared
+map checks do not replace `Dataset review (trusted)`; wait for that check on the
+exact PR head before merging.
+
 For a PR, use its current head/base SHAs. Both snapshots use their own committed
 Release lock:
 
@@ -238,6 +243,27 @@ python3 -m tools.deployment.dataset_review_retry --pr-number 123 --run-id 456789
 This maintainer command needs Actions write access and rechecks the current PR,
 CI run and trusted review immediately before retrying failed jobs. The review
 workflow itself has no Actions write permission.
+
+If a PR was merged before its trusted review ran, the same workflow can review
+the merged PR. Use its original head and the merge commit's first parent as the
+base, rather than the current tip of `main`:
+
+```bash
+pr=123
+head_sha=$(gh api "repos/omggga/morrowind-map/pulls/$pr" --jq .head.sha)
+merge_sha=$(gh api --paginate "repos/omggga/morrowind-map/issues/$pr/timeline" --jq '.[] | select(.event == "merged") | .commit_id')
+base_sha=$(gh api "repos/omggga/morrowind-map/git/commits/$merge_sha" --jq '.parents[0].sha')
+gh workflow run dataset-review.yml --repo omggga/morrowind-map --ref main \
+  -f pr_number="$pr" -f expected_head="$head_sha" -f expected_base="$base_sha"
+```
+
+Recovery requires a PR merged into canonical `main` with a two-parent merge
+commit whose second parent is the exact PR head. A closed, unmerged PR, squash
+merge, or mismatching head/base is rejected. The normal archive, graph, receipt
+and publication checks still run; the deployment gate also checks the actual
+merged snapshot. After the trusted check succeeds, rerun the failed deployment
+job for that main commit only if it is still the intended production revision.
+Use Actions for that retry; `dataset_review_retry` targets open PR CI runs only.
 
 To review and publish a Release-backed baseline without a PR, use
 `pr_number=0`, `bootstrap_sha=<full-main-ancestor-SHA>` and `source_mapping=[]`.

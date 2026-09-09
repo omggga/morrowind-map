@@ -184,6 +184,36 @@ class ReleaseAPI:
     def get_pull(self, number: int):
         return self._request(f'repos/{REPOSITORY}/pulls/{positive_id(number)}')
 
+    def get_pull_merge_sha(self, number: int) -> str:
+        # REST 2026-03-10 removed merge_commit_sha from PR responses. The
+        # canonical PR timeline still identifies the actual merged commit.
+        prefix = f'repos/{REPOSITORY}/issues/{positive_id(number)}/timeline'
+        merged = None
+        count = 0
+        for page in range(1, 12):
+            batch = self._request(f'{prefix}?per_page=100&page={page}')
+            if not isinstance(batch, list) or len(batch) > 100 or count + len(batch) > 1000:
+                raise DeploymentError('PR timeline count exceeds its limit')
+            count += len(batch)
+            for event in batch:
+                if not isinstance(event, dict) or not isinstance(event.get('event'), str):
+                    raise DeploymentError('PR timeline contains an invalid event')
+                if event['event'] == 'merged':
+                    revision = event.get('commit_id')
+                    if merged is not None or not isinstance(revision, str) or not re.fullmatch(r'[a-f0-9]{40}', revision):
+                        raise DeploymentError('PR timeline contains conflicting or invalid merge events')
+                    merged = revision
+            if len(batch) < 100:
+                if merged is None:
+                    raise DeploymentError('PR timeline does not identify a merge commit')
+                return merged
+        raise DeploymentError('PR timeline pagination exceeded its limit')
+
+    def get_commit(self, revision: str):
+        if not isinstance(revision, str) or not re.fullmatch(r'[a-f0-9]{40}', revision):
+            raise DeploymentError('Commit lookup requires a full lowercase commit SHA')
+        return self._request(f'repos/{REPOSITORY}/git/commits/{revision}')
+
     def create_check(self, payload: dict):
         return self._request(f'repos/{REPOSITORY}/check-runs', method='POST', body=payload)
 

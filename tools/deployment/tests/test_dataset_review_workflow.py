@@ -41,7 +41,7 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.base = self.commit()
         (self.root / 'README.md').write_text('Candidate documentation change.\n')
         self.head = self.commit()
-        self.pr = {'number': 17, 'state': 'open', 'head': {'sha': self.head},
+        self.pr = {'number': 17, 'state': 'open', 'merged': False, 'head': {'sha': self.head},
                    'base': {'sha': self.base, 'ref': 'main', 'repo': {'full_name': REPOSITORY}}}
         self.release = {'id': 101, 'tag_name': self.entry['releaseTag'], 'draft': False, 'immutable': True}
         self.assets = []
@@ -65,6 +65,21 @@ class ReviewWorkflowTests(unittest.TestCase):
 
     def get_pull(self, number):
         return copy.deepcopy(self.pr)
+
+    def get_commit(self, revision):
+        return copy.deepcopy(self.merge_metadata)
+
+    def get_pull_merge_sha(self, number):
+        return self.merge_sha
+
+    def merge_pull(self):
+        merge = self.git('commit-tree', self.head + '^{tree}', '-p', self.base,
+                         '-p', self.head, '-m', 'Merged fixture')
+        self.merge_metadata = {'sha': merge, 'parents': [{'sha': self.base}, {'sha': self.head}]}
+        self.merge_sha = merge
+        self.pr.update(state='closed', merged=True)
+        # The live branch tip is not the immutable base of the merged PR.
+        self.pr['base']['sha'] = 'f' * 40
 
     def release_by_tag(self, repository, tag):
         return self.release
@@ -145,6 +160,9 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(receipt['packages'][0]['entry'], self.entry)
 
     def test_publication_and_durable_success_binding_follow_complete_review(self):
+        self.check_publication_and_binding()
+
+    def check_publication_and_binding(self):
         receipt = self.prepare()
         receipt_path = self.root / 'work/report/receipt.json'
         binding = promote_review(receipt_path=receipt_path, receipt_sha=digest(receipt),
@@ -168,6 +186,67 @@ class ReviewWorkflowTests(unittest.TestCase):
                 with self.assertRaises(DeploymentError):
                     promote_review(receipt_path=path, receipt_sha=checksum, work_root=self.root / 'work-pub',
                                    api=self, tool_sha=self.head, run_id=123, run_attempt=attempt)
+            publish.assert_not_called()
+
+    def test_merged_pr_completes_review_publication_and_success_binding(self):
+        self.merge_pull()
+        self.check_publication_and_binding()
+        binding = json.loads(self.checks[0]['output']['text'])
+        self.assertEqual(binding['baseSha'], self.base)
+        self.assertEqual(binding['headSha'], self.head)
+
+    def test_merge_after_review_preserves_the_frozen_head_and_base(self):
+        receipt = self.prepare()
+        self.merge_pull()
+        binding = promote_review(receipt_path=self.root / 'work/report/receipt.json',
+                                 receipt_sha=digest(receipt), work_root=self.root / 'work-pub',
+                                 api=self, tool_sha=self.head, run_id=123, run_attempt=1)
+        self.assertEqual(binding['baseSha'], self.base)
+
+    def test_invalid_merge_identity_or_parents_cannot_start_review(self):
+        self.merge_pull()
+        original = copy.deepcopy(self.merge_metadata)
+        variants = [None, {}, dict(original, sha='a' * 40),
+                    dict(original, parents=[]), dict(original, parents=[{'sha': self.base}]),
+                    dict(original, parents=[{'sha': self.base}, {'sha': 'a' * 40}]),
+                    dict(original, parents=[{'sha': 'not-a-sha'}, {'sha': self.head}]),
+                    dict(original, parents=[{'sha': self.base}, None]),
+                    dict(original, parents=original['parents'] + [{'sha': self.head}])]
+        for value in variants:
+            self.merge_metadata = value
+            with self.subTest(value=value), self.assertRaises(DeploymentError):
+                self.context()
+
+    def test_malformed_pr_identity_or_state_cannot_start_review(self):
+        original = copy.deepcopy(self.pr)
+        variants = [None, {}, dict(original, base=None), dict(original, head=None),
+                    dict(original, base=dict(original['base'], repo=None)),
+                    dict(original, merged=None), dict(original, merged='true'),
+                    dict(original, merged=True), dict(original, state='closed')]
+        for value in variants:
+            self.pr = value
+            with self.subTest(value=value), self.assertRaises(DeploymentError):
+                self.context()
+
+    def test_closed_unmerged_pr_cannot_publish_a_prepared_review(self):
+        receipt = self.prepare()
+        self.pr.update(state='closed', merged=False)
+        with mock.patch('tools.deployment.dataset_review_workflow.publish_packages') as publish:
+            with self.assertRaises(DeploymentError):
+                promote_review(receipt_path=self.root / 'work/report/receipt.json',
+                               receipt_sha=digest(receipt), work_root=self.root / 'work-pub',
+                               api=self, tool_sha=self.head, run_id=123, run_attempt=1)
+            publish.assert_not_called()
+
+    def test_merge_with_a_different_base_cannot_publish_a_prepared_review(self):
+        receipt = self.prepare()
+        self.merge_pull()
+        self.merge_metadata['parents'][0]['sha'] = 'a' * 40
+        with mock.patch('tools.deployment.dataset_review_workflow.publish_packages') as publish:
+            with self.assertRaisesRegex(DeploymentError, 'head or base changed'):
+                promote_review(receipt_path=self.root / 'work/report/receipt.json',
+                               receipt_sha=digest(receipt), work_root=self.root / 'work-pub',
+                               api=self, tool_sha=self.head, run_id=123, run_attempt=1)
             publish.assert_not_called()
 
     def test_stale_head_or_base_fails_before_publication_and_success_check(self):
