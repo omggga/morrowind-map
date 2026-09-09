@@ -4,7 +4,7 @@ Issues, bug reports, map corrections, and focused pull requests are welcome. Des
 
 ## Make a change
 
-1. Follow the setup in [README.md](README.md).
+1. Check the [platform and tool requirements](README.md#requirements), then follow the local setup in README. Use Linux or macOS; native Windows build support is still in development.
 2. Create a branch from current `main`, for example `fix/search-retry` or `feature/place-filter`.
 3. Make a focused change. Use English for application copy, documentation, commit messages, and PR text. Preserve upstream names and intentional Unicode data.
 4. Run checks relevant to the change, then open a PR into `main`. Explain the result and how you checked it.
