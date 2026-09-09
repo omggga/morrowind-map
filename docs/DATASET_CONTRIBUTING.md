@@ -113,7 +113,8 @@ pnpm datasets:download
 
 Python 3.10+ on macOS or Linux is sufficient; the downloader uses the standard
 library. It also works from a source ZIP without Git, Docker, or game inputs.
-The repository is currently private. The downloader reads `GH_TOKEN` /
+Public source releases support downloads without a GitHub account. For private
+source repositories, the downloader reads `GH_TOKEN` /
 `GITHUB_TOKEN` from the environment or an existing `gh auth login` session. A fine-grained token needs only
 repository Contents read access. Public releases support `--anonymous`, which
 does not read credentials or require `gh`. Never put tokens in command arguments.
