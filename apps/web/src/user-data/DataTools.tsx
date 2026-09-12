@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
 import type { Locale } from '@morrowind-map/contracts';
 import {
   userDatabase,
@@ -19,7 +19,7 @@ type BusyOperation = 'export' | 'backup' | null;
 
 type Feedback =
   | { readonly tone: 'error'; readonly text: string }
-  | { readonly tone: 'status'; readonly kind: 'backup-exported' }
+  | { readonly tone: 'status'; readonly kind: 'backup-exported'; readonly operationId: number }
   | { readonly tone: 'status'; readonly kind: 'backup-result'; readonly result: BackupImportResult };
 
 export interface DataToolsProps {
@@ -74,6 +74,18 @@ export function DataTools({
   const compact = variant === 'compact';
   const isDisabled = disabled || busy !== null;
   const importDisabled = isDisabled || mode === 'conflict-export-only';
+  const exportFeedback = feedback?.tone === 'status' && feedback.kind === 'backup-exported'
+    ? feedback : null;
+
+  useEffect(() => {
+    if (exportFeedback === null) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      setFeedback((current) => current === exportFeedback ? null : current);
+    }, 5000);
+    return () => window.clearTimeout(timeout);
+  }, [exportFeedback]);
 
   const beginOperation = (operation: Exclude<BusyOperation, null>) => {
     if (disabled || activeOperationRef.current !== null) {
@@ -116,7 +128,7 @@ export function DataTools({
         ? await createPortableBackupForStoredDataset(database, datasetId)
         : await createPortableBackup(database, datasetSnapshots);
       downloadBackup(`${JSON.stringify(backup, null, 2)}\n`, backup.exportedAt);
-      finishOperation(operationId, { tone: 'status', kind: 'backup-exported' });
+      finishOperation(operationId, { tone: 'status', kind: 'backup-exported', operationId });
     } catch (error: unknown) {
       failOperation(operationId, error, strings.exportJson);
     }
@@ -216,7 +228,8 @@ export function DataTools({
 
       {feedbackText ? (
         <p
-          className={`user-data-tools__feedback user-data-tools__feedback--${feedback?.tone ?? 'status'}`}
+          key={exportFeedback?.operationId ?? 'feedback'}
+          className={`user-data-tools__feedback user-data-tools__feedback--${feedback?.tone ?? 'status'}${exportFeedback ? ' user-data-tools__feedback--transient' : ''}`}
           role={feedback?.tone === 'error' ? 'alert' : 'status'}
         >
           {feedbackText}

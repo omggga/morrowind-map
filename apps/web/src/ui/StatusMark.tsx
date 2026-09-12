@@ -1,4 +1,6 @@
-import { MARKER_SEMANTICS, type MarkerKind } from './markerSemantics';
+import { useContext } from 'react';
+import { markerAppearance, type MarkerKind } from './markerSemantics';
+import { MarkerAppearanceContext } from './MarkerAppearanceContext';
 
 interface StatusMarkProps {
   readonly kind: MarkerKind;
@@ -6,7 +8,8 @@ interface StatusMarkProps {
 }
 
 export function StatusMark({ kind, className = '' }: StatusMarkProps) {
-  const semantic = MARKER_SEMANTICS[kind];
+  const colorblind = useContext(MarkerAppearanceContext);
+  const semantic = markerAppearance(kind, colorblind);
   return (
     <svg
       aria-hidden="true"

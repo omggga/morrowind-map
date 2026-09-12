@@ -107,7 +107,7 @@ export function PlaceProgressEditor({
     const operation: SaveOperation = { kind, revision };
     activeOperationRef.current = operation;
     setSaving(kind);
-    setFeedback(null);
+    setFeedback((current) => kind === 'note' || current?.tone === 'error' ? null : current);
     return operation;
   };
 
@@ -128,7 +128,6 @@ export function PlaceProgressEditor({
         status: nextStatus,
       });
       onSaved?.(saved);
-      setFeedback({ placeKey, tone: 'status', text: strings.saved });
     } catch (error: unknown) {
       setFeedback({
         placeKey,

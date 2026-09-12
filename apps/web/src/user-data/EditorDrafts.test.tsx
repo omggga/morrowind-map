@@ -111,6 +111,16 @@ describe('editor crash-recovery drafts', () => {
       });
     });
     expect(screen.getByRole('status')).toHaveTextContent('Saved.');
+    const savedFeedback = screen.getByRole('status');
+    fireEvent.click(screen.getByRole('button', { name: 'Active' }));
+    expect(screen.getByRole('status')).toBe(savedFeedback);
+    await waitFor(async () => {
+      expect(await database.progress.get(progressKey(datasetId, placeId))).toMatchObject({
+        status: 'active',
+        note: '  First line\nSecond line  ',
+      });
+    });
+    expect(screen.getByRole('status')).toBe(savedFeedback);
   });
 
   it('ignores a place-note draft from the retired user-data epoch', async () => {

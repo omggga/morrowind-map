@@ -36,6 +36,8 @@ function IconPath({ name }: { readonly name: PixelIconName }) {
       return <path d="M8 1C4 1 1 4 1 8c0 3 2 6 5 7v-2c-2 0-2-1-3-2 0-1-1-1-1-1 1 0 1 1 2 1 1 1 2 0 2 0 0-1 0-1 1-2-2 0-4-1-4-4 0-1 0-2 1-3 0-1 0-2 0-2 2 0 2 1 3 1h2c1 0 2-1 3-1 0 0 0 1 0 2 1 1 1 2 1 3 0 3-2 4-4 4 1 1 1 2 1 4v2c3-1 5-4 5-7 0-4-3-7-7-7z" />;
     case 'link':
       return <path d="M9 1h4v2h2v4h-2v2h-3V7h2V6h1V4h-1V3h-2v1H9v2H7V3h2V1zM6 7v2H4v1H3v2h1v1h2v-1h1v-2h2v3H7v2H3v-2H1V9h2V7h3zM9 5h2v2H9v2H7v2H5V9h2V7h2V5z" />;
+    case 'settings':
+      return <path fillRule="evenodd" d="M6 0h4v2h2V1h2v3h-1v2h3v4h-3v2h1v3h-2v-1h-2v2H6v-2H4v1H2v-3h1v-2H0V6h3V4H2V1h2v1h2V0zM6 5v1H5v4h1v1h4v-1h1V6h-1V5H6z" />;
   }
 }
 

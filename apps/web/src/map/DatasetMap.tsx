@@ -71,6 +71,9 @@ import {
 } from '../user-data';
 import { PixelIcon } from '../ui/PixelIcon';
 import { StatusMark } from '../ui/StatusMark';
+import { MapSettings } from '../ui/MapSettings';
+import { MarkerAppearanceContext } from '../ui/MarkerAppearanceContext';
+import { readColorblindPreference, saveColorblindPreference } from '../ui/mapPreferences';
 import {
   createFocusReturnController,
   isKeyboardActivation,
@@ -78,6 +81,8 @@ import {
 import {
   MARKER_KINDS,
   MARKER_SEMANTICS,
+  markerColor,
+  markerAppearance,
   type MarkerKind,
 } from '../ui/markerSemantics';
 import { CurrentBasemapLoadWindow } from './currentBasemapLoadWindow';
@@ -148,46 +153,35 @@ const OLD_EBONHEART_VIEW: MapUrlView = {
   zoom: 4,
 };
 
-const MARKER_ICON_SOURCES = new globalThis.Map<MarkerKind, string>(
-  MARKER_KINDS.map((kind) => {
-    const semantic = MARKER_SEMANTICS[kind];
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12" shape-rendering="crispEdges"><path d="${semantic.path}" fill="${semantic.color}" fill-rule="${semantic.fillRule}"/></svg>`;
-    return [kind, `data:image/svg+xml,${encodeURIComponent(svg)}`];
-  }),
-);
+const MARKER_STYLE_CACHE = new globalThis.Map<string, Style[]>();
 
 const SELECTED_PLACE_COLOR = '#6fe7ff';
 const SELECTED_PLACE_ICON_SOURCE = `data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12" shape-rendering="crispEdges"><path d="${MARKER_SEMANTICS.unvisited.path}" fill="${SELECTED_PLACE_COLOR}" fill-rule="evenodd"/></svg>`,
 )}`;
 
-function createMarkerStyles(kind: MarkerKind, emphasis: MarkerEmphasis): Style[] {
+function createMarkerStyles(kind: MarkerKind, emphasis: MarkerEmphasis, colorblind = false): Style[] {
+  const key = `${kind}:${emphasis}:${colorblind}`;
+  const cached = MARKER_STYLE_CACHE.get(key);
+  if (cached) {
+    return cached;
+  }
+  const semantic = markerAppearance(kind, colorblind);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12" shape-rendering="crispEdges"><path d="${semantic.path}" fill="${markerColor(kind, colorblind)}" fill-rule="${semantic.fillRule}"/></svg>`;
   const baseZIndex = emphasis === 'selected' ? 112 : emphasis === 'hovered' ? 102 : 92;
   const selectedPlace = emphasis === 'selected' && kind !== 'custom';
-  const scale = selectedPlace ? 0.6 : emphasis === 'selected' ? 0.45 : emphasis === 'hovered' ? 0.4 : 0.35;
-  return [new Style({
+  const scale = selectedPlace ? 0.6 : emphasis === 'selected' ? 0.45 : 0.35;
+  const styles = [new Style({
     image: new Icon({
-      src: selectedPlace ? SELECTED_PLACE_ICON_SOURCE : MARKER_ICON_SOURCES.get(kind) ?? '',
+      src: selectedPlace && !colorblind ? SELECTED_PLACE_ICON_SOURCE : `data:image/svg+xml,${encodeURIComponent(svg)}`,
       scale,
     }),
     zIndex: baseZIndex,
   })];
+  MARKER_STYLE_CACHE.set(key, styles);
+  return styles;
 }
 
-function createProgressMarkerStyles(emphasis: MarkerEmphasis): Record<ProgressStatus, Style[]> {
-  return {
-    unvisited: createMarkerStyles('unvisited', emphasis),
-    active: createMarkerStyles('active', emphasis),
-    visited: createMarkerStyles('visited', emphasis),
-  };
-}
-
-const PLACE_STYLES = createProgressMarkerStyles('default');
-const HOVERED_PLACE_STYLES = createProgressMarkerStyles('hovered');
-const SELECTED_PLACE_STYLES = createProgressMarkerStyles('selected');
-const CUSTOM_MARKER_STYLES = createMarkerStyles('custom', 'default');
-const HOVERED_CUSTOM_MARKER_STYLES = createMarkerStyles('custom', 'hovered');
-const SELECTED_CUSTOM_MARKER_STYLES = createMarkerStyles('custom', 'selected');
 const PLACE_LABEL_STYLE_CACHE = new globalThis.Map<string, Style>();
 const BASEMAP_PRESENTATION_STYLE = {
   '--basemap-brightness': String(BASEMAP_BRIGHTNESS_FACTOR),
@@ -201,10 +195,11 @@ function createPlaceLabelStyle(
   status: MarkerKind,
   showAll: boolean,
   hovered = false,
+  colorblind = false,
 ): Style {
   const emphasized = selected || hovered;
   const tone = selected ? 'selected' : searchMatch ? 'match' : 'default';
-  const cacheKey = `${tone}\0${hovered}\0${status}\0${showAll}\0${name}`;
+  const cacheKey = `${tone}\0${hovered}\0${status}\0${showAll}\0${colorblind}\0${name}`;
   const cached = PLACE_LABEL_STYLE_CACHE.get(cacheKey);
   if (cached) {
     return cached;
@@ -219,7 +214,7 @@ function createPlaceLabelStyle(
       offsetY: -11,
       padding: hovered ? [3, 5, 3, 5] : [1, 2, 1, 2],
       backgroundFill: hovered ? new Fill({ color: 'rgba(23, 19, 13, 0.7)' }) : undefined,
-      fill: new Fill({ color: selected && status !== 'custom' ? SELECTED_PLACE_COLOR : MARKER_SEMANTICS[status].color }),
+      fill: new Fill({ color: selected && status !== 'custom' && !colorblind ? SELECTED_PLACE_COLOR : markerColor(status, colorblind) }),
       stroke: new Stroke({ color: '#17130d', width: 2 }),
       declutterMode: emphasized || showAll ? 'none' : 'declutter',
       overflow: true,
@@ -524,6 +519,8 @@ function DatasetMapReady({
 }: DatasetMapReadyProps) {
   const { t } = useTranslation();
   const locale: Locale = 'en';
+  const [colorblind, setColorblind] = useState(readColorblindPreference);
+  const colorblindRef = useRef(colorblind);
   const targetRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<Map | null>(null);
@@ -536,6 +533,7 @@ function DatasetMapReady({
   const labelLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const focusedLabelLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const customMarkerLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
+  const focusedCustomLabelLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
   const visiblePlaceIdsRef = useRef<ReadonlySet<string>>(new Set<string>());
   const labelPriorityContextRef = useRef<{
     selectedPlaceId: string | null;
@@ -986,6 +984,15 @@ function DatasetMapReady({
   }, []);
 
   useEffect(() => {
+    colorblindRef.current = colorblind;
+    markerLayerRef.current?.changed();
+    labelLayerRef.current?.changed();
+    focusedLabelLayerRef.current?.changed();
+    customMarkerLayerRef.current?.changed();
+    focusedCustomLabelLayerRef.current?.changed();
+  }, [colorblind]);
+
+  useEffect(() => {
     selectedIdRef.current = selectedId;
     labelPriorityContextRef.current = {
       ...labelPriorityContextRef.current,
@@ -999,6 +1006,7 @@ function DatasetMapReady({
   useEffect(() => {
     selectedMarkerIdRef.current = selectedMarkerId;
     customMarkerLayerRef.current?.changed();
+    focusedCustomLabelLayerRef.current?.changed();
     if (selectedMarkerFocusTargetId === null) {
       return undefined;
     }
@@ -1034,6 +1042,8 @@ function DatasetMapReady({
       PLACE_LABEL_STYLE_CACHE.clear();
       labelLayerRef.current?.changed();
       focusedLabelLayerRef.current?.changed();
+      customMarkerLayerRef.current?.changed();
+      focusedCustomLabelLayerRef.current?.changed();
     });
     return () => {
       cancelled = true;
@@ -1271,11 +1281,13 @@ function DatasetMapReady({
         }
         const status = progressByPlaceIdRef.current.get(placeId)?.status ?? 'unvisited';
         if (placeId === selectedIdRef.current) {
-          return SELECTED_PLACE_STYLES[status];
+          return createMarkerStyles(status, 'selected', colorblindRef.current);
         }
-        return placeId === hoveredPlaceIdRef.current
-          ? HOVERED_PLACE_STYLES[status]
-          : PLACE_STYLES[status];
+        return createMarkerStyles(
+          status,
+          placeId === hoveredPlaceIdRef.current ? 'hovered' : 'default',
+          colorblindRef.current,
+        );
       },
       updateWhileAnimating: true,
       updateWhileInteracting: true,
@@ -1315,6 +1327,8 @@ function DatasetMapReady({
           labelPriorityContextRef.current.searchMatchIds.has(placeId),
           progressByPlaceIdRef.current.get(placeId)?.status ?? 'unvisited',
           resolution <= view.getResolutionForZoom(8) * 1.001,
+          false,
+          colorblindRef.current,
         );
       },
       updateWhileAnimating: true,
@@ -1341,6 +1355,7 @@ function DatasetMapReady({
           progressByPlaceIdRef.current.get(placeId)?.status ?? 'unvisited',
           true,
           hovered,
+          colorblindRef.current,
         );
       },
       updateWhileAnimating: true,
@@ -1356,11 +1371,14 @@ function DatasetMapReady({
         }
         const markerId = feature.get('markerId') as string;
         const selected = markerId === selectedMarkerIdRef.current;
-        const markerStyles = selected
-          ? SELECTED_CUSTOM_MARKER_STYLES
-          : markerId === hoveredMarkerIdRef.current
-            ? HOVERED_CUSTOM_MARKER_STYLES
-            : CUSTOM_MARKER_STYLES;
+        const markerStyles = createMarkerStyles(
+          'custom',
+          selected ? 'selected' : markerId === hoveredMarkerIdRef.current ? 'hovered' : 'default',
+          colorblindRef.current,
+        );
+        if (selected || markerId === hoveredMarkerIdRef.current) {
+          return markerStyles;
+        }
         return [
           ...markerStyles,
           createPlaceLabelStyle(
@@ -1369,6 +1387,8 @@ function DatasetMapReady({
             false,
             'custom',
             true,
+            false,
+            colorblindRef.current,
           ),
         ];
       },
@@ -1377,6 +1397,31 @@ function DatasetMapReady({
     });
     customMarkerLayer.setZIndex(20);
     customMarkerLayerRef.current = customMarkerLayer;
+    const focusedCustomLabelLayer = new VectorLayer({
+      source: customMarkerLayer.getSource()!,
+      renderBuffer: 180,
+      style: (feature, resolution) => {
+        if (resolution > view.getResolutionForZoom(2)) {
+          return undefined;
+        }
+        const markerId = feature.get('markerId') as string;
+        const selected = markerId === selectedMarkerIdRef.current;
+        const hovered = markerId === hoveredMarkerIdRef.current;
+        return selected || hovered ? createPlaceLabelStyle(
+          Array.from(feature.get('label') as string).slice(0, MAX_MARKER_LABEL_LENGTH).join(''),
+          selected,
+          false,
+          'custom',
+          true,
+          hovered,
+          colorblindRef.current,
+        ) : undefined;
+      },
+      updateWhileAnimating: true,
+      updateWhileInteracting: true,
+    });
+    focusedCustomLabelLayer.setZIndex(29);
+    focusedCustomLabelLayerRef.current = focusedCustomLabelLayer;
     const initialNavigation = initialNavigationRef.current;
     const initialPlace = initialNavigation.placeId === null
       ? null
@@ -1423,6 +1468,7 @@ function DatasetMapReady({
         labelLayer,
         customMarkerLayer,
         focusedLabelLayer,
+        focusedCustomLabelLayer,
       ],
       view,
       controls: [],
@@ -1485,20 +1531,25 @@ function DatasetMapReady({
         if (!labelHitContext) {
           return undefined;
         }
-        const place = candidate.get('placeView') as PlaceView;
+        const markerId = candidate.get('markerId') as string | undefined;
+        const place = candidate.get('placeView') as PlaceView | undefined;
+        const name = markerId
+          ? Array.from(candidate.get('label') as string).slice(0, MAX_MARKER_LABEL_LENGTH).join('')
+          : place!.name;
         const text = createPlaceLabelStyle(
-          place.name,
-          place.id === selectedIdRef.current,
-          labelPriorityContextRef.current.searchMatchIds.has(place.id),
-          progressByPlaceIdRef.current.get(place.id)?.status ?? 'unvisited',
+          name,
+          markerId ? markerId === selectedMarkerIdRef.current : place!.id === selectedIdRef.current,
+          markerId ? false : labelPriorityContextRef.current.searchMatchIds.has(place!.id),
+          markerId ? 'custom' : progressByPlaceIdRef.current.get(place!.id)?.status ?? 'unvisited',
           true,
-          place.id === hoveredPlaceIdRef.current,
+          markerId ? markerId === hoveredMarkerIdRef.current : place!.id === hoveredPlaceIdRef.current,
+          colorblindRef.current,
         ).getText()!;
         labelHitContext.font = text.getFont()!;
         labelHitContext.textAlign = 'center';
         labelHitContext.textBaseline = 'middle';
-        const metrics = labelHitContext.measureText(place.name);
-        const anchor = map.getPixelFromCoordinate([...place.place.mapPosition]);
+        const metrics = labelHitContext.measureText(name);
+        const anchor = map.getPixelFromCoordinate((candidate.getGeometry() as Point).getCoordinates());
         const x = pixel[0]! - anchor[0]! - text.getOffsetX();
         const y = pixel[1]! - anchor[1]! - text.getOffsetY();
         return x >= -metrics.actualBoundingBoxLeft && x <= metrics.actualBoundingBoxRight &&
@@ -1507,12 +1558,9 @@ function DatasetMapReady({
       };
       return map.forEachFeatureAtPixel(pixel, labelAtPixel, {
         hitTolerance: 0,
-        layerFilter: (layer) => layer === focusedLabelLayer,
+        layerFilter: (layer) => layer === focusedLabelLayer || layer === focusedCustomLabelLayer,
       }) ?? map.forEachFeatureAtPixel(pixel, (candidate, layer) => {
-        if (layer !== markerLayer) {
-          return candidate;
-        }
-        const styles = markerLayer.getStyleFunction()?.(candidate, view.getResolution()!);
+        const styles = (layer as VectorLayer<VectorSource>).getStyleFunction()?.(candidate, view.getResolution()!);
         const image = (Array.isArray(styles) ? styles[0] : styles)?.getImage();
         const size = image?.getSize();
         const scale = image?.getScaleArray();
@@ -1530,7 +1578,7 @@ function DatasetMapReady({
         layerFilter: (layer) => layer === markerLayer || layer === customMarkerLayer,
       }) ?? map.forEachFeatureAtPixel(pixel, labelAtPixel, {
         hitTolerance: 0,
-        layerFilter: (layer) => layer === labelLayer,
+        layerFilter: (layer) => layer === labelLayer || layer === customMarkerLayer,
       });
     };
     const pointerMoveKey = map.on('pointermove', (event) => {
@@ -1545,6 +1593,8 @@ function DatasetMapReady({
       if (hoveredMarkerIdRef.current !== markerId) {
         hoveredMarkerIdRef.current = markerId;
         customMarkerLayer.changed();
+        focusedCustomLabelLayer.setZIndex(markerId === null ? 29 : 31);
+        focusedCustomLabelLayer.changed();
       }
       if (hoveredPlaceIdRef.current !== placeId) {
         hoveredPlaceIdRef.current = placeId;
@@ -1659,6 +1709,8 @@ function DatasetMapReady({
       focusedLabelLayer.changed();
       customMarkerLayer.changed();
       map.getTargetElement().classList.remove('map-canvas--marker-hover');
+      focusedCustomLabelLayer.setZIndex(29);
+      focusedCustomLabelLayer.changed();
     };
     viewport.addEventListener('pointerleave', clearCursor);
 
@@ -1683,6 +1735,7 @@ function DatasetMapReady({
       labelLayerRef.current = null;
       focusedLabelLayerRef.current = null;
       customMarkerLayerRef.current = null;
+      focusedCustomLabelLayerRef.current = null;
     };
   }, [
     bundle,
@@ -2153,20 +2206,36 @@ function DatasetMapReady({
   };
 
   return (
-    <main className="map-screen dataset-map-screen" aria-labelledby="map-title">
+    <MarkerAppearanceContext.Provider value={colorblind}>
+    <main
+      className="map-screen dataset-map-screen"
+      aria-labelledby="map-title"
+      style={Object.fromEntries(MARKER_KINDS.map((kind) =>
+        [`--mim-${kind}`, markerColor(kind, colorblind)]
+      ))}
+    >
       <MapTitlebar
         dataset={dataset}
         onBack={onBack}
         tools={(
-          <DataTools
-            datasetId={dataset.datasetId}
-            datasetSnapshots={datasetSnapshots}
-            knownPlaceIds={knownPlaceIds}
-            locale={locale}
-            mode={bindingState.status === 'conflict' ? 'conflict-export-only' : 'read-write'}
-            disabled={bindingState.status !== 'conflict' && userDataDisabled}
-            variant="compact"
-          />
+          <>
+            <MapSettings
+              colorblind={colorblind}
+              onColorblindChange={(enabled) => {
+                setColorblind(enabled);
+                return saveColorblindPreference(enabled);
+              }}
+            />
+            <DataTools
+              datasetId={dataset.datasetId}
+              datasetSnapshots={datasetSnapshots}
+              knownPlaceIds={knownPlaceIds}
+              locale={locale}
+              mode={bindingState.status === 'conflict' ? 'conflict-export-only' : 'read-write'}
+              disabled={bindingState.status !== 'conflict' && userDataDisabled}
+              variant="compact"
+            />
+          </>
         )}
       />
 
@@ -2260,7 +2329,7 @@ function DatasetMapReady({
                     key={place.id}
                     type="button"
                     className={selectedId === place.id ? 'place-result place-result--selected' : 'place-result'}
-                    style={{ '--place-status-color': MARKER_SEMANTICS[status].color } as CSSProperties}
+                    style={{ '--place-status-color': markerColor(status, colorblind) } as CSSProperties}
                     aria-current={selectedId === place.id ? 'location' : undefined}
                     onClick={(event) => selectPlace(
                       place,
@@ -2485,6 +2554,7 @@ function DatasetMapReady({
         </div>
       </section>
     </main>
+    </MarkerAppearanceContext.Provider>
   );
 }
 
