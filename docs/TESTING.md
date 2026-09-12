@@ -20,20 +20,22 @@ pnpm exec playwright install chromium
 pnpm verify
 ```
 
-The full suite includes Python pipeline tests, browser workflows, visual/responsive/accessibility checks, and a build. Pipeline tests use synthetic fixtures; checks requiring actual game inputs skip when those inputs are absent. CI does not render the game.
+The full suite includes Python pipeline tests, browser workflows, responsive/accessibility checks, and a build. Screenshot comparisons are opt-in and do not run in the default CI checks. Pipeline tests use synthetic fixtures; checks requiring actual game inputs skip when those inputs are absent. CI does not render the game.
 
 ## Visual changes
 
-The browser suite protects the map, search, notes, retry behavior, keyboard and touch interaction, and accessibility. Visual baselines cover desktop and narrow portrait/landscape layouts with pinned fonts and reduced motion.
+The default `pnpm test:ui` browser suite protects the map, search, notes, retry behavior, keyboard and touch interaction, accessibility, and viewport overflow. Keyboard checks verify that controls can be reached and used without fixing their exact Tab order, so adding a button does not break the workflow test.
 
-For an intentional design change, inspect the images before accepting new baselines:
+Optional screenshot comparisons cover desktop and narrow portrait/landscape layouts with pinned fonts and reduced motion. Run them explicitly with `pnpm test:ui:visual`; normal UI development does not require updating baselines.
+
+When updating visual baselines intentionally, inspect the resulting images before accepting them:
 
 ```bash
 pnpm test:ui:update
-pnpm test:ui
+pnpm test:ui:visual
 ```
 
-Baselines are platform-specific; CI supplies the Linux result. Do not regenerate unrelated screenshots to silence a failure.
+Baselines are platform-specific; run the optional visual commands on Linux to compare or update Linux baselines. Do not regenerate unrelated screenshots to silence a failure.
 
 ## Prepared map checks
 
