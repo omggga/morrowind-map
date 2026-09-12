@@ -1406,6 +1406,8 @@ function DatasetMapReady({
       zoom: initialView?.zoom ?? 1,
       minZoom: minimumZoom,
       maxZoom: maximumZoom,
+      constrainResolution: true,
+      smoothResolutionConstraint: false,
       enableRotation: false,
       ...(viewResolutions ? { resolutions: viewResolutions } : {}),
       extent,
@@ -1838,7 +1840,7 @@ function DatasetMapReady({
     if (!view) {
       return;
     }
-    const current = view.getZoom() ?? 0;
+    const current = Math.round(view.getZoom() ?? 0);
     const next = Math.max(view.getMinZoom(), Math.min(view.getMaxZoom(), current + delta));
     if (prefersReducedMotion()) {
       view.setZoom(next);

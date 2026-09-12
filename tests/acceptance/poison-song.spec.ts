@@ -346,20 +346,20 @@ const directUrlFixtures: readonly DirectUrlFixture[] = [
   {
     label: 'Poison Song',
     url:
-      `/?dataset=${DATASET_ID}&region=tr-mainland&x=16384&y=-204800&z=4.5&place=${PLACE_ID}`,
+      `/?dataset=${DATASET_ID}&region=tr-mainland&x=16384&y=-204800&z=4&place=${PLACE_ID}`,
     heading: 'Tamriel Rebuilt — Poison Song',
     regionName: 'TR Mainland',
     placeName: PLACE_NAME,
-    view: [16_384, -204_800, 4.5],
+    view: [16_384, -204_800, 4],
   },
   {
     label: 'Original GOTY HD',
     url:
-      `/?dataset=${ORIGINAL_DATASET_ID}&region=vvardenfell&x=-20000&y=-15000&z=5.25&place=${ORIGINAL_PLACE_ID}`,
+      `/?dataset=${ORIGINAL_DATASET_ID}&region=vvardenfell&x=-20000&y=-15000&z=5&place=${ORIGINAL_PLACE_ID}`,
     heading: 'Morrowind Game of the Year',
     regionName: 'Vvardenfell',
     placeName: ORIGINAL_PLACE_NAME,
-    view: [-20_000, -15_000, 5.25],
+    view: [-20_000, -15_000, 5],
   },
 ];
 
@@ -1205,7 +1205,7 @@ test('drops a cross-dataset place while retaining a valid region and camera', as
   const url =
     `/?dataset=${ORIGINAL_DATASET_ID}&region=vvardenfell&x=-20000&y=-15000&z=5.25&place=${PLACE_ID}`;
   const canonicalUrl =
-    `/?dataset=${ORIGINAL_DATASET_ID}&region=vvardenfell&x=-20000&y=-15000&z=5.25`;
+    `/?dataset=${ORIGINAL_DATASET_ID}&region=vvardenfell&x=-20000&y=-15000&z=5`;
 
   await page.goto(url);
 
@@ -1215,7 +1215,7 @@ test('drops a cross-dataset place while retaining a valid region and camera', as
     'true',
   );
   await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toHaveCount(0);
-  await expectMapView(page, [-20_000, -15_000, 5.25]);
+  await expectMapView(page, [-20_000, -15_000, 5]);
   await expectRelativeUrl(page, canonicalUrl);
   expect(probe.externalRequests).toEqual([]);
 });
@@ -1320,20 +1320,20 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   offsetUrl.searchParams.set('status', 'unvisited');
   await page.goto(offsetUrl.href);
   await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
-  await expect.poll(() => currentMapView(page)).toEqual({ x: 14000, y: -211000, zoom: 6.45 });
+  await expect.poll(() => currentMapView(page)).toEqual({ x: 14000, y: -211000, zoom: 7 });
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.getByRole('button', { name: 'Copy link to this place' }).click();
   await expect(page.getByText('Link copied.', { exact: true })).toBeVisible();
   const sharedUrl = new URL(await page.evaluate(() => navigator.clipboard.readText()));
   expect(Object.fromEntries(sharedUrl.searchParams)).toEqual({
-    dataset: DATASET_ID, region: 'all', x: '12288', y: '-217088', z: '6.45', place: PLACE_ID,
+    dataset: DATASET_ID, region: 'all', x: '12288', y: '-217088', z: '7', place: PLACE_ID,
   });
   expect(sharedUrl.origin).toBe(offsetUrl.origin);
-  expect(await currentMapView(page)).toEqual({ x: 14000, y: -211000, zoom: 6.45 });
+  expect(await currentMapView(page)).toEqual({ x: 14000, y: -211000, zoom: 7 });
   await expect(page.getByText('Link copied.', { exact: true })).toHaveCount(0, { timeout: 6500 });
   await page.goto(sharedUrl.href);
   await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
-  await expect.poll(() => currentMapView(page)).toEqual({ x: 12288, y: -217088, zoom: 6.45 });
+  await expect.poll(() => currentMapView(page)).toEqual({ x: 12288, y: -217088, zoom: 7 });
   await page.getByRole('button', { name: 'Close place card' }).click();
   await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toHaveCount(0);
   const labelMap = mapCanvas(page);
@@ -1342,7 +1342,7 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
     throw new Error('Missing map bounds for the label interaction');
   }
   // The place is centered; target its text, outside the entrance square.
-  const labelX = bounds.x + bounds.width / 2 + 24;
+  const labelX = bounds.x + bounds.width / 2 - 24;
   const labelY = bounds.y + bounds.height / 2 - 11;
   await page.mouse.move(labelX, labelY);
   await expect(labelMap).toHaveClass(/map-canvas--marker-hover/);
@@ -1430,10 +1430,24 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   );
 
   const zoomUrl = new URL(sharedUrl.href);
-  zoomUrl.searchParams.set('z', '8');
+  zoomUrl.searchParams.set('z', '7.23');
   await page.goto(zoomUrl.href);
-  await expect.poll(() => currentMapView(page)).toEqual({ x: 12288, y: -217088, zoom: 8 });
-  await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await expect.poll(() => currentMapView(page)).toEqual({ x: 12288, y: -217088, zoom: 7 });
+  await mapCanvas(page).dblclick({ position: { x: 150, y: 150 } });
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(8);
+  await mapCanvas(page).dblclick({ position: { x: 150, y: 150 } });
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
+  await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(8);
+  await mapCanvas(page).hover({ position: { x: 150, y: 150 } });
+  await page.mouse.wheel(0, -40);
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
+  await mapCanvas(page).dblclick({ position: { x: 150, y: 150 } });
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
+  await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(8);
+  await mapCanvas(page).hover({ position: { x: 150, y: 150 } });
+  await page.mouse.wheel(0, -2);
   await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
   await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
   await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
