@@ -76,10 +76,17 @@ describe('Dexie user data storage', () => {
     );
     await saveCustomMarker(
       database,
-      { datasetId, label: 'Supply cache', note: 'Chest', position: [10, 20] },
+      { datasetId, label: 'A'.repeat(100), note: 'Chest', position: [10, 20] },
       at('2026-08-31T12:00:01.000Z'),
       () => 'fixture',
     );
+    await expect(saveCustomMarker(database, {
+      id: `${datasetId}.custom.fixture`,
+      datasetId,
+      label: 'B'.repeat(101),
+      note: 'Rejected rename',
+      position: [10, 20],
+    })).rejects.toThrow('1–100 characters');
     database.close();
 
     database = new MorrowindMapDatabase(databaseName);
@@ -91,10 +98,21 @@ describe('Dexie user data storage', () => {
     await expect(database.customMarkers.toArray()).resolves.toEqual([
       expect.objectContaining({
         id: 'original-goty-hd.custom.fixture',
-        label: 'Supply cache',
+        label: 'A'.repeat(100),
         position: [10, 20],
       }),
     ]);
+
+    // Existing long names from older backups remain editable without losing the name.
+    const markerId = `${datasetId}.custom.fixture`;
+    await database.customMarkers.update(markerId, { label: 'L'.repeat(101) });
+    await expect(saveCustomMarker(database, {
+      id: markerId,
+      datasetId,
+      label: 'L'.repeat(101),
+      note: 'Updated legacy note',
+      position: [10, 20],
+    })).resolves.toMatchObject({ label: 'L'.repeat(101), note: 'Updated legacy note' });
   });
 
   it('round-trips a manual-only v3 JSON backup without creating duplicates', async () => {

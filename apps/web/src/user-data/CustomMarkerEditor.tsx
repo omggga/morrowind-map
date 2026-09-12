@@ -12,6 +12,7 @@ import {
 } from '../storage/database';
 import {
   deleteCustomMarker,
+  MAX_MARKER_LABEL_LENGTH,
   saveCustomMarker,
 } from '../storage/userData';
 import { LOCAL_STORAGE_PREFIX } from '../storage/userDataNamespace';
@@ -222,7 +223,7 @@ export function CustomMarkerEditor({
           ref={inputRef}
           type="text"
           required
-          maxLength={512}
+          maxLength={MAX_MARKER_LABEL_LENGTH}
           value={label}
           disabled={isDisabled}
           onChange={(event) => {

@@ -58,6 +58,7 @@ import { normalizeMapUrlState } from '../navigation/normalizeMapUrlState';
 import { userDatabase } from '../storage/database';
 import {
   DatasetSnapshotConflictError,
+  MAX_MARKER_LABEL_LENGTH,
   ensureDatasetSnapshot,
   saveCustomMarker,
 } from '../storage/userData';
@@ -191,7 +192,7 @@ function createPlaceLabelStyle(
   name: string,
   selected: boolean,
   searchMatch: boolean,
-  status: ProgressStatus,
+  status: MarkerKind,
   showAll: boolean,
 ): Style {
   const tone = selected ? 'selected' : searchMatch ? 'match' : 'default';
@@ -1305,14 +1306,27 @@ function DatasetMapReady({
     labelLayerRef.current = labelLayer;
     const customMarkerLayer = new VectorLayer({
       source: new VectorSource(),
-      style: (feature) => {
-        const markerId = feature.get('markerId') as string;
-        if (markerId === selectedMarkerIdRef.current) {
-          return SELECTED_CUSTOM_MARKER_STYLES;
+      style: (feature, resolution) => {
+        if (resolution > view.getResolutionForZoom(2)) {
+          return undefined;
         }
-        return markerId === hoveredMarkerIdRef.current
-          ? HOVERED_CUSTOM_MARKER_STYLES
-          : CUSTOM_MARKER_STYLES;
+        const markerId = feature.get('markerId') as string;
+        const selected = markerId === selectedMarkerIdRef.current;
+        const markerStyles = selected
+          ? SELECTED_CUSTOM_MARKER_STYLES
+          : markerId === hoveredMarkerIdRef.current
+            ? HOVERED_CUSTOM_MARKER_STYLES
+            : CUSTOM_MARKER_STYLES;
+        return [
+          ...markerStyles,
+          createPlaceLabelStyle(
+            Array.from(feature.get('label') as string).slice(0, MAX_MARKER_LABEL_LENGTH).join(''),
+            selected,
+            false,
+            'custom',
+            true,
+          ),
+        ];
       },
       updateWhileAnimating: true,
       updateWhileInteracting: true,
@@ -1717,6 +1731,7 @@ function DatasetMapReady({
           new Feature({
             geometry: new Point([...marker.position]),
             markerId: marker.id,
+            label: marker.label,
           }),
       ),
     );

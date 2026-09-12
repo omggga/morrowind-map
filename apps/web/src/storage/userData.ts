@@ -14,7 +14,7 @@ import type {
 import { progressKey } from './database';
 
 export const MAX_NOTE_LENGTH = 10_000;
-export const MAX_MARKER_LABEL_LENGTH = 512;
+export const MAX_MARKER_LABEL_LENGTH = 100;
 
 export interface ProgressPatch {
   readonly status?: ProgressStatus;
@@ -221,7 +221,7 @@ export async function saveCustomMarker(
   if (!id.startsWith(`${input.datasetId}.`)) {
     throw new Error('Custom marker id must be scoped to its dataset');
   }
-  if (!label || label.length > MAX_MARKER_LABEL_LENGTH) {
+  if (!label) {
     throw new Error(`Custom marker label must contain 1–${MAX_MARKER_LABEL_LENGTH} characters`);
   }
   if (input.note.length > MAX_NOTE_LENGTH) {
@@ -233,6 +233,10 @@ export async function saveCustomMarker(
   return database.transaction('rw', database.datasetSnapshots, database.customMarkers, async () => {
     await requireDatasetSnapshotBinding(database, input.datasetId);
     const existing = await database.customMarkers.get(id);
+    // Older backups may contain longer names; allow note-only edits without truncating them.
+    if (label.length > MAX_MARKER_LABEL_LENGTH && label !== existing?.label) {
+      throw new Error(`Custom marker label must contain 1–${MAX_MARKER_LABEL_LENGTH} characters`);
+    }
     if (existing && existing.datasetId !== input.datasetId) {
       throw new Error('Custom marker belongs to a different dataset');
     }
