@@ -1334,6 +1334,31 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   await page.goto(sharedUrl.href);
   await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
   await expect.poll(() => currentMapView(page)).toEqual({ x: 12288, y: -217088, zoom: 6.45 });
+  await page.getByRole('button', { name: 'Close place card' }).click();
+  await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toHaveCount(0);
+  const labelMap = mapCanvas(page);
+  const bounds = await labelMap.boundingBox();
+  if (!bounds) {
+    throw new Error('Missing map bounds for the label interaction');
+  }
+  // The place is centered; target its text, outside the entrance square.
+  const labelX = bounds.x + bounds.width / 2 + 24;
+  const labelY = bounds.y + bounds.height / 2 - 11;
+  await page.mouse.move(labelX, labelY);
+  await expect(labelMap).toHaveClass(/map-canvas--marker-hover/);
+  // This point lies in the background's upper padding, outside the letters.
+  await page.mouse.move(labelX, labelY - 8);
+  await expect(labelMap).not.toHaveClass(/map-canvas--marker-hover/);
+  await page.mouse.move(labelX, labelY);
+  await expect(labelMap).toHaveClass(/map-canvas--marker-hover/);
+  await page.mouse.click(labelX, labelY);
+  await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await expect(labelMap).toHaveClass(/map-canvas--marker-hover/);
+  await page.mouse.move(bounds.x + bounds.width / 2 + 12, bounds.y + bounds.height / 2 + 2);
+  await expect(labelMap).not.toHaveClass(/map-canvas--marker-hover/);
+  await page.mouse.move(0, 0);
+  await expect(labelMap).not.toHaveClass(/map-canvas--marker-hover/);
   const progress = page.getByLabel('Place progress');
   const activeStatus = progress.getByRole('button', { name: 'Active' });
   await activeStatus.click();
