@@ -1318,7 +1318,7 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   await expect(activeStatus).toHaveAttribute('aria-pressed', 'true');
   const note = progress.getByRole('textbox', { name: 'Personal note' });
   await note.fill('Return after sunset.');
-  await note.blur();
+  await progress.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(progress.getByRole('status')).toHaveText('Saved.');
 
   const zoomBefore = (await currentMapView(page)).zoom;
@@ -1341,7 +1341,7 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   await expect(markerName).toBeFocused();
   await markerName.fill('Field note pin');
   await markerNote.fill('Hidden cache.');
-  await markerEditor.getByRole('button', { name: 'Save marker' }).click();
+  await markerEditor.getByRole('button', { name: 'Save' }).click();
   await expect(markerEditor.getByRole('status')).toHaveText('Saved.');
   await expect(markerEditor.getByRole('textbox', { name: 'Marker name' })).toHaveValue(
     'Field note pin',
@@ -1562,7 +1562,7 @@ test('@prepared renders and searches the complete local Original HD dataset', as
   await expect(visitedStatus).toHaveAttribute('aria-pressed', 'true');
   const note = progress.getByRole('textbox', { name: 'Personal note' });
   await note.fill('Original route cleared.');
-  await note.blur();
+  await progress.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(progress.getByRole('status')).toHaveText('Saved.');
 
   const zoomBefore = (await currentMapView(page)).zoom;
@@ -1582,7 +1582,7 @@ test('@prepared renders and searches the complete local Original HD dataset', as
   const markerEditor = page.getByLabel('Custom marker');
   await markerEditor.getByRole('textbox', { name: 'Marker name' }).fill('Original field pin');
   await markerEditor.getByRole('textbox', { name: 'Personal note' }).fill('Base-game only.');
-  await markerEditor.getByRole('button', { name: 'Save marker' }).click();
+  await markerEditor.getByRole('button', { name: 'Save' }).click();
   await expect(markerEditor.getByRole('status')).toHaveText('Saved.');
   await expect(markerEditor.getByRole('textbox', { name: 'Marker name' })).toHaveValue(
     'Original field pin',

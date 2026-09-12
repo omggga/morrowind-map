@@ -119,7 +119,7 @@ test('pins both themes and the interactive state matrix', async ({ page }, testI
   const progress = page.getByLabel('Place progress');
   const personalNote = progress.getByRole('textbox', { name: 'Personal note' });
   await personalNote.fill('Return after sunset.');
-  await personalNote.blur();
+  await progress.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(progress.getByRole('status')).toHaveText('Saved.');
   await progress.getByRole('button', { name: 'Active', exact: true }).click();
   await expect(progress.getByRole('button', { name: 'Active', exact: true })).toHaveAttribute(
@@ -138,10 +138,10 @@ test('pins both themes and the interactive state matrix', async ({ page }, testI
   await expect(markerName).toBeFocused();
   await markerName.fill('Field note pin');
   await markerEditor.getByRole('textbox', { name: 'Personal note' }).fill('Hidden cache.');
-  await markerEditor.getByRole('button', { name: 'Save marker' }).click();
+  await markerEditor.getByRole('button', { name: 'Save' }).click();
   await expect(markerEditor.getByRole('status')).toHaveText('Saved.');
   await screenshot(page, 'personal-marker-editor.png');
-  await markerEditor.getByRole('button', { name: 'Delete marker' }).click();
+  await markerEditor.getByRole('button', { name: 'Delete' }).click();
   await screenshot(page, 'personal-marker-delete.png');
   await markerEditor.getByRole('button', { name: 'Cancel' }).click();
   await page.getByRole('button', { name: 'Close personal marker card' }).click();
@@ -238,6 +238,8 @@ test('supports a real keyboard-only primary workflow and focus return', async ({
   await tabTo(page, note);
   await page.keyboard.type('Keyboard route.');
   await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Place progress').getByRole('button', { name: 'Save', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(page.getByLabel('Place progress').getByRole('status')).toHaveText('Saved.');
   const activeStatus = page.getByLabel('Place progress').getByRole('button', { name: 'Active', exact: true });
   await tabTo(page, activeStatus, { reverse: true });
@@ -259,11 +261,11 @@ test('supports a real keyboard-only primary workflow and focus return', async ({
   const markerNote = page.getByLabel('Custom marker').getByRole('textbox', { name: 'Personal note' });
   await tabTo(page, markerNote);
   await page.keyboard.type('Created without a pointer.');
-  const saveMarker = page.getByRole('button', { name: 'Save marker' });
+  const saveMarker = page.getByRole('button', { name: 'Save' });
   await tabTo(page, saveMarker);
   await page.keyboard.press('Enter');
-  const deleteMarker = page.getByRole('button', { name: 'Delete marker' });
-  await tabTo(page, deleteMarker);
+  const deleteMarker = page.getByRole('button', { name: 'Delete' });
+  await tabTo(page, deleteMarker, { reverse: true });
   await page.keyboard.press('Enter');
   const cancelDelete = page.getByRole('button', { name: 'Cancel' });
   await expect(cancelDelete).toBeFocused();
@@ -408,7 +410,7 @@ test('has no unwaived WCAG 2.2 AA or severe best-practice violations', async ({ 
   const map = page.getByLabel('Interactive map in TES3 world coordinates');
   await map.focus();
   await map.press('Enter');
-  await page.getByLabel('Custom marker').getByRole('button', { name: 'Delete marker' }).click();
+  await page.getByLabel('Custom marker').getByRole('button', { name: 'Delete' }).click();
   await expectWcagClean(page, 'custom-marker delete confirmation');
 
   await page.getByRole('button', { name: 'Back to maps' }).click();

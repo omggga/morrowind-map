@@ -291,10 +291,6 @@ function regionExtent(
   ];
 }
 
-function formatCoordinate(value: number): string {
-  return Math.round(value).toLocaleString('en-US');
-}
-
 function visibilityZoomFor(
   thresholds: readonly number[],
   zoom: number,
@@ -2456,10 +2452,6 @@ function CustomMarkerCard({
       </button>
       <span className="place-card-index">{t('map.personalMarker')}</span>
       <h2 id="selected-marker-title">{marker.label}</h2>
-      <p className="custom-marker-coordinate">
-        X {formatCoordinate(marker.position[0])} · Y{' '}
-        {formatCoordinate(marker.position[1])}
-      </p>
       <CustomMarkerEditor
         key={marker.id}
         marker={marker}

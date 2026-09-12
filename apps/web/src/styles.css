@@ -1650,10 +1650,6 @@ textarea:focus-visible,
   box-shadow: none;
 }
 
-.place-progress-editor__note button {
-  display: none;
-}
-
 .place-progress-editor > p,
 .custom-marker-editor > p {
   margin: 7px 0 0;
@@ -1666,19 +1662,22 @@ textarea:focus-visible,
   color: var(--paper-error);
 }
 
-.custom-marker-coordinate {
-  margin: 8px 0 0;
-  color: var(--paper-muted);
-  font-family: var(--font-data);
-  font-size: 10px;
-}
-
 .custom-marker-editor form label:not(:first-child) {
   margin-top: 8px;
 }
 
-.custom-marker-editor > button {
-  margin-top: 8px;
+.custom-marker-editor__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-marker-editor__actions button[type="submit"] {
+  margin-left: auto;
+}
+
+.custom-marker-editor form .custom-marker-editor__delete {
   border-color: #805845;
   color: #5b281e;
   background: #c09a78;

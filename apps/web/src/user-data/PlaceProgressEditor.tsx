@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import type {
   Locale,
   ProgressRecord,
@@ -95,54 +95,10 @@ export function PlaceProgressEditor({
   const [saving, setSaving] = useState<'status' | 'note' | null>(null);
   const [feedback, setFeedback] = useState<EditorFeedback | null>(null);
   const activeOperationRef = useRef<SaveOperation | null>(null);
-  const noteSaveTimerRef = useRef<number | null>(null);
-  const noteFormRef = useRef<HTMLFormElement>(null);
-  const recoveredNoteRef = useRef(
-    draft?.placeKey === placeKey ? draft.value : null,
-  );
   const note = draft?.placeKey === placeKey ? draft.value : (progress?.note ?? '');
   const status = progress?.status ?? 'unvisited';
   const currentFeedback = feedback?.placeKey === placeKey ? feedback : null;
   const isDisabled = disabled || saving !== null;
-
-  useEffect(
-    () => () => {
-      if (noteSaveTimerRef.current !== null) {
-        window.clearTimeout(noteSaveTimerRef.current);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    const recoveredNote = recoveredNoteRef.current;
-    if (recoveredNote === null) {
-      return;
-    }
-    if (recoveredNote === (progress?.note ?? '')) {
-      clearStoredNoteDraft(placeKey, recoveredNote);
-      recoveredNoteRef.current = null;
-      return;
-    }
-    noteSaveTimerRef.current = window.setTimeout(() => {
-      noteSaveTimerRef.current = null;
-      noteFormRef.current?.requestSubmit();
-      recoveredNoteRef.current = null;
-    }, 350);
-    return () => {
-      if (noteSaveTimerRef.current !== null) {
-        window.clearTimeout(noteSaveTimerRef.current);
-        noteSaveTimerRef.current = null;
-      }
-    };
-  }, [placeKey, progress?.note]);
-
-  const clearPendingNoteSave = () => {
-    if (noteSaveTimerRef.current !== null) {
-      window.clearTimeout(noteSaveTimerRef.current);
-      noteSaveTimerRef.current = null;
-    }
-  };
 
   const beginSave = (kind: SaveOperation['kind'], revision: string) => {
     if (disabled || activeOperationRef.current !== null) {
@@ -219,7 +175,6 @@ export function PlaceProgressEditor({
 
   const saveNote = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    clearPendingNoteSave();
     void persistNote(note);
   };
 
@@ -244,7 +199,7 @@ export function PlaceProgressEditor({
         </div>
       </fieldset>
 
-      <form ref={noteFormRef} className="place-progress-editor__note" onSubmit={saveNote}>
+      <form className="place-progress-editor__note" onSubmit={saveNote}>
         <label htmlFor={noteId}>{strings.note}</label>
         <textarea
           id={noteId}
@@ -255,17 +210,12 @@ export function PlaceProgressEditor({
             const nextNote = event.currentTarget.value;
             setDraft({ placeKey, value: nextNote });
             writeStoredNoteDraft(placeKey, nextNote);
-            clearPendingNoteSave();
-            noteSaveTimerRef.current = window.setTimeout(() => {
-              noteSaveTimerRef.current = null;
-              void persistNote(nextNote);
-            }, 350);
-          }}
-          onBlur={() => {
-            clearPendingNoteSave();
-            void persistNote(note);
+            setFeedback(null);
           }}
         />
+        <button type="submit" disabled={isDisabled}>
+          {strings.save}
+        </button>
       </form>
 
       {currentFeedback ? (

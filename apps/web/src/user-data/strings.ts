@@ -18,7 +18,7 @@ interface UserDataStrings {
   readonly saved: string;
   readonly customMarker: string;
   readonly label: string;
-  readonly saveMarker: string;
+  readonly save: string;
   readonly deleteMarker: string;
   readonly confirmDelete: string;
   readonly confirmDeleteAction: string;
@@ -44,12 +44,12 @@ const EN: UserDataStrings = {
   status: 'Status',
   note: 'Personal note',
   noteSaveFailed: (detail) =>
-    `The note could not be saved: ${detail}. Edit it or move focus away to try again.`,
+    `The note could not be saved: ${detail}. Select “Save” to try again.`,
   saved: 'Saved.',
   customMarker: 'Custom marker',
   label: 'Marker name',
-  saveMarker: 'Save marker',
-  deleteMarker: 'Delete marker',
+  save: 'Save',
+  deleteMarker: 'Delete',
   confirmDelete: 'Delete this marker? This action cannot be undone.',
   confirmDeleteAction: 'Yes, delete',
   cancel: 'Cancel',

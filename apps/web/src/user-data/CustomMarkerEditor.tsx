@@ -1,6 +1,4 @@
 import {
-  useCallback,
-  useEffect,
   useId,
   useRef,
   useState,
@@ -34,8 +32,6 @@ interface MarkerFeedback {
 type MarkerOperation =
   | { readonly kind: 'save'; readonly revision: string }
   | { readonly kind: 'delete' };
-
-type SaveTrigger = 'auto' | 'manual';
 
 export interface CustomMarkerEditorProps {
   readonly marker: CustomMarkerRecord;
@@ -119,7 +115,6 @@ export function CustomMarkerEditor({
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<MarkerFeedback | null>(null);
   const activeOperationRef = useRef<MarkerOperation | null>(null);
-  const blockedAutosaveRevisionRef = useRef<string | null>(null);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
   const activeDraft = draft?.markerId === marker.id ? draft : null;
@@ -129,10 +124,9 @@ export function CustomMarkerEditor({
   const confirmingDelete = confirmingDeleteId === marker.id;
   const isDisabled = disabled || busy !== null;
 
-  const persist = useCallback(async (
+  const persist = async (
     nextLabel: string,
     nextNote: string,
-    trigger: SaveTrigger,
   ) => {
     const revision = `${nextLabel}\0${nextNote}`;
     if (
@@ -144,10 +138,6 @@ export function CustomMarkerEditor({
     }
     if (nextLabel.trim() === marker.label && nextNote === marker.note) {
       clearStoredMarkerDraft({ markerId: marker.id, label: nextLabel, note: nextNote });
-      blockedAutosaveRevisionRef.current = null;
-      return;
-    }
-    if (trigger === 'auto' && blockedAutosaveRevisionRef.current === revision) {
       return;
     }
     const operation: MarkerOperation = { kind: 'save', revision };
@@ -175,33 +165,19 @@ export function CustomMarkerEditor({
       setFeedback({
         markerId: marker.id,
         tone: 'error',
-        text: strings.operationFailed(errorText(error), strings.saveMarker),
+        text: strings.operationFailed(errorText(error), strings.save),
       });
     } finally {
-      blockedAutosaveRevisionRef.current = revision;
       if (activeOperationRef.current === operation) {
         activeOperationRef.current = null;
         setBusy(null);
       }
     }
-  }, [database, disabled, marker, onSaved, strings]);
-
-  useEffect(() => {
-    if (
-      isDisabled ||
-      label.trim().length === 0 ||
-      (label.trim() === marker.label && note === marker.note) ||
-      blockedAutosaveRevisionRef.current === `${label}\0${note}`
-    ) {
-      return undefined;
-    }
-    const timeoutId = window.setTimeout(() => void persist(label, note, 'auto'), 350);
-    return () => window.clearTimeout(timeoutId);
-  }, [isDisabled, label, marker.label, marker.note, note, persist]);
+  };
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void persist(label, note, 'manual');
+    void persist(label, note);
   };
 
   const remove = async () => {
@@ -239,20 +215,7 @@ export function CustomMarkerEditor({
 
   return (
     <section className="custom-marker-editor" aria-label={strings.customMarker} aria-busy={busy !== null}>
-      <form
-        onSubmit={save}
-        onBlur={(event) => {
-          const nextTarget = event.relatedTarget;
-          if (
-            (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) ||
-            (nextTarget instanceof HTMLElement &&
-              nextTarget.closest('[data-skip-marker-autosave]'))
-          ) {
-            return;
-          }
-          void persist(label, note, 'auto');
-        }}
-      >
+      <form onSubmit={save}>
         <label htmlFor={labelId}>{strings.label}</label>
         <input
           id={labelId}
@@ -263,10 +226,10 @@ export function CustomMarkerEditor({
           value={label}
           disabled={isDisabled}
           onChange={(event) => {
-            blockedAutosaveRevisionRef.current = null;
             const nextDraft = { markerId: marker.id, label: event.currentTarget.value, note };
             setDraft(nextDraft);
             writeStoredMarkerDraft(nextDraft);
+            setFeedback(null);
           }}
         />
 
@@ -277,32 +240,35 @@ export function CustomMarkerEditor({
           value={note}
           disabled={isDisabled}
           onChange={(event) => {
-            blockedAutosaveRevisionRef.current = null;
             const nextDraft = { markerId: marker.id, label, note: event.currentTarget.value };
             setDraft(nextDraft);
             writeStoredMarkerDraft(nextDraft);
+            setFeedback(null);
           }}
         />
 
-        <button type="submit" disabled={isDisabled || label.trim().length === 0}>
-          {strings.saveMarker}
-        </button>
+        <div className="custom-marker-editor__actions">
+          {!confirmingDelete ? (
+            <button
+              ref={deleteButtonRef}
+              className="custom-marker-editor__delete"
+              type="button"
+              disabled={isDisabled}
+              onClick={() => {
+                setConfirmingDeleteId(marker.id);
+                window.requestAnimationFrame(() => cancelDeleteButtonRef.current?.focus());
+              }}
+            >
+              {strings.deleteMarker}
+            </button>
+          ) : null}
+          <button type="submit" disabled={isDisabled || label.trim().length === 0}>
+            {strings.save}
+          </button>
+        </div>
       </form>
 
-      {!confirmingDelete ? (
-        <button
-          ref={deleteButtonRef}
-          type="button"
-          data-skip-marker-autosave
-          disabled={isDisabled}
-          onClick={() => {
-            setConfirmingDeleteId(marker.id);
-            window.requestAnimationFrame(() => cancelDeleteButtonRef.current?.focus());
-          }}
-        >
-          {strings.deleteMarker}
-        </button>
-      ) : (
+      {confirmingDelete ? (
         <div
           className="custom-marker-editor__delete-confirmation"
           role="group"
@@ -332,7 +298,7 @@ export function CustomMarkerEditor({
             {strings.cancel}
           </button>
         </div>
-      )}
+      ) : null}
 
       {currentFeedback ? (
         <p
