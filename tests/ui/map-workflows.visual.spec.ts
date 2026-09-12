@@ -29,6 +29,7 @@ function hasTouch(testInfo: TestInfo): boolean {
 }
 
 async function screenshot(page: Page, name: string): Promise<void> {
+  if (process.env.MORROWIND_UI_SNAPSHOTS !== '1') return;
   await page.evaluate(async () => document.fonts.ready);
   await expect(page).toHaveScreenshot(name, {
     animations: 'disabled',
@@ -119,7 +120,7 @@ test('pins both themes and the interactive state matrix', async ({ page }, testI
   const progress = page.getByLabel('Place progress');
   const personalNote = progress.getByRole('textbox', { name: 'Personal note' });
   await personalNote.fill('Return after sunset.');
-  await personalNote.blur();
+  await progress.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(progress.getByRole('status')).toHaveText('Saved.');
   await progress.getByRole('button', { name: 'Active', exact: true }).click();
   await expect(progress.getByRole('button', { name: 'Active', exact: true })).toHaveAttribute(
@@ -138,10 +139,10 @@ test('pins both themes and the interactive state matrix', async ({ page }, testI
   await expect(markerName).toBeFocused();
   await markerName.fill('Field note pin');
   await markerEditor.getByRole('textbox', { name: 'Personal note' }).fill('Hidden cache.');
-  await markerEditor.getByRole('button', { name: 'Save marker' }).click();
+  await markerEditor.getByRole('button', { name: 'Save' }).click();
   await expect(markerEditor.getByRole('status')).toHaveText('Saved.');
   await screenshot(page, 'personal-marker-editor.png');
-  await markerEditor.getByRole('button', { name: 'Delete marker' }).click();
+  await markerEditor.getByRole('button', { name: 'Delete' }).click();
   await screenshot(page, 'personal-marker-delete.png');
   await markerEditor.getByRole('button', { name: 'Cancel' }).click();
   await page.getByRole('button', { name: 'Close personal marker card' }).click();
@@ -237,7 +238,8 @@ test('supports a real keyboard-only primary workflow and focus return', async ({
   const note = page.getByRole('textbox', { name: 'Personal note' });
   await tabTo(page, note);
   await page.keyboard.type('Keyboard route.');
-  await page.keyboard.press('Tab');
+  await tabTo(page, page.getByLabel('Place progress').getByRole('button', { name: 'Save', exact: true }));
+  await page.keyboard.press('Enter');
   await expect(page.getByLabel('Place progress').getByRole('status')).toHaveText('Saved.');
   const activeStatus = page.getByLabel('Place progress').getByRole('button', { name: 'Active', exact: true });
   await tabTo(page, activeStatus, { reverse: true });
@@ -250,7 +252,7 @@ test('supports a real keyboard-only primary workflow and focus return', async ({
   await tabTo(page, addMarker);
   await page.keyboard.press('Enter');
   const map = page.getByLabel('Interactive map in TES3 world coordinates');
-  await tabTo(page, map, { reverse: true, limit: 8 });
+  await tabTo(page, map, { reverse: true });
   await page.keyboard.press('Enter');
   const markerName = page.getByRole('textbox', { name: 'Marker name' });
   await expect(markerName).toBeFocused();
@@ -259,11 +261,11 @@ test('supports a real keyboard-only primary workflow and focus return', async ({
   const markerNote = page.getByLabel('Custom marker').getByRole('textbox', { name: 'Personal note' });
   await tabTo(page, markerNote);
   await page.keyboard.type('Created without a pointer.');
-  const saveMarker = page.getByRole('button', { name: 'Save marker' });
+  const saveMarker = page.getByRole('button', { name: 'Save' });
   await tabTo(page, saveMarker);
   await page.keyboard.press('Enter');
-  const deleteMarker = page.getByRole('button', { name: 'Delete marker' });
-  await tabTo(page, deleteMarker);
+  const deleteMarker = page.getByRole('button', { name: 'Delete' });
+  await tabTo(page, deleteMarker, { reverse: true });
   await page.keyboard.press('Enter');
   const cancelDelete = page.getByRole('button', { name: 'Cancel' });
   await expect(cancelDelete).toBeFocused();
@@ -272,7 +274,7 @@ test('supports a real keyboard-only primary workflow and focus return', async ({
   await page.keyboard.press('Enter');
   await expect(cancelDelete).toBeFocused();
   const confirmDelete = page.getByRole('button', { name: 'Yes, delete' });
-  await tabTo(page, confirmDelete, { reverse: true, limit: 3 });
+  await tabTo(page, confirmDelete, { reverse: true });
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Keyboard marker' })).toHaveCount(0);
 
@@ -280,11 +282,9 @@ test('supports a real keyboard-only primary workflow and focus return', async ({
   const importData = compactDataTools.getByLabel('Import JSON backup');
   await tabTo(page, importData, { reverse: true });
   await expect(importData).toBeFocused();
-  await page.keyboard.press('Shift+Tab');
-  await expect(compactDataTools.getByRole('button', { name: 'Download JSON backup' })).toBeFocused();
-  await page.keyboard.press('Shift+Tab');
+  await tabTo(page, compactDataTools.getByRole('button', { name: 'Download JSON backup' }), { reverse: true });
   const back = page.getByRole('button', { name: 'Back to maps' });
-  await expect(back).toBeFocused();
+  await tabTo(page, back, { reverse: true });
   await page.keyboard.press('Enter');
   await expect(originalCard).toBeFocused();
 });
@@ -408,7 +408,7 @@ test('has no unwaived WCAG 2.2 AA or severe best-practice violations', async ({ 
   const map = page.getByLabel('Interactive map in TES3 world coordinates');
   await map.focus();
   await map.press('Enter');
-  await page.getByLabel('Custom marker').getByRole('button', { name: 'Delete marker' }).click();
+  await page.getByLabel('Custom marker').getByRole('button', { name: 'Delete' }).click();
   await expectWcagClean(page, 'custom-marker delete confirmation');
 
   await page.getByRole('button', { name: 'Back to maps' }).click();

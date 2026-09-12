@@ -45,6 +45,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
@@ -121,6 +122,7 @@ describe('DataTools', () => {
   });
 
   it('keeps only stored-binding export available during a snapshot conflict', async () => {
+    vi.useFakeTimers();
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
       value: vi.fn(() => 'blob:conflict-backup'),
@@ -130,7 +132,7 @@ describe('DataTools', () => {
       value: vi.fn(),
     });
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-    vi.mocked(createPortableBackupForStoredDataset).mockResolvedValueOnce({
+    vi.mocked(createPortableBackupForStoredDataset).mockResolvedValue({
       schemaVersion: 3,
       kind: 'morrowind-map-backup',
       exportedAt: '2026-08-31T12:05:00.000Z',
@@ -146,15 +148,31 @@ describe('DataTools', () => {
     expect(exportButton).toBeEnabled();
     expect(importInput).toBeDisabled();
 
-    fireEvent.click(exportButton);
+    await act(async () => {
+      fireEvent.click(exportButton);
+      await Promise.resolve();
+    });
 
-    expect(await screen.findByRole('status')).toHaveTextContent('JSON backup downloaded');
+    const firstFeedback = screen.getByRole('status');
+    expect(firstFeedback).toHaveTextContent('JSON backup downloaded');
     expect(createPortableBackupForStoredDataset).toHaveBeenCalledWith(
       expect.anything(),
       props.datasetId,
     );
     expect(createPortableBackup).not.toHaveBeenCalled();
     expect(importPortableBackup).not.toHaveBeenCalled();
+    await act(() => vi.advanceTimersByTimeAsync(4000));
+    await act(async () => {
+      fireEvent.click(exportButton);
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('status')).not.toBe(firstFeedback);
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(screen.getByRole('status')).toHaveTextContent('JSON backup downloaded');
+    await act(() => vi.advanceTimersByTimeAsync(3999));
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('rejects oversized and invalid JSON before any storage write', async () => {

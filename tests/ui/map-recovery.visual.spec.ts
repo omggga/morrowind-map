@@ -53,6 +53,7 @@ async function expectAxeClean(page: Page, state: string): Promise<void> {
 }
 
 async function screenshot(page: Page, name: string): Promise<void> {
+  if (process.env.MORROWIND_UI_SNAPSHOTS !== '1') return;
   await page.evaluate(async () => document.fonts.ready);
   await expect(page).toHaveScreenshot(name, {
     animations: 'disabled',

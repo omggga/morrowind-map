@@ -346,20 +346,20 @@ const directUrlFixtures: readonly DirectUrlFixture[] = [
   {
     label: 'Poison Song',
     url:
-      `/?dataset=${DATASET_ID}&region=tr-mainland&x=16384&y=-204800&z=4.5&place=${PLACE_ID}`,
+      `/?dataset=${DATASET_ID}&region=tr-mainland&x=16384&y=-204800&z=4&place=${PLACE_ID}`,
     heading: 'Tamriel Rebuilt — Poison Song',
     regionName: 'TR Mainland',
     placeName: PLACE_NAME,
-    view: [16_384, -204_800, 4.5],
+    view: [16_384, -204_800, 4],
   },
   {
     label: 'Original GOTY HD',
     url:
-      `/?dataset=${ORIGINAL_DATASET_ID}&region=vvardenfell&x=-20000&y=-15000&z=5.25&place=${ORIGINAL_PLACE_ID}`,
+      `/?dataset=${ORIGINAL_DATASET_ID}&region=vvardenfell&x=-20000&y=-15000&z=5&place=${ORIGINAL_PLACE_ID}`,
     heading: 'Morrowind Game of the Year',
     regionName: 'Vvardenfell',
     placeName: ORIGINAL_PLACE_NAME,
-    view: [-20_000, -15_000, 5.25],
+    view: [-20_000, -15_000, 5],
   },
 ];
 
@@ -899,7 +899,7 @@ test('fits TR Mainland from landing and a no-view URL', async ({ page }) => {
   expect(probe.localFailures).toEqual([]);
 });
 
-test('keeps the open filter drawer in mobile ledger flow', async ({ page }) => {
+test('hides filters on compact and touch layouts while retaining desktop controls', async ({ page, browser }) => {
   const probe = await installOfflineRoutes(page);
   const fixture = filterAcceptanceFixtures[0];
   if (!fixture) {
@@ -908,22 +908,34 @@ test('keeps the open filter drawer in mobile ledger flow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(fixture.url);
   await expect(page.getByRole('heading', { name: fixture.heading })).toBeVisible();
+  for (const viewport of [{ width: 390, height: 844 }, { width: 860, height: 390 }]) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator('.place-filter-drawer')).toBeHidden();
+    await expect(page.locator('.region-filter')).toBeHidden();
+    await expect(page.getByRole('searchbox')).toBeVisible();
+  }
+  await page.setViewportSize({ width: 861, height: 720 });
+  await expect(page.locator('.region-filter')).toBeVisible();
   await openFilterDrawer(page);
+  await expect(page.locator('.place-filter-drawer__body')).toBeVisible();
 
-  const geometry = await page.evaluate(() => {
-    const body = document.querySelector<HTMLElement>('.place-filter-drawer__body');
-    const followingRow = document.querySelector<HTMLElement>('.place-results');
-    if (!body || !followingRow) {
-      return null;
-    }
-    const bodyRect = body.getBoundingClientRect();
-    const followingRect = followingRow.getBoundingClientRect();
-    return { bodyBottom: bodyRect.bottom, followingTop: followingRect.top };
+  const touchContext = await browser.newContext({
+    hasTouch: true,
+    viewport: { width: 1180, height: 820 },
   });
-  expect(geometry).not.toBeNull();
-  expect(geometry?.bodyBottom ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(
-    (geometry?.followingTop ?? Number.NEGATIVE_INFINITY) + 1,
-  );
+  try {
+    const touchPage = await touchContext.newPage();
+    const touchProbe = await installOfflineRoutes(touchPage);
+    await touchPage.goto(new URL(fixture.url, page.url()).href);
+    await expect(touchPage.getByRole('heading', { name: fixture.heading })).toBeVisible();
+    await expect(touchPage.locator('.place-filter-drawer')).toBeHidden();
+    await expect(touchPage.locator('.region-filter')).toBeHidden();
+    await expect(touchPage.getByRole('searchbox')).toBeVisible();
+    expect(touchProbe.externalRequests).toEqual([]);
+    expect(touchProbe.localFailures).toEqual([]);
+  } finally {
+    await touchContext.close();
+  }
   expect(probe.externalRequests).toEqual([]);
   expect(probe.localFailures).toEqual([]);
 });
@@ -1205,7 +1217,7 @@ test('drops a cross-dataset place while retaining a valid region and camera', as
   const url =
     `/?dataset=${ORIGINAL_DATASET_ID}&region=vvardenfell&x=-20000&y=-15000&z=5.25&place=${PLACE_ID}`;
   const canonicalUrl =
-    `/?dataset=${ORIGINAL_DATASET_ID}&region=vvardenfell&x=-20000&y=-15000&z=5.25`;
+    `/?dataset=${ORIGINAL_DATASET_ID}&region=vvardenfell&x=-20000&y=-15000&z=5`;
 
   await page.goto(url);
 
@@ -1215,7 +1227,7 @@ test('drops a cross-dataset place while retaining a valid region and camera', as
     'true',
   );
   await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toHaveCount(0);
-  await expectMapView(page, [-20_000, -15_000, 5.25]);
+  await expectMapView(page, [-20_000, -15_000, 5]);
   await expectRelativeUrl(page, canonicalUrl);
   expect(probe.externalRequests).toEqual([]);
 });
@@ -1312,14 +1324,110 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   )).toBe(true);
 
   await searchAndOpenPlace(page);
+  const offsetUrl = new URL(page.url());
+  offsetUrl.searchParams.set('x', '14000');
+  offsetUrl.searchParams.set('y', '-211000');
+  offsetUrl.searchParams.set('z', '6.45');
+  offsetUrl.searchParams.set('type', 'landmark');
+  offsetUrl.searchParams.set('status', 'unvisited');
+  await page.goto(offsetUrl.href);
+  await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
+  await expect.poll(() => currentMapView(page)).toEqual({ x: 14000, y: -211000, zoom: 7 });
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.getByRole('button', { name: 'Copy link to this place' }).click();
+  await expect(page.getByText('Link copied.', { exact: true })).toBeVisible();
+  const sharedUrl = new URL(await page.evaluate(() => navigator.clipboard.readText()));
+  expect(Object.fromEntries(sharedUrl.searchParams)).toEqual({
+    dataset: DATASET_ID, region: 'all', x: '12288', y: '-217088', z: '7', place: PLACE_ID,
+  });
+  expect(sharedUrl.origin).toBe(offsetUrl.origin);
+  expect(await currentMapView(page)).toEqual({ x: 14000, y: -211000, zoom: 7 });
+  await expect(page.getByText('Link copied.', { exact: true })).toHaveCount(0, { timeout: 6500 });
+  await page.goto(sharedUrl.href);
+  await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
+  await expect.poll(() => currentMapView(page)).toEqual({ x: 12288, y: -217088, zoom: 7 });
+  await page.getByRole('button', { name: 'Close place card' }).click();
+  await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toHaveCount(0);
+  const labelMap = mapCanvas(page);
+  const bounds = await labelMap.boundingBox();
+  if (!bounds) {
+    throw new Error('Missing map bounds for the label interaction');
+  }
+  // The place is centered; target its text, outside the entrance square.
+  const labelX = bounds.x + bounds.width / 2 - 24;
+  const labelY = bounds.y + bounds.height / 2 - 11;
+  await page.mouse.move(labelX, labelY);
+  await expect(labelMap).toHaveClass(/map-canvas--marker-hover/);
+  // This point lies in the background's upper padding, outside the letters.
+  await page.mouse.move(labelX, labelY - 8);
+  await expect(labelMap).not.toHaveClass(/map-canvas--marker-hover/);
+  await page.mouse.move(labelX, labelY);
+  await expect(labelMap).toHaveClass(/map-canvas--marker-hover/);
+  await page.mouse.click(labelX, labelY);
+  await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await expect(labelMap).toHaveClass(/map-canvas--marker-hover/);
+  await page.mouse.move(bounds.x + bounds.width / 2 + 12, bounds.y + bounds.height / 2 + 2);
+  await expect(labelMap).not.toHaveClass(/map-canvas--marker-hover/);
+  await page.mouse.move(0, 0);
+  await expect(labelMap).not.toHaveClass(/map-canvas--marker-hover/);
   const progress = page.getByLabel('Place progress');
   const activeStatus = progress.getByRole('button', { name: 'Active' });
-  await activeStatus.click();
+  for (const name of ['Visited', 'Unvisited', 'Active']) {
+    const statusButton = progress.getByRole('button', { name, exact: true });
+    await statusButton.click();
+    await expect(statusButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(statusButton).toBeEnabled();
+    await expect(progress.getByRole('status')).toHaveCount(0);
+  }
   await expect(activeStatus).toHaveAttribute('aria-pressed', 'true');
   const note = progress.getByRole('textbox', { name: 'Personal note' });
   await note.fill('Return after sunset.');
-  await note.blur();
+  await progress.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(progress.getByRole('status')).toHaveText('Saved.');
+
+  const settingsTrigger = page.getByRole('button', { name: 'Map settings', exact: true });
+  const viewBeforeSettings = await currentMapView(page);
+  await settingsTrigger.click();
+  const settings = page.getByRole('dialog', { name: 'Map settings', exact: true });
+  await expect(settings).toBeVisible();
+  const colorblindOption = settings.getByRole('checkbox', { name: 'Enable colorblind-friendly mode' });
+  await expect(colorblindOption).not.toBeChecked();
+  await colorblindOption.check();
+  for (const [kind, shape] of [
+    ['unvisited', 'hollow-square'],
+    ['active', 'hollow-diamond'],
+    ['visited', 'hollow-circle'],
+    ['custom', 'hollow-triangle'],
+  ]) {
+    await expect(page.locator(`.marker-legend .status-mark--${kind}`)).toHaveAttribute('data-marker-shape', shape!);
+    await expect(settings.locator(`.status-mark--${kind}`)).toHaveAttribute('data-marker-shape', shape!);
+  }
+  await expect(page.locator('.marker-legend .status-mark--unvisited')).toHaveCSS('color', 'rgb(244, 241, 232)');
+  await expect(page.locator('.marker-legend .status-mark--active')).toHaveCSS('color', 'rgb(86, 180, 233)');
+  await expect(page.locator('.marker-legend .status-mark--visited')).toHaveCSS('color', 'rgb(230, 159, 0)');
+  await expect(page.locator('.marker-legend .status-mark--custom')).toHaveCSS('color', 'rgb(204, 121, 167)');
+  await expect(progress.locator('.status-mark--active')).toHaveAttribute('data-marker-shape', 'hollow-diamond');
+  await expect(progress.locator('.status-mark--active')).toHaveCSS('color', 'rgb(86, 180, 233)');
+  await expect.poll(() => page.evaluate(() => {
+    const canvases = document.querySelectorAll<HTMLCanvasElement>('.map-canvas .ol-layer canvas');
+    return [...canvases].some((canvas) => {
+      const pixels = canvas.getContext('2d')?.getImageData(0, 0, canvas.width, canvas.height).data;
+      if (!pixels) return false;
+      for (let i = 0; i < pixels.length; i += 4) {
+        if (pixels[i] === 86 && pixels[i + 1] === 180 && pixels[i + 2] === 233 && pixels[i + 3]! > 0) {
+          return true;
+        }
+      }
+      return false;
+    });
+  })).toBe(true);
+  await settings.press('Escape');
+  await expect(settings).not.toBeVisible();
+  await expect(settingsTrigger).toBeFocused();
+  await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
+  expect(await currentMapView(page)).toEqual(viewBeforeSettings);
+  await expect(note).toHaveValue('Return after sunset.');
 
   const zoomBefore = (await currentMapView(page)).zoom;
   await page.getByRole('button', { name: 'Zoom in' }).click();
@@ -1341,7 +1449,7 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   await expect(markerName).toBeFocused();
   await markerName.fill('Field note pin');
   await markerNote.fill('Hidden cache.');
-  await markerEditor.getByRole('button', { name: 'Save marker' }).click();
+  await markerEditor.getByRole('button', { name: 'Save' }).click();
   await expect(markerEditor.getByRole('status')).toHaveText('Saved.');
   await expect(markerEditor.getByRole('textbox', { name: 'Marker name' })).toHaveValue(
     'Field note pin',
@@ -1350,6 +1458,21 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
     'Hidden cache.',
   );
   await expect(map).toHaveAttribute('data-custom-marker-count', '1');
+  await page.getByRole('button', { name: 'Close personal marker card' }).click();
+  const customBounds = await map.boundingBox();
+  if (!customBounds) throw new Error('Missing map bounds for personal marker hover');
+  const customX = customBounds.x + customBounds.width / 2;
+  const customY = customBounds.y + customBounds.height / 2;
+  await page.mouse.move(customX - 20, customY - 11);
+  await expect(map).toHaveClass(/map-canvas--marker-hover/);
+  await page.mouse.move(customX - 20, customY - 19);
+  await expect(map).not.toHaveClass(/map-canvas--marker-hover/);
+  await page.mouse.click(customX - 20, customY - 11);
+  await expect(page.getByRole('heading', { name: 'Field note pin', exact: true })).toBeVisible();
+  await page.mouse.move(customX, customY);
+  await expect(map).toHaveClass(/map-canvas--marker-hover/);
+  await page.mouse.move(customX + 12, customY + 2);
+  await expect(map).not.toHaveClass(/map-canvas--marker-hover/);
   await page.getByRole('button', { name: 'Vvardenfell', exact: true }).click();
   await openFilterDrawer(page);
   await typeFilterButton(page, 'Cave').click();
@@ -1359,6 +1482,18 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
 
   await page.reload();
   await expect(page.getByLabel('Interactive map in TES3 world coordinates')).toBeVisible();
+  await settingsTrigger.click();
+  await expect(colorblindOption).toBeChecked();
+  await expect(page.locator('.marker-legend .status-mark--custom')).toHaveAttribute('data-marker-shape', 'hollow-triangle');
+  await expect(page.locator('.marker-legend .status-mark--active')).toHaveCSS('color', 'rgb(86, 180, 233)');
+  await colorblindOption.uncheck();
+  await expect(page.locator('.marker-legend .status-mark--custom')).toHaveCSS('color', 'rgb(120, 219, 120)');
+  for (const kind of ['unvisited', 'active', 'visited', 'custom']) {
+    await expect(page.locator(`.marker-legend .status-mark--${kind}`)).toHaveAttribute('data-marker-shape', 'hollow-square');
+  }
+  await expect(page.locator('.marker-legend .status-mark--active')).toHaveCSS('color', 'rgb(197, 154, 255)');
+  await settings.getByRole('button', { name: 'Close map settings' }).click();
+  await expect(settingsTrigger).toBeFocused();
   await searchAndOpenPlace(page);
   const reloadedProgress = page.getByLabel('Place progress');
   await expect(reloadedProgress.getByRole('button', { name: 'Active' })).toHaveAttribute(
@@ -1381,6 +1516,42 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   await expect(reloadedMarkerEditor.getByRole('textbox', { name: 'Personal note' })).toHaveValue(
     'Hidden cache.',
   );
+
+  const zoomUrl = new URL(sharedUrl.href);
+  zoomUrl.searchParams.set('z', '7.23');
+  await page.goto(zoomUrl.href);
+  await expect.poll(() => currentMapView(page)).toEqual({ x: 12288, y: -217088, zoom: 7 });
+  await mapCanvas(page).dblclick({ position: { x: 150, y: 150 } });
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(8);
+  await mapCanvas(page).dblclick({ position: { x: 150, y: 150 } });
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
+  await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(8);
+  await mapCanvas(page).hover({ position: { x: 150, y: 150 } });
+  await page.mouse.wheel(0, -40);
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
+  await mapCanvas(page).dblclick({ position: { x: 150, y: 150 } });
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
+  await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(8);
+  await mapCanvas(page).hover({ position: { x: 150, y: 150 } });
+  await page.mouse.wheel(0, -2);
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
+  await expect.poll(() => hasPaintedBasemap(page)).toBe(true);
+  await page.getByRole('button', { name: 'Copy link to this place' }).click();
+  await expect(page.getByText('Link copied.', { exact: true })).toBeVisible();
+  const maxZoomUrl = await page.evaluate(() => navigator.clipboard.readText());
+  expect(new URL(maxZoomUrl).searchParams.get('z')).toBe('9');
+  await page.goto(maxZoomUrl);
+  await expect.poll(() => currentMapView(page)).toEqual({ x: 12288, y: -217088, zoom: 9 });
+  await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
+  await expect.poll(() => hasPaintedBasemap(page)).toBe(true);
+  expect(probe.tileRequests.every((path) => {
+    const tileZoom = /\/tiles\/(\d+)\//.exec(path)?.[1];
+    return tileZoom !== undefined && Number(tileZoom) <= 7;
+  })).toBe(true);
 
   expect(probe.externalRequests).toEqual([]);
   expect(probe.localFailures).toEqual([]);
@@ -1562,7 +1733,7 @@ test('@prepared renders and searches the complete local Original HD dataset', as
   await expect(visitedStatus).toHaveAttribute('aria-pressed', 'true');
   const note = progress.getByRole('textbox', { name: 'Personal note' });
   await note.fill('Original route cleared.');
-  await note.blur();
+  await progress.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(progress.getByRole('status')).toHaveText('Saved.');
 
   const zoomBefore = (await currentMapView(page)).zoom;
@@ -1582,7 +1753,7 @@ test('@prepared renders and searches the complete local Original HD dataset', as
   const markerEditor = page.getByLabel('Custom marker');
   await markerEditor.getByRole('textbox', { name: 'Marker name' }).fill('Original field pin');
   await markerEditor.getByRole('textbox', { name: 'Personal note' }).fill('Base-game only.');
-  await markerEditor.getByRole('button', { name: 'Save marker' }).click();
+  await markerEditor.getByRole('button', { name: 'Save' }).click();
   await expect(markerEditor.getByRole('status')).toHaveText('Saved.');
   await expect(markerEditor.getByRole('textbox', { name: 'Marker name' })).toHaveValue(
     'Original field pin',

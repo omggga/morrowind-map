@@ -362,6 +362,101 @@ textarea:focus-visible,
   gap: 22px;
 }
 
+.map-settings-trigger {
+  display: grid;
+  flex: 0 0 auto;
+  width: var(--control-compact);
+  height: var(--control-compact);
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 0;
+  padding: 0;
+  color: var(--ui-gold);
+  background: transparent;
+  cursor: pointer;
+}
+
+.map-settings-trigger:hover,
+.map-settings-trigger[aria-expanded="true"] {
+  border-color: var(--ui-brass);
+  background: #2a2418;
+}
+
+.map-settings-trigger .pixel-icon {
+  width: 17px;
+  height: 17px;
+}
+
+dialog.map-settings-panel {
+  left: 50%;
+  right: auto;
+  width: min(420px, calc(100vw - 32px - var(--safe-left) - var(--safe-right)));
+  min-height: 0;
+  margin: 0;
+  padding: 28px 24px;
+  gap: 16px;
+  place-items: stretch;
+  transform: translate(-50%, -50%);
+}
+
+.map-settings-panel:not([open]) {
+  display: none;
+}
+
+.map-settings-panel::backdrop {
+  background: rgba(9, 8, 6, 0.55);
+}
+
+.map-settings-panel h2 {
+  margin: 0;
+  padding-right: 32px;
+  font-family: var(--font-display);
+  font-size: 24px;
+}
+
+.map-settings-panel p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.map-settings-option {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.map-settings-option input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--book-ink);
+}
+
+.map-settings-option input:focus-visible {
+  outline-color: var(--focus-paper);
+}
+
+.map-settings-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  border: 1px solid var(--ui-brass);
+  padding: 12px;
+  color: var(--text-strong);
+  background: var(--ui-panel);
+  font-size: 12px;
+}
+
+.map-settings-preview span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .landing-contact-panel__links a {
   display: flex;
   max-width: 100%;
@@ -1554,6 +1649,54 @@ textarea:focus-visible,
   padding-top: 12px;
 }
 
+.place-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 34px 14px 0;
+}
+
+.place-card-title h2 {
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.place-card-copy-link {
+  display: grid;
+  flex: 0 0 var(--control-compact);
+  width: var(--control-compact);
+  height: var(--control-compact);
+  place-items: center;
+  border: 1px solid var(--ui-brass);
+  padding: 0;
+  color: var(--book-ink);
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.user-data-tools__feedback--transient {
+  animation: place-share-feedback-fade 5s ease-in forwards;
+}
+
+.place-share-feedback {
+  margin: 0;
+  color: var(--paper-positive);
+  font-size: 12px;
+  animation: place-share-feedback-fade 5s ease-in forwards;
+}
+
+@keyframes place-share-feedback-fade {
+  0%, 90% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.place-share-feedback--error {
+  color: var(--paper-error);
+}
+
 .place-progress-editor fieldset {
   margin: 0;
   border: 0;
@@ -1650,10 +1793,6 @@ textarea:focus-visible,
   box-shadow: none;
 }
 
-.place-progress-editor__note button {
-  display: none;
-}
-
 .place-progress-editor > p,
 .custom-marker-editor > p {
   margin: 7px 0 0;
@@ -1666,19 +1805,22 @@ textarea:focus-visible,
   color: var(--paper-error);
 }
 
-.custom-marker-coordinate {
-  margin: 8px 0 0;
-  color: var(--paper-muted);
-  font-family: var(--font-data);
-  font-size: 10px;
-}
-
 .custom-marker-editor form label:not(:first-child) {
   margin-top: 8px;
 }
 
-.custom-marker-editor > button {
-  margin-top: 8px;
+.custom-marker-editor__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-marker-editor__actions button[type="submit"] {
+  margin-left: auto;
+}
+
+.custom-marker-editor form .custom-marker-editor__delete {
   border-color: #805845;
   color: #5b281e;
   background: #c09a78;
@@ -1759,6 +1901,13 @@ textarea:focus-visible,
 
   .place-card {
     width: min(360px, calc(100% - 80px));
+  }
+}
+
+@media (max-width: 860px), (hover: none) and (pointer: coarse) {
+  .region-filter,
+  .place-filter-drawer {
+    display: none;
   }
 }
 
@@ -1934,6 +2083,11 @@ textarea:focus-visible,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .place-share-feedback,
+  .user-data-tools__feedback--transient {
+    animation: none;
+  }
+
   *,
   *::before,
   *::after {
@@ -1963,11 +2117,17 @@ textarea:focus-visible,
   }
 
   .map-tools button,
+  .place-card-copy-link,
   .place-card-close,
   .landing-contact-trigger,
+  .map-settings-trigger,
   .landing-contact-panel__close {
     width: 44px;
     height: 44px;
+  }
+
+  .place-card-copy-link {
+    flex-basis: 44px;
   }
 
   .user-data-tools--compact button,

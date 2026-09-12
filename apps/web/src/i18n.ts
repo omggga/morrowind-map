@@ -62,6 +62,9 @@ const resources = {
         deleteMarker: 'Delete marker',
         closeMarker: 'Close personal marker card',
         closeCard: 'Close place card',
+        copyPlaceLink: 'Copy link to this place',
+        placeLinkCopied: 'Link copied.',
+        placeLinkCopyFailed: 'Could not copy the link. Try again.',
         zoom: 'Map zoom',
       },
       placeType: {

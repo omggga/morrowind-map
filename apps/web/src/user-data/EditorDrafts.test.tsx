@@ -48,7 +48,7 @@ describe('editor crash-recovery drafts', () => {
     await database.delete();
   });
 
-  it('restores an unsaved place note after an immediate unmount and persists it', async () => {
+  it('restores an unsaved place note and waits for Save before persisting it', async () => {
     const first = render(
       <PlaceProgressEditor
         datasetId={datasetId}
@@ -73,6 +73,9 @@ describe('editor crash-recovery drafts', () => {
     expect(screen.getByRole('textbox', { name: 'Personal note' })).toHaveValue(
       'Recovered after reload',
     );
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    expect(await database.progress.get(progressKey(datasetId, placeId))).toBeUndefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(async () => {
       expect(await database.progress.get(progressKey(datasetId, placeId))).toMatchObject({
         note: 'Recovered after reload',
@@ -80,7 +83,7 @@ describe('editor crash-recovery drafts', () => {
     });
   });
 
-  it('autosaves a place note on blur without exposing a redundant save button', async () => {
+  it('keeps a place note editable across pauses and blur, saving the exact text only on Save', async () => {
     render(
       <PlaceProgressEditor
         datasetId={datasetId}
@@ -91,16 +94,33 @@ describe('editor crash-recovery drafts', () => {
     );
     const note = screen.getByRole('textbox', { name: 'Personal note' });
 
-    fireEvent.change(note, { target: { value: 'Saved on focus out' } });
-    expect(screen.queryByRole('button', { name: 'Save note' })).not.toBeInTheDocument();
+    fireEvent.focus(note);
+    fireEvent.change(note, { target: { value: 'First line' } });
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    expect(note).toBeEnabled();
+    expect(await database.progress.get(progressKey(datasetId, placeId))).toBeUndefined();
+    fireEvent.change(note, { target: { value: '  First line\nSecond line  ' } });
     fireEvent.blur(note);
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    expect(await database.progress.get(progressKey(datasetId, placeId))).toBeUndefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(async () => {
       expect(await database.progress.get(progressKey(datasetId, placeId))).toMatchObject({
-        note: 'Saved on focus out',
+        note: '  First line\nSecond line  ',
       });
     });
     expect(screen.getByRole('status')).toHaveTextContent('Saved.');
+    const savedFeedback = screen.getByRole('status');
+    fireEvent.click(screen.getByRole('button', { name: 'Active' }));
+    expect(screen.getByRole('status')).toBe(savedFeedback);
+    await waitFor(async () => {
+      expect(await database.progress.get(progressKey(datasetId, placeId))).toMatchObject({
+        status: 'active',
+        note: '  First line\nSecond line  ',
+      });
+    });
+    expect(screen.getByRole('status')).toBe(savedFeedback);
   });
 
   it('ignores a place-note draft from the retired user-data epoch', async () => {
@@ -124,7 +144,7 @@ describe('editor crash-recovery drafts', () => {
     expect(await database.progress.get(progressKey(datasetId, placeId))).toBeUndefined();
   });
 
-  it('restores an unsaved marker edit after an immediate unmount and persists it', async () => {
+  it('restores marker name and note drafts and saves them together only on Save', async () => {
     const marker = await saveCustomMarker(
       database,
       { datasetId, label: 'Original label', note: '', position: [10, 20] },
@@ -137,13 +157,22 @@ describe('editor crash-recovery drafts', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Marker name' }), {
       target: { value: 'Recovered marker' },
     });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Personal note' }), {
+      target: { value: '  Marker note\nSecond line  ' },
+    });
+    fireEvent.blur(screen.getByRole('textbox', { name: 'Personal note' }));
     first.unmount();
 
     render(<CustomMarkerEditor marker={marker} locale="en" database={database} />);
     expect(screen.getByRole('textbox', { name: 'Marker name' })).toHaveValue('Recovered marker');
+    expect(screen.getByRole('textbox', { name: 'Personal note' })).toHaveValue('  Marker note\nSecond line  ');
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    expect(await database.customMarkers.get(marker.id)).toMatchObject({ label: 'Original label', note: '' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(async () => {
       expect(await database.customMarkers.get(marker.id)).toMatchObject({
         label: 'Recovered marker',
+        note: '  Marker note\nSecond line  ',
       });
     });
   });
@@ -174,7 +203,7 @@ describe('editor crash-recovery drafts', () => {
     );
     render(<CustomMarkerEditor marker={marker} locale="en" database={database} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete marker' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus(),
     );
@@ -182,7 +211,7 @@ describe('editor crash-recovery drafts', () => {
 
     fireEvent.keyDown(screen.getByRole('group', { name: /Delete this marker/ }), { key: 'Escape' });
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Delete marker' })).toHaveFocus(),
+      expect(screen.getByRole('button', { name: 'Delete' })).toHaveFocus(),
     );
   });
 
@@ -215,7 +244,7 @@ describe('editor crash-recovery drafts', () => {
     await waitFor(() => expect(saveProgress).toHaveBeenCalledTimes(2));
   });
 
-  it('stops a failed marker autosave until manual retry or a new edit', async () => {
+  it('keeps failed marker edits for manual retry without saving on subsequent edits', async () => {
     const marker = await saveCustomMarker(
       database,
       { datasetId, label: 'Original label', note: '', position: [10, 20] },
@@ -229,6 +258,7 @@ describe('editor crash-recovery drafts', () => {
     const labelInput = screen.getByRole('textbox', { name: 'Marker name' });
     fireEvent.change(labelInput, { target: { value: 'Unsaved marker' } });
 
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(saveMarker).toHaveBeenCalledTimes(1));
     expect(labelInput).toHaveValue('Unsaved marker');
     expect(window.localStorage.getItem(
@@ -238,17 +268,20 @@ describe('editor crash-recovery drafts', () => {
     await new Promise((resolve) => window.setTimeout(resolve, 500));
     expect(saveMarker).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save marker' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(saveMarker).toHaveBeenCalledTimes(2));
 
     await new Promise((resolve) => window.setTimeout(resolve, 500));
     expect(saveMarker).toHaveBeenCalledTimes(2);
 
     fireEvent.change(labelInput, { target: { value: 'Edited again' } });
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    expect(saveMarker).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(saveMarker).toHaveBeenCalledTimes(3));
 
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('Select “Save marker” to try again.');
+    expect(alert).toHaveTextContent('Select “Save” to try again.');
     expect(alert).not.toHaveAttribute('aria-live');
     expect(await database.customMarkers.get(marker.id)).toMatchObject({
       label: 'Original label',
@@ -270,7 +303,7 @@ describe('editor crash-recovery drafts', () => {
 
     const labelInput = screen.getByRole('textbox', { name: 'Marker name' });
     fireEvent.change(labelInput, { target: { value: 'Keep this draft' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Delete marker' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     const confirmButton = screen.getByRole('button', { name: 'Yes, delete' });
     expect(screen.getByRole('group', { name: /Delete this marker/ })).toBeInTheDocument();
     clickTwiceBeforeRender(confirmButton);
