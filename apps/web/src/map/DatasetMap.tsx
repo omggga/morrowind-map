@@ -53,6 +53,7 @@ import {
 } from '../data/placeFilters';
 import { buildPlaceViews, PlaceSearch, type PlaceView } from '../data/placeSearch';
 import { presentDataset } from '../data/datasetPresentation';
+import { placeWikiUrl } from '../data/placeWiki';
 import { writeMapUrl, type MapUrlState, type MapUrlView } from '../navigation/mapUrlState';
 import { normalizeMapUrlState } from '../navigation/normalizeMapUrlState';
 import { userDatabase } from '../storage/database';
@@ -170,11 +171,10 @@ function createMarkerStyles(kind: MarkerKind, emphasis: MarkerEmphasis, colorbli
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12" shape-rendering="crispEdges"><path d="${semantic.path}" fill="${markerColor(kind, colorblind)}" fill-rule="${semantic.fillRule}"/></svg>`;
   const baseZIndex = emphasis === 'selected' ? 112 : emphasis === 'hovered' ? 102 : 92;
   const selectedPlace = emphasis === 'selected' && kind !== 'custom';
-  const scale = selectedPlace ? 0.6 : emphasis === 'selected' ? 0.45 : 0.35;
   const styles = [new Style({
     image: new Icon({
       src: selectedPlace && !colorblind ? SELECTED_PLACE_ICON_SOURCE : `data:image/svg+xml,${encodeURIComponent(svg)}`,
-      scale,
+      scale: 0.35,
     }),
     zIndex: baseZIndex,
   })];
@@ -2520,6 +2520,7 @@ function DatasetMapReady({
             <PlaceCard
               cardRef={placeCardRef}
               datasetId={dataset.datasetId}
+              wikiUrl={placeWikiUrl(dataset.mapKey, selectedPlace.place.regionId, selectedPlace.name, selectedPlace.id)}
               place={selectedPlace}
               locale={locale}
               progress={progress.byPlaceId.get(selectedPlace.id)}
@@ -2561,6 +2562,7 @@ function DatasetMapReady({
 interface PlaceCardProps {
   readonly cardRef: Ref<HTMLElement>;
   readonly datasetId: string;
+  readonly wikiUrl: string | null;
   readonly place: PlaceView;
   readonly locale: Locale;
   readonly progress: ProgressRecord | undefined;
@@ -2572,6 +2574,7 @@ interface PlaceCardProps {
 function PlaceCard({
   cardRef,
   datasetId,
+  wikiUrl,
   place,
   locale,
   progress,
@@ -2628,7 +2631,11 @@ function PlaceCard({
         <PixelIcon name="close" />
       </button>
       <div className="place-card-title">
-        <h2 id="selected-place-title">{place.name}</h2>
+        <h2 id="selected-place-title">
+          {wikiUrl ? (
+            <a href={wikiUrl} target="_blank" rel="noopener noreferrer">{place.name}</a>
+          ) : place.name}
+        </h2>
         <button
           className="place-card-copy-link"
           type="button"
