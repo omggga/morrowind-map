@@ -21,6 +21,7 @@ coverage/
 playwright-report/
 test-results/
 artifacts/deployment/
+artifacts/wiki-links/
 *.tsbuildinfo
 
 # Python
@@ -77,6 +78,8 @@ id_ed25519*
 /docs/DEPLOYMENT.md
 /docs/DEPLOYMENT_RUNBOOK.md
 /docs/DESIGN_SYSTEM.md
+/docs/WIKI_LINKS.md
+/tools/build_wiki_links.py
 /.github/main-branch-protection.json
 /tools/deployment/nginx/morrowind-map.conf
 /tools/deployment/nginx/morrowind-map-security.conf
