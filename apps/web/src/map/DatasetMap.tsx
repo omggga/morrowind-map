@@ -1314,7 +1314,7 @@ function DatasetMapReady({
           placeId === selectedIdRef.current,
           labelPriorityContextRef.current.searchMatchIds.has(placeId),
           progressByPlaceIdRef.current.get(placeId)?.status ?? 'unvisited',
-          resolution <= view.getResolutionForZoom(view.getMaxZoom()) * 1.001,
+          resolution <= view.getResolutionForZoom(8) * 1.001,
         );
       },
       updateWhileAnimating: true,

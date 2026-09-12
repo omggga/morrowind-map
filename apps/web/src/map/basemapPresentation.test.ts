@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   BASEMAP_BRIGHTNESS_FACTOR,
   BASEMAP_CONTRAST_FACTOR,
-  BASEMAP_MAX_OVERSCALE,
   createOverscaledViewResolutions,
   makeRenderedPixelsOpaque,
   requiresRuntimeBasemapAdjustment,
@@ -67,16 +66,19 @@ function pyramid(): TilePyramid {
 }
 
 describe('basemap presentation preview', () => {
-  it('adds one 10% view-only overscale without extending the source tile grid', () => {
+  it('preserves existing zoom levels and extends the view to z9 using only existing source tiles', () => {
     const sourcePyramid = pyramid();
     const viewResolutions = createOverscaledViewResolutions(sourcePyramid);
     const sourceGrid = createTes3TileGrid(sourcePyramid);
 
-    expect(BASEMAP_MAX_OVERSCALE).toBe(1.1);
-    expect(viewResolutions).toHaveLength(9);
-    expect(viewResolutions.at(-1)).toBeCloseTo(16 / 1.1);
+    expect(viewResolutions).toHaveLength(10);
+    expect(viewResolutions.slice(0, 8)).toEqual(sourcePyramid.resolutions);
+    expect(viewResolutions[8]).toBeCloseTo(16 / 1.1);
+    expect(viewResolutions[9]).toBeCloseTo(16 / 2.2);
     expect(sourceGrid.getMaxZoom()).toBe(7);
-    expect(sourceGrid.getZForResolution(16 / 1.1)).toBe(7);
+    for (const resolution of viewResolutions.slice(8)) {
+      expect(sourceGrid.getZForResolution(resolution)).toBe(7);
+    }
   });
 
   it('uses the conservative visual grade selected for the preview', () => {

@@ -4,7 +4,8 @@ import type Tile from 'ol/Tile.js';
 import TileState from 'ol/TileState.js';
 import { createTes3Resolutions } from './sparseTiles';
 
-export const BASEMAP_MAX_OVERSCALE = 1.1;
+export const BASEMAP_INITIAL_OVERSCALE = 1.1;
+export const BASEMAP_MAX_VIEW_ZOOM = 9;
 export const BASEMAP_CONTRAST_FACTOR = 102 / 108;
 export const BASEMAP_BRIGHTNESS_FACTOR = 1.1;
 
@@ -14,7 +15,7 @@ export function requiresRuntimeBasemapAdjustment(pyramid: TilePyramid): boolean 
 
 export function createOverscaledViewResolutions(
   pyramid: TilePyramid,
-  scale = BASEMAP_MAX_OVERSCALE,
+  scale = BASEMAP_INITIAL_OVERSCALE,
 ): number[] {
   const resolutions = createTes3Resolutions(pyramid);
   const finestResolution = resolutions.at(-1);
@@ -23,7 +24,12 @@ export function createOverscaledViewResolutions(
     return resolutions;
   }
 
-  return [...resolutions, finestResolution / scale];
+  // Preserve existing zoom values and shared links, then magnify the finest tiles further.
+  const viewResolutions = [...resolutions, finestResolution / scale];
+  while (viewResolutions.length <= BASEMAP_MAX_VIEW_ZOOM) {
+    viewResolutions.push(viewResolutions[viewResolutions.length - 1]! / 2);
+  }
+  return viewResolutions;
 }
 
 export function makeRenderedPixelsOpaque(pixels: Uint8ClampedArray): void {

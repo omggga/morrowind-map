@@ -1429,6 +1429,28 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
     'Hidden cache.',
   );
 
+  const zoomUrl = new URL(sharedUrl.href);
+  zoomUrl.searchParams.set('z', '8');
+  await page.goto(zoomUrl.href);
+  await expect.poll(() => currentMapView(page)).toEqual({ x: 12288, y: -217088, zoom: 8 });
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await expect.poll(async () => (await currentMapView(page)).zoom).toBe(9);
+  await expect.poll(() => hasPaintedBasemap(page)).toBe(true);
+  await page.getByRole('button', { name: 'Copy link to this place' }).click();
+  await expect(page.getByText('Link copied.', { exact: true })).toBeVisible();
+  const maxZoomUrl = await page.evaluate(() => navigator.clipboard.readText());
+  expect(new URL(maxZoomUrl).searchParams.get('z')).toBe('9');
+  await page.goto(maxZoomUrl);
+  await expect.poll(() => currentMapView(page)).toEqual({ x: 12288, y: -217088, zoom: 9 });
+  await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
+  await expect.poll(() => hasPaintedBasemap(page)).toBe(true);
+  expect(probe.tileRequests.every((path) => {
+    const tileZoom = /\/tiles\/(\d+)\//.exec(path)?.[1];
+    return tileZoom !== undefined && Number(tileZoom) <= 7;
+  })).toBe(true);
+
   expect(probe.externalRequests).toEqual([]);
   expect(probe.localFailures).toEqual([]);
 });
