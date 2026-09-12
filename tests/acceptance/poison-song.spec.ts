@@ -1312,6 +1312,28 @@ test('offline V4 workflow persists progress, notes and personal markers', async 
   )).toBe(true);
 
   await searchAndOpenPlace(page);
+  const offsetUrl = new URL(page.url());
+  offsetUrl.searchParams.set('x', '14000');
+  offsetUrl.searchParams.set('y', '-211000');
+  offsetUrl.searchParams.set('z', '6.45');
+  offsetUrl.searchParams.set('type', 'landmark');
+  offsetUrl.searchParams.set('status', 'unvisited');
+  await page.goto(offsetUrl.href);
+  await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
+  await expect.poll(() => currentMapView(page)).toEqual({ x: 14000, y: -211000, zoom: 6.45 });
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.getByRole('button', { name: 'Copy link to this place' }).click();
+  await expect(page.getByText('Link copied.', { exact: true })).toBeVisible();
+  const sharedUrl = new URL(await page.evaluate(() => navigator.clipboard.readText()));
+  expect(Object.fromEntries(sharedUrl.searchParams)).toEqual({
+    dataset: DATASET_ID, region: 'all', x: '12288', y: '-217088', z: '6.45', place: PLACE_ID,
+  });
+  expect(sharedUrl.origin).toBe(offsetUrl.origin);
+  expect(await currentMapView(page)).toEqual({ x: 14000, y: -211000, zoom: 6.45 });
+  await expect(page.getByText('Link copied.', { exact: true })).toHaveCount(0, { timeout: 6500 });
+  await page.goto(sharedUrl.href);
+  await expect(page.getByRole('heading', { name: PLACE_NAME, exact: true })).toBeVisible();
+  await expect.poll(() => currentMapView(page)).toEqual({ x: 12288, y: -217088, zoom: 6.45 });
   const progress = page.getByLabel('Place progress');
   const activeStatus = progress.getByRole('button', { name: 'Active' });
   await activeStatus.click();

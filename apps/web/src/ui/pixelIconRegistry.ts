@@ -5,6 +5,7 @@ export const PIXEL_ICON_NAMES = [
   'close',
   'mail',
   'github',
+  'link',
 ] as const;
 
 export type PixelIconName = (typeof PIXEL_ICON_NAMES)[number];

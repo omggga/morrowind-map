@@ -53,7 +53,7 @@ import {
 } from '../data/placeFilters';
 import { buildPlaceViews, PlaceSearch, type PlaceView } from '../data/placeSearch';
 import { presentDataset } from '../data/datasetPresentation';
-import type { MapUrlState, MapUrlView } from '../navigation/mapUrlState';
+import { writeMapUrl, type MapUrlState, type MapUrlView } from '../navigation/mapUrlState';
 import { normalizeMapUrlState } from '../navigation/normalizeMapUrlState';
 import { userDatabase } from '../storage/database';
 import {
@@ -156,12 +156,18 @@ const MARKER_ICON_SOURCES = new globalThis.Map<MarkerKind, string>(
   }),
 );
 
+const SELECTED_PLACE_COLOR = '#6fe7ff';
+const SELECTED_PLACE_ICON_SOURCE = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12" shape-rendering="crispEdges"><path d="${MARKER_SEMANTICS.unvisited.path}" fill="${SELECTED_PLACE_COLOR}" fill-rule="evenodd"/></svg>`,
+)}`;
+
 function createMarkerStyles(kind: MarkerKind, emphasis: MarkerEmphasis): Style[] {
   const baseZIndex = emphasis === 'selected' ? 112 : emphasis === 'hovered' ? 102 : 92;
-  const scale = emphasis === 'selected' ? 0.45 : emphasis === 'hovered' ? 0.4 : 0.35;
+  const selectedPlace = emphasis === 'selected' && kind !== 'custom';
+  const scale = selectedPlace ? 0.6 : emphasis === 'selected' ? 0.45 : emphasis === 'hovered' ? 0.4 : 0.35;
   return [new Style({
     image: new Icon({
-      src: MARKER_ICON_SOURCES.get(kind) ?? '',
+      src: selectedPlace ? SELECTED_PLACE_ICON_SOURCE : MARKER_ICON_SOURCES.get(kind) ?? '',
       scale,
     }),
     zIndex: baseZIndex,
@@ -210,9 +216,9 @@ function createPlaceLabelStyle(
         : '500 10px "Atkinson Hyperlegible Next Variable", Arial, sans-serif',
       offsetY: -11,
       padding: [1, 2, 1, 2],
-      fill: new Fill({ color: MARKER_SEMANTICS[status].color }),
+      fill: new Fill({ color: selected && status !== 'custom' ? SELECTED_PLACE_COLOR : MARKER_SEMANTICS[status].color }),
       stroke: new Stroke({ color: '#17130d', width: 2 }),
-      declutterMode: showAll ? 'none' : 'declutter',
+      declutterMode: selected || showAll ? 'none' : 'declutter',
       overflow: true,
     }),
     zIndex: 0,
@@ -2359,6 +2365,20 @@ function DatasetMapReady({
               progress={progress.byPlaceId.get(selectedPlace.id)}
               disabled={userDataDisabled}
               onClose={closeSelectedPlace}
+              onCopyLink={() => navigator.clipboard.writeText(writeMapUrl(
+                new URL(window.location.pathname, window.location.origin),
+                {
+                  datasetId: dataset.datasetId,
+                  regionId: 'all',
+                  placeId: selectedPlace.id,
+                  view: {
+                    center: selectedPlace.place.mapPosition,
+                    zoom: mapRef.current?.getView().getZoom() ?? zoomRef.current,
+                  },
+                  typeFilters: [],
+                  statusFilters: [],
+                },
+              ).href)}
             />
           ) : null}
           {selectedMarker ? (
@@ -2385,6 +2405,7 @@ interface PlaceCardProps {
   readonly progress: ProgressRecord | undefined;
   readonly disabled: boolean;
   readonly onClose: () => void;
+  readonly onCopyLink: () => Promise<void>;
 }
 
 function PlaceCard({
@@ -2395,8 +2416,39 @@ function PlaceCard({
   progress,
   disabled,
   onClose,
+  onCopyLink,
 }: PlaceCardProps) {
   const { t } = useTranslation();
+  const [copyFeedback, setCopyFeedback] = useState<{
+    readonly sequence: number;
+    readonly placeId: string;
+    readonly failed: boolean;
+  } | null>(null);
+  const copySequenceRef = useRef(0);
+  const currentCopyFeedback = copyFeedback?.placeId === place.id ? copyFeedback : null;
+  useEffect(() => {
+    if (currentCopyFeedback === null) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      setCopyFeedback((current) => current === currentCopyFeedback ? null : current);
+    }, 5000);
+    return () => window.clearTimeout(timeout);
+  }, [currentCopyFeedback]);
+  const copyLink = async () => {
+    const sequence = ++copySequenceRef.current;
+    setCopyFeedback(null);
+    try {
+      await onCopyLink();
+      if (sequence === copySequenceRef.current) {
+        setCopyFeedback({ sequence, placeId: place.id, failed: false });
+      }
+    } catch {
+      if (sequence === copySequenceRef.current) {
+        setCopyFeedback({ sequence, placeId: place.id, failed: true });
+      }
+    }
+  };
   return (
     <article
       ref={cardRef}
@@ -2414,7 +2466,27 @@ function PlaceCard({
       <button className="place-card-close" type="button" onClick={onClose} aria-label={t('map.closeCard')}>
         <PixelIcon name="close" />
       </button>
-      <h2 id="selected-place-title">{place.name}</h2>
+      <div className="place-card-title">
+        <h2 id="selected-place-title">{place.name}</h2>
+        <button
+          className="place-card-copy-link"
+          type="button"
+          onClick={() => void copyLink()}
+          aria-label={t('map.copyPlaceLink')}
+          title={t('map.copyPlaceLink')}
+        >
+          <PixelIcon name="link" />
+        </button>
+      </div>
+      {currentCopyFeedback ? (
+        <p
+          key={currentCopyFeedback.sequence}
+          className={`place-share-feedback${currentCopyFeedback.failed ? ' place-share-feedback--error' : ''}`}
+          role={currentCopyFeedback.failed ? 'alert' : 'status'}
+        >
+          {t(currentCopyFeedback.failed ? 'map.placeLinkCopyFailed' : 'map.placeLinkCopied')}
+        </p>
+      ) : null}
       <PlaceProgressEditor
         key={`${datasetId}\0${place.id}`}
         datasetId={datasetId}
