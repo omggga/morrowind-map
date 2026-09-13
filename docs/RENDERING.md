@@ -194,7 +194,7 @@ in configuration files.
 
 ## Project Cyrodiil and future releases
 
-`config/pc-release.json` describes Abecean Shores 25.05a with the shared Tamriel Data
+`config/pc-release.json` describes Abecean Shores 26.09 with the shared Tamriel Data
 input tree. The canonical load order is Morrowind, Tribunal, Bloodmoon,
 Tamriel_Data, then Cyr_Main. Only Cyr_Main LAND cells become basemap tiles; catalog
 entries outside Cyrodiil are excluded. Rendering uses the exact TR settings,
@@ -250,15 +250,18 @@ Cyrodiil index entry while retaining all other active maps and their exact manif
 
 ## Home of the Nords and future releases
 
-`config/shotn-release.json` describes Skyrim: Home of the Nords 25.05 — Dragonstar.
+`config/shotn-release.json` describes Skyrim: Home of the Nords 26.09 — Dragonstar.
 Obtain the main archive from the [mod authors](https://www.nexusmods.com/morrowind/mods/44921?tab=files)
-and extract the complete package into `local-data/inputs/home-of-nords/`, retaining
-`00 Core/Sky_Main.esm`. The common GOTY and Tamriel Data inputs are reused; no TR or
-Cyrodiil plugins are loaded. `Sky_Main_Grass.esp` is optional and must remain excluded.
+and extract the complete package into a fresh `local-data/inputs/home-of-nords/`.
+For 26.09, rename its `00 Data Files` directory to the renderer's canonical `00 Core`,
+preserving every file and `00 Core/Sky_Main.esm`. Move an older input package to a
+backup directory first to avoid mixing releases. The common GOTY and Tamriel Data
+inputs are reused; no TR or Cyrodiil plugins are loaded. This release has no grass plugin.
 
 ```bash
 mkdir -p local-data/inputs/home-of-nords
 bsdtar -xf /path/to/Sky_Main.7z -C local-data/inputs/home-of-nords
+mv "local-data/inputs/home-of-nords/00 Data Files" "local-data/inputs/home-of-nords/00 Core"
 pnpm render:check home-of-nords
 pnpm render:smoke home-of-nords
 pnpm render:home-of-nords --workers 2 --render-workers 2
@@ -266,8 +269,8 @@ pnpm render:home-of-nords --workers 2 --render-workers 2
 
 Run the full render only after input validation and smoke checks succeed. Do not
 repair malformed plugins by ignoring truncated records or trimming unknown data;
-re-extract a verified archive or obtain a fresh download. An allowed master-size
-mismatch only covers the recorded older Tamriel Data dependency size.
+re-extract a verified archive or obtain a fresh download. The 26.09 profile uses
+Tamriel Data 26.08 without master-size exceptions.
 
 Only `Sky_Main.esm` contributes LAND coverage, and only Skyrim locations enter its
 catalog. The shared renderer retains TR's 512-pixel tiles, native zoom 7, 16 world
