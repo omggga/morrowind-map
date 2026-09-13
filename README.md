@@ -5,12 +5,12 @@ Five interactive maps for The Elder Scrolls III: Morrowind, available at [morrow
 | Map | Coverage |
 | --- | --- |
 | Original GOTY HD | Vvardenfell and Solstheim from Morrowind, Tribunal, and Bloodmoon |
-| Tamriel Rebuilt | The base game and TR Mainland; currently 26.08 Poison Song |
-| Project Cyrodiil | Abecean Shores 25.05a |
-| Skyrim: Home of the Nords | Dragonstar 25.05; the Reach, including Dragonstar, Karthwasten and Karthgad |
+| Tamriel Rebuilt | The base game and TR Mainland; currently Poison Song 26.08.23 |
+| Project Cyrodiil | Abecean Shores 26.09 |
+| Skyrim: Home of the Nords | Dragonstar 26.09; the Reach, including Dragonstar, Karthwasten and Karthgad |
 | Lyithdonea | The Azurian Isles 0.3.1 |
 
-Search places, filter locations, share map links, and keep progress, notes, and personal markers. Mod titles in the map header link to their Nexus Mods pages in a new tab. Personal data stays in your browser; use JSON export/import to transfer it or keep a backup. Records are associated with a specific map version.
+Search places, filter locations, share map links, and keep progress, notes, and personal markers. Mod map headers show the loaded release version and link to their Nexus Mods pages in a new tab. Personal data stays in your browser; use JSON export/import to transfer it or keep a backup. Records are associated with a specific map version.
 
 ## Requirements
 

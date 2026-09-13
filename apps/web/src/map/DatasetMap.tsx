@@ -477,6 +477,12 @@ export function DatasetMap({
 export function MapTitlebar({ dataset, onBack, tools }: MapTitlebarProps) {
   const { t } = useTranslation();
   const presentation = presentDataset(dataset);
+  const version = dataset.release.build?.startsWith(`${dataset.release.version}.`)
+    ? dataset.release.build
+    : dataset.release.version;
+  const title = dataset.mapKey !== 'original' && version
+    ? `${presentation.title} ${version}`
+    : presentation.title;
   return (
     <header className="window-titlebar map-titlebar">
       <button className="back-button" type="button" onClick={onBack}>
@@ -492,9 +498,9 @@ export function MapTitlebar({ dataset, onBack, tools }: MapTitlebarProps) {
               rel="noopener noreferrer"
               title="View mod on Nexus Mods (opens in a new tab)"
             >
-              {presentation.title}
+              {title}
             </a>
-          ) : presentation.title}
+          ) : title}
         </h1>
       </div>
       {tools ? <div className="map-titlebar-tools">{tools}</div> : null}

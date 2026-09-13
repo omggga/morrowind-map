@@ -20,7 +20,7 @@
       "path": "project-cyrodiil/00 Core"
     }
   ],
-  "datasetId": "abecean-shores-25.05a",
+  "datasetId": "abecean-shores-26.09",
   "excludedOptionalModules": [],
   "fallbackArchives": [
     "Morrowind.bsa",
@@ -31,15 +31,7 @@
     "Tamriel_Data.omwscripts"
   ],
   "mapKey": "project-cyrodiil",
-  "masterSizeExceptions": [
-    {
-      "actualBytes": 17199325,
-      "advertisedBytes": 14887395,
-      "dependentInputId": "cyr-main-esm",
-      "masterInputId": "tamriel-data-esm",
-      "reason": "cyrodiil-25.05-with-tamriel-data-26.08"
-    }
-  ],
+  "masterSizeExceptions": [],
   "pluginRegions": {
     "Bloodmoon.esm": "solstheim",
     "Cyr_Main.esm": "cyrodiil",
@@ -58,9 +50,9 @@
     }
   ],
   "release": {
-    "build": "2025-05-15",
+    "build": "26.09",
     "name": "Abecean Shores",
-    "version": "25.05a"
+    "version": "26.09"
   },
   "requiredInputs": [
     {
@@ -115,7 +107,7 @@
       "directoryId": "project-cyrodiil-core",
       "filename": "Cyr_Main.esm",
       "id": "cyr-main-esm",
-      "sha256": "cccbfcd590b5e9adfbf204a1c290d7ebe2e197a3e0cd9964c8882de444f49d0b"
+      "sha256": "56ae84785452522254c14b0e9af34adde6024d5615954b3a0159b1ab5adefa96"
     }
   ],
   "schemaVersion": 1,

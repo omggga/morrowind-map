@@ -20,13 +20,8 @@
       "path": "home-of-nords/00 Core"
     }
   ],
-  "datasetId": "dragonstar-25.05",
-  "excludedOptionalModules": [
-    {
-      "id": "sky-main-grass",
-      "relativePath": "home-of-nords/01 Grass for MGEXE and OpenMW/Sky_Main_Grass.esp"
-    }
-  ],
+  "datasetId": "dragonstar-26.09",
+  "excludedOptionalModules": [],
   "fallbackArchives": [
     "Morrowind.bsa",
     "Tribunal.bsa",
@@ -36,15 +31,7 @@
     "Tamriel_Data.omwscripts"
   ],
   "mapKey": "home-of-nords",
-  "masterSizeExceptions": [
-    {
-      "actualBytes": 17199325,
-      "advertisedBytes": 14887395,
-      "dependentInputId": "sky-main-esm",
-      "masterInputId": "tamriel-data-esm",
-      "reason": "home-of-nords-25.05-with-tamriel-data-26.08"
-    }
-  ],
+  "masterSizeExceptions": [],
   "pluginRegions": {
     "Bloodmoon.esm": "solstheim",
     "Morrowind.esm": "vvardenfell",
@@ -63,9 +50,9 @@
     }
   ],
   "release": {
-    "build": "25.05",
+    "build": "26.09",
     "name": "Dragonstar",
-    "version": "25.05"
+    "version": "26.09"
   },
   "requiredInputs": [
     {
@@ -120,7 +107,7 @@
       "directoryId": "home-of-nords-core",
       "filename": "Sky_Main.esm",
       "id": "sky-main-esm",
-      "sha256": "fb57c80859852366c504c221a4cbab22c451c81edc8625a5f7f8fe1cf7026d7f"
+      "sha256": "82dd55b396220937459d7489d415c93c02b41606292a1ffc84c890acaa6d3b51"
     }
   ],
   "schemaVersion": 1,

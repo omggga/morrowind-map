@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import datasetIndexFixture from "../../../apps/web/public/datasets/index.json";
 import originalFixture from "../../../apps/web/public/datasets/manifests/original-goty-hd.json";
 import poisonSongFixture from "../../../apps/web/public/datasets/manifests/poison-song-26.08.json";
-import cyrodiilFixture from "../../../apps/web/public/datasets/manifests/abecean-shores-25.05a.json";
+import cyrodiilFixture from "../../../apps/web/public/datasets/manifests/abecean-shores-26.09.json";
 import azurianFixture from "../../../apps/web/public/datasets/manifests/azurian-isles-0.3.1.json";
-import homeOfNordsFixture from "../../../apps/web/public/datasets/manifests/dragonstar-25.05.json";
+import homeOfNordsFixture from "../../../apps/web/public/datasets/manifests/dragonstar-26.09.json";
 import {
   ContractValidationError,
   getDatasetIndexValidationIssues,
@@ -17,8 +17,8 @@ import {
 const manifestsByDatasetId: Readonly<Record<string, unknown>> = {
   "original-goty-hd": originalFixture,
   "poison-song-26.08": poisonSongFixture,
-  "abecean-shores-25.05a": cyrodiilFixture,
-  "dragonstar-25.05": homeOfNordsFixture,
+  "abecean-shores-26.09": cyrodiilFixture,
+  "dragonstar-26.09": homeOfNordsFixture,
   "azurian-isles-0.3.1": azurianFixture,
 };
 
