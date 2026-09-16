@@ -1,5 +1,6 @@
 import type { PlaceType, ProgressStatus } from '@morrowind-map/contracts';
 import { PLACE_TYPE_ORDER, PROGRESS_STATUS_ORDER } from '../data/placeFilters';
+import { transportModes, type TransportMode } from '../transport/types';
 
 export interface MapUrlView {
   readonly center: readonly [number, number];
@@ -13,6 +14,8 @@ export interface MapUrlState {
   readonly placeId: string | null;
   readonly typeFilters: readonly PlaceType[];
   readonly statusFilters: readonly ProgressStatus[];
+  readonly transportModes?: readonly TransportMode[];
+  readonly transportStopId?: string | null;
 }
 
 const OWNED_PARAMETERS = [
@@ -24,6 +27,9 @@ const OWNED_PARAMETERS = [
   'place',
   'type',
   'status',
+  'transport',
+  'stop',
+  'transportConditions',
 ] as const;
 
 function landingState(): MapUrlState {
@@ -112,6 +118,10 @@ export function readMapUrl(url: URL): MapUrlState {
       url.searchParams.getAll('status'),
       PROGRESS_STATUS_ORDER,
     ),
+    ...(transportModes(url.searchParams.getAll('transport')).length > 0 ? {
+      transportModes: transportModes(url.searchParams.getAll('transport')),
+      transportStopId: nonEmptyParameter(url.searchParams, 'stop'),
+    } : {}),
   };
 }
 
@@ -143,6 +153,11 @@ export function writeMapUrl(baseUrl: URL, state: MapUrlState): URL {
   }
   for (const status of canonicalFilterValues(state.statusFilters, PROGRESS_STATUS_ORDER)) {
     url.searchParams.append('status', status);
+  }
+  const modes = transportModes(state.transportModes);
+  for (const mode of modes) url.searchParams.append('transport', mode);
+  if (modes.length > 0) {
+    if (state.transportStopId) url.searchParams.append('stop', state.transportStopId);
   }
 
   return url;

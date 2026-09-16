@@ -1,0 +1,905 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "abecean-shores-26.09",
+  "snapshotId": "pc:abecean-shores-26.09:1627c2790ce68ef5",
+  "sourcePlugins": [
+    {
+      "name": "Morrowind.esm",
+      "sha256": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647"
+    },
+    {
+      "name": "Tribunal.esm",
+      "sha256": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b"
+    },
+    {
+      "name": "Bloodmoon.esm",
+      "sha256": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+    },
+    {
+      "name": "Tamriel_Data.esm",
+      "sha256": "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f"
+    },
+    {
+      "name": "Cyr_Main.esm",
+      "sha256": "56ae84785452522254c14b0e9af34adde6024d5615954b3a0159b1ab5adefa96"
+    }
+  ],
+  "stops": [
+    {
+      "id": "stop-07e85ba6e364b008",
+      "name": "Brina Cross",
+      "position": [
+        -939645.062,
+        -382590.312
+      ],
+      "regionId": "cyrodiil"
+    },
+    {
+      "id": "stop-0e5282188e186859",
+      "name": "Ebonheart",
+      "position": [
+        20573.77,
+        -102220.461
+      ],
+      "regionId": "vvardenfell",
+      "external": true
+    },
+    {
+      "id": "stop-1575bd8f7d28fc61",
+      "name": "Hal Sadek",
+      "position": [
+        -945554.188,
+        -447533.75
+      ],
+      "regionId": "cyrodiil"
+    },
+    {
+      "id": "stop-1e1a1beda2522ab0",
+      "name": "Anvil, Port Quarter",
+      "position": [
+        -992481.875,
+        -443033.188
+      ],
+      "regionId": "cyrodiil"
+    },
+    {
+      "id": "stop-1fd2f8d6ac1239e0",
+      "name": "Archad",
+      "position": [
+        -914013.062,
+        -470037.906
+      ],
+      "regionId": "cyrodiil"
+    },
+    {
+      "id": "stop-6842533946134993",
+      "name": "Charach",
+      "position": [
+        -1107824.0,
+        -424208.0
+      ],
+      "regionId": "cyrodiil"
+    },
+    {
+      "id": "stop-9301d5defb59b76e",
+      "name": "Anvil, Guild of Mages: Top Floor",
+      "position": [
+        -982052.125,
+        -446034.406
+      ],
+      "regionId": "cyrodiil",
+      "interior": "Anvil, Guild of Mages: Top Floor"
+    },
+    {
+      "id": "stop-9d12fcef85b5e360",
+      "name": "Brina Cross, Guild of Mages",
+      "position": [
+        -936432.0,
+        -383520.0
+      ],
+      "regionId": "cyrodiil",
+      "interior": "Brina Cross, Guild of Mages"
+    },
+    {
+      "id": "stop-a43b449871db69ec",
+      "name": "Charach, Guild of Mages",
+      "position": [
+        -1111748.625,
+        -417029.312
+      ],
+      "regionId": "cyrodiil",
+      "interior": "Charach, Guild of Mages"
+    },
+    {
+      "id": "stop-a8a7c68bce0b65e9",
+      "name": "Anvil, Marina",
+      "position": [
+        -976936.875,
+        -446187.062
+      ],
+      "regionId": "cyrodiil"
+    },
+    {
+      "id": "stop-c9de2106997799d2",
+      "name": "Anvil, Marina",
+      "position": [
+        -981871.75,
+        -449418.781
+      ],
+      "regionId": "cyrodiil"
+    },
+    {
+      "id": "stop-dc41a2834f7bb40c",
+      "name": "Anvil, Garden Quarter",
+      "position": [
+        -977712.0,
+        -457464.0
+      ],
+      "regionId": "cyrodiil"
+    },
+    {
+      "id": "stop-de5398c1021caa04",
+      "name": "Anvil, Marina",
+      "position": [
+        -983024.0,
+        -447568.0
+      ],
+      "regionId": "cyrodiil"
+    },
+    {
+      "id": "stop-efab0fed782da705",
+      "name": "Anvil, Port Quarter",
+      "position": [
+        -990795.188,
+        -453126.531
+      ],
+      "regionId": "cyrodiil"
+    },
+    {
+      "id": "stop-f278ca598c5ed85b",
+      "name": "Anvil, Port Quarter",
+      "position": [
+        -983559.938,
+        -453291.344
+      ],
+      "regionId": "cyrodiil"
+    },
+    {
+      "id": "stop-f7161be2b80a35bd",
+      "name": "Thresvy",
+      "position": [
+        -1014371.0,
+        -398021.625
+      ],
+      "regionId": "cyrodiil"
+    }
+  ],
+  "routes": [
+    {
+      "id": "route-00f68d80f3a1d534",
+      "from": "stop-efab0fed782da705",
+      "to": "stop-1e1a1beda2522ab0",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Sabine",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_sabine",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "nearby-boarding-point",
+        "distance": 790.616,
+        "provider": "Trowarth"
+      },
+      "arrivalPosition": [
+        -992448.0,
+        -442368.0,
+        473.971
+      ]
+    },
+    {
+      "id": "route-069780ffb10b225a",
+      "from": "stop-de5398c1021caa04",
+      "to": "stop-dc41a2834f7bb40c",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Starius Rax",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_stariusrax",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 173.676,
+        "provider": "Taccia Tenipter"
+      },
+      "arrivalPosition": [
+        -977560.0,
+        -457496.0,
+        165.688
+      ]
+    },
+    {
+      "id": "route-0b3d58a55c2d2d17",
+      "from": "stop-1e1a1beda2522ab0",
+      "to": "stop-efab0fed782da705",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Trowarth",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_trowarth",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 199.552,
+        "provider": "Sabine"
+      },
+      "arrivalPosition": [
+        -990696.0,
+        -453280.0,
+        261.688
+      ]
+    },
+    {
+      "id": "route-11e403fee1fe5335",
+      "from": "stop-07e85ba6e364b008",
+      "to": "stop-a8a7c68bce0b65e9",
+      "mode": "land",
+      "subtype": "Carriage",
+      "provider": "Aisa Ulo",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_aisaulo",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 316.578,
+        "provider": "Rexus Serperian"
+      },
+      "arrivalPosition": [
+        -976640.0,
+        -446272.0,
+        504.0
+      ]
+    },
+    {
+      "id": "route-166637d0e1507fe6",
+      "from": "stop-a8a7c68bce0b65e9",
+      "to": "stop-07e85ba6e364b008",
+      "mode": "land",
+      "subtype": "Carriage",
+      "provider": "Rexus Serperian",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_rexusserperian",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 155.243,
+        "provider": "Aisa Ulo"
+      },
+      "arrivalPosition": [
+        -939752.688,
+        -382690.75,
+        2145.289
+      ]
+    },
+    {
+      "id": "route-261eb5e02471d42c",
+      "from": "stop-9301d5defb59b76e",
+      "to": "stop-a43b449871db69ec",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Yinassi",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_yinassi",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 140.072,
+        "provider": "Kahali"
+      },
+      "arrivalPosition": [
+        -376.0,
+        216.0,
+        315.933
+      ],
+      "arrivalInterior": "Charach, Guild of Mages"
+    },
+    {
+      "id": "route-325dfc2b840d3686",
+      "from": "stop-a43b449871db69ec",
+      "to": "stop-9301d5defb59b76e",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Kahali",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_kahali",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 115.097,
+        "provider": "Yinassi"
+      },
+      "arrivalPosition": [
+        832.0,
+        216.0,
+        115.405
+      ],
+      "arrivalInterior": "Anvil, Guild of Mages: Top Floor"
+    },
+    {
+      "id": "route-3c013d8b59da46d7",
+      "from": "stop-c9de2106997799d2",
+      "to": "stop-1fd2f8d6ac1239e0",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Saquerilla",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_saquerilla",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 175.135,
+        "provider": "Durokh gro-Bakush"
+      },
+      "arrivalPosition": [
+        -914149.562,
+        -470112.188,
+        128.82
+      ]
+    },
+    {
+      "id": "route-50016921eccf59fe",
+      "from": "stop-9301d5defb59b76e",
+      "to": "stop-9d12fcef85b5e360",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Yinassi",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_yinassi",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 113.269,
+        "provider": "Rinni"
+      },
+      "arrivalPosition": [
+        4000.0,
+        3880.0,
+        4548.211
+      ],
+      "arrivalInterior": "Brina Cross, Guild of Mages"
+    },
+    {
+      "id": "route-5bc9d7cd1612fb81",
+      "from": "stop-c9de2106997799d2",
+      "to": "stop-6842533946134993",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Saquerilla",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_saquerilla",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 293.207,
+        "provider": "Sinedus Notius"
+      },
+      "arrivalPosition": [
+        -1108016.0,
+        -424000.0,
+        316.435
+      ]
+    },
+    {
+      "id": "route-602f62efcb8c108c",
+      "from": "stop-efab0fed782da705",
+      "to": "stop-dc41a2834f7bb40c",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Sabine",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_sabine",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 173.676,
+        "provider": "Taccia Tenipter"
+      },
+      "arrivalPosition": [
+        -977560.0,
+        -457496.0,
+        165.688
+      ]
+    },
+    {
+      "id": "route-6aec431cb1d0711a",
+      "from": "stop-6842533946134993",
+      "to": "stop-f7161be2b80a35bd",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Sinedus Notius",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_sinedusnotius",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 175.836,
+        "provider": "Manni"
+      },
+      "arrivalPosition": [
+        -1014208.0,
+        -398000.0,
+        160.485
+      ]
+    },
+    {
+      "id": "route-77b25c36c7d8718f",
+      "from": "stop-1e1a1beda2522ab0",
+      "to": "stop-dc41a2834f7bb40c",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Trowarth",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_trowarth",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 173.676,
+        "provider": "Taccia Tenipter"
+      },
+      "arrivalPosition": [
+        -977560.0,
+        -457496.0,
+        165.688
+      ]
+    },
+    {
+      "id": "route-7cbb910aaa740251",
+      "from": "stop-dc41a2834f7bb40c",
+      "to": "stop-1e1a1beda2522ab0",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Taccia Tenipter",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_tacciatenipter",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "nearby-boarding-point",
+        "distance": 790.616,
+        "provider": "Trowarth"
+      },
+      "arrivalPosition": [
+        -992448.0,
+        -442368.0,
+        473.971
+      ]
+    },
+    {
+      "id": "route-8167db437f190b82",
+      "from": "stop-a8a7c68bce0b65e9",
+      "to": "stop-1575bd8f7d28fc61",
+      "mode": "land",
+      "subtype": "Carriage",
+      "provider": "Rexus Serperian",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_rexusserperian",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 166.919,
+        "provider": "Miris"
+      },
+      "arrivalPosition": [
+        -945581.375,
+        -447672.688,
+        448.426
+      ]
+    },
+    {
+      "id": "route-85387af046a96053",
+      "from": "stop-dc41a2834f7bb40c",
+      "to": "stop-de5398c1021caa04",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Taccia Tenipter",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_tacciatenipter",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 231.753,
+        "provider": "Starius Rax"
+      },
+      "arrivalPosition": [
+        -982896.0,
+        -447392.0,
+        143.683
+      ]
+    },
+    {
+      "id": "route-8b438bfa30a0c385",
+      "from": "stop-1e1a1beda2522ab0",
+      "to": "stop-de5398c1021caa04",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Trowarth",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_trowarth",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 231.753,
+        "provider": "Starius Rax"
+      },
+      "arrivalPosition": [
+        -982896.0,
+        -447392.0,
+        143.683
+      ]
+    },
+    {
+      "id": "route-8c2911cadf16ed96",
+      "from": "stop-dc41a2834f7bb40c",
+      "to": "stop-efab0fed782da705",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Taccia Tenipter",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_tacciatenipter",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 199.552,
+        "provider": "Sabine"
+      },
+      "arrivalPosition": [
+        -990696.0,
+        -453280.0,
+        261.688
+      ]
+    },
+    {
+      "id": "route-90c6e40454f40002",
+      "from": "stop-6842533946134993",
+      "to": "stop-c9de2106997799d2",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Sinedus Notius",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_sinedusnotius",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 156.232,
+        "provider": "Saquerilla"
+      },
+      "arrivalPosition": [
+        -981856.0,
+        -449280.0,
+        134.0
+      ]
+    },
+    {
+      "id": "route-9cd6fff99248ed12",
+      "from": "stop-a43b449871db69ec",
+      "to": "stop-9d12fcef85b5e360",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Kahali",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_kahali",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 113.269,
+        "provider": "Rinni"
+      },
+      "arrivalPosition": [
+        4000.0,
+        3880.0,
+        4548.211
+      ],
+      "arrivalInterior": "Brina Cross, Guild of Mages"
+    },
+    {
+      "id": "route-9d18fe8a540f58e0",
+      "from": "stop-f7161be2b80a35bd",
+      "to": "stop-c9de2106997799d2",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Manni",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_manni",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 156.232,
+        "provider": "Saquerilla"
+      },
+      "arrivalPosition": [
+        -981856.0,
+        -449280.0,
+        134.0
+      ]
+    },
+    {
+      "id": "route-a47d895d074f5a60",
+      "from": "stop-c9de2106997799d2",
+      "to": "stop-f7161be2b80a35bd",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Saquerilla",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_saquerilla",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 176.155,
+        "provider": "Manni"
+      },
+      "arrivalPosition": [
+        -1014208.0,
+        -398000.0,
+        161.381
+      ]
+    },
+    {
+      "id": "route-b070f41398875172",
+      "from": "stop-1575bd8f7d28fc61",
+      "to": "stop-a8a7c68bce0b65e9",
+      "mode": "land",
+      "subtype": "Carriage",
+      "provider": "Miris",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_miris",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 316.578,
+        "provider": "Rexus Serperian"
+      },
+      "arrivalPosition": [
+        -976640.0,
+        -446272.0,
+        504.0
+      ]
+    },
+    {
+      "id": "route-b39721364297e151",
+      "from": "stop-efab0fed782da705",
+      "to": "stop-de5398c1021caa04",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Sabine",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_sabine",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 231.753,
+        "provider": "Starius Rax"
+      },
+      "arrivalPosition": [
+        -982896.0,
+        -447392.0,
+        143.683
+      ]
+    },
+    {
+      "id": "route-bc3506f1bd898954",
+      "from": "stop-0e5282188e186859",
+      "to": "stop-f278ca598c5ed85b",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Titus Corilex",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m0_tituscorilex",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 121.861,
+        "provider": "Kaltan Doralis"
+      },
+      "arrivalPosition": [
+        -983488.0,
+        -453232.0,
+        527.995
+      ]
+    },
+    {
+      "id": "route-bfba6d2424e39f03",
+      "from": "stop-1fd2f8d6ac1239e0",
+      "to": "stop-c9de2106997799d2",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Durokh gro-Bakush",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_durokhgrobakush",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 156.232,
+        "provider": "Saquerilla"
+      },
+      "arrivalPosition": [
+        -981856.0,
+        -449280.0,
+        134.0
+      ]
+    },
+    {
+      "id": "route-d81caaca59f4f7bf",
+      "from": "stop-f278ca598c5ed85b",
+      "to": "stop-0e5282188e186859",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Kaltan Doralis",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_kaltandoralis",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 237.324,
+        "provider": "Titus Corilex"
+      },
+      "arrivalPosition": [
+        20481.947,
+        -102426.719,
+        152.781
+      ]
+    },
+    {
+      "id": "route-e540de9a394f2b81",
+      "from": "stop-9d12fcef85b5e360",
+      "to": "stop-9301d5defb59b76e",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Rinni",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_rinni",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 115.097,
+        "provider": "Yinassi"
+      },
+      "arrivalPosition": [
+        832.0,
+        216.0,
+        115.405
+      ],
+      "arrivalInterior": "Anvil, Guild of Mages: Top Floor"
+    },
+    {
+      "id": "route-e6b34c2048bf9006",
+      "from": "stop-de5398c1021caa04",
+      "to": "stop-1e1a1beda2522ab0",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Starius Rax",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_stariusrax",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "nearby-boarding-point",
+        "distance": 790.616,
+        "provider": "Trowarth"
+      },
+      "arrivalPosition": [
+        -992448.0,
+        -442368.0,
+        473.971
+      ]
+    },
+    {
+      "id": "route-eca802ec59bc0f3b",
+      "from": "stop-f7161be2b80a35bd",
+      "to": "stop-6842533946134993",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Manni",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_manni",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 293.207,
+        "provider": "Sinedus Notius"
+      },
+      "arrivalPosition": [
+        -1108016.0,
+        -424000.0,
+        316.435
+      ]
+    },
+    {
+      "id": "route-ed56980fcee3d27b",
+      "from": "stop-9d12fcef85b5e360",
+      "to": "stop-a43b449871db69ec",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Rinni",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_rinni",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 140.072,
+        "provider": "Kahali"
+      },
+      "arrivalPosition": [
+        -376.0,
+        216.0,
+        315.933
+      ],
+      "arrivalInterior": "Charach, Guild of Mages"
+    },
+    {
+      "id": "route-f92f6d538c8d46f6",
+      "from": "stop-de5398c1021caa04",
+      "to": "stop-efab0fed782da705",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Starius Rax",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Cyrodiil/Transport",
+      "sourceRecord": "pc_m1_stariusrax",
+      "sourcePlugin": "Cyr_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 199.552,
+        "provider": "Sabine"
+      },
+      "arrivalPosition": [
+        -990696.0,
+        -453280.0,
+        261.688
+      ]
+    }
+  ],
+  "review": {
+    "excluded": [
+      "Annine Golden-Blade: Requires Sky_Main.esm, absent from the Cyrodiil profile",
+      "Kaltan Doralis: Requires TR_Mainland.esm, absent from the Cyrodiil profile",
+      "Todd's Super Tester Guy: Development/test actor",
+      "Wind-In-His-Hair: no effective placement"
+    ],
+    "notes": [
+      "Directed travel comes from effective NPC/creature DODT records; reverse services are never inferred.",
+      "Interior display anchors follow teleport doors to the exterior; exact arrival coordinates are preserved on routes.",
+      "Exterior arrival points share a compatible boarding marker within 2048 world units; exact arrivalPosition and arrivalMatch preserve the difference and matching evidence. Boats/waterstriders share intercity docks; local gondolas are separate.",
+      "Services requiring absent optional plugins are excluded. External stops are retained as destinations without map lines.",
+      "Quest and faction requirements are reviewed annotations, not live player-state checks.",
+      "Skylamps, propylons, intervention spells and other script-only travel are outside these three service groups."
+    ]
+  }
+}

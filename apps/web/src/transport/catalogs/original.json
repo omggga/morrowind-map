@@ -1,0 +1,2922 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "original-goty-hd",
+  "snapshotId": "original:goty:8b2690c0ce1c954e",
+  "sourcePlugins": [
+    {
+      "name": "Morrowind.esm",
+      "sha256": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647"
+    },
+    {
+      "name": "Tribunal.esm",
+      "sha256": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b"
+    },
+    {
+      "name": "Bloodmoon.esm",
+      "sha256": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+    }
+  ],
+  "stops": [
+    {
+      "id": "stop-01ca03d5eb1874d3",
+      "name": "Seyda Neen",
+      "position": [
+        -8604.412,
+        -70205.125
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-05d3f3577c308f38",
+      "name": "Tel Aruhn",
+      "position": [
+        123181.57,
+        40787.137
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-06d7df35d3824201",
+      "name": "Fort Frostmoth",
+      "position": [
+        -174333.797,
+        136860.766
+      ],
+      "regionId": "solstheim"
+    },
+    {
+      "id": "stop-07fd23786b475b20",
+      "name": "Molag Mar",
+      "position": [
+        113844.664,
+        -61405.793
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-0b579bb817c2b4ee",
+      "name": "Ebonheart",
+      "position": [
+        20232.982,
+        -103320.203
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-0ca4b78ceea73203",
+      "name": "Ald-ruhn",
+      "position": [
+        -17654.551,
+        54770.059
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-0efc8f7db4de7f2c",
+      "name": "Vivec",
+      "position": [
+        32318.992,
+        -72129.938
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-12480bd7ea4346ee",
+      "name": "Vivec, Foreign Quarter",
+      "position": [
+        35692.871,
+        -74335.914
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-15aa76805fc05fda",
+      "name": "Khuul",
+      "position": [
+        -65939.25,
+        135592.0
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-16f50187070ee358",
+      "name": "Vivec, Foreign Quarter",
+      "position": [
+        27537.176,
+        -77110.867
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-195582bfc2806baf",
+      "name": "Raven Rock",
+      "position": [
+        -199431.547,
+        157049.219
+      ],
+      "regionId": "solstheim"
+    },
+    {
+      "id": "stop-1f200124b5d43239",
+      "name": "Hla Oad",
+      "position": [
+        -48637.012,
+        -39657.738
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-34ace9c2fd1e1104",
+      "name": "Holamayan",
+      "position": [
+        160323.484,
+        -35965.5
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-35f2db95f4f4bf31",
+      "name": "Sadrith Mora",
+      "position": [
+        142120.281,
+        39365.613
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-3e14a799f77fb8ed",
+      "name": "Caldera, Guild of Mages",
+      "position": [
+        -13191.901,
+        19662.219
+      ],
+      "regionId": "vvardenfell",
+      "interior": "Caldera, Guild of Mages"
+    },
+    {
+      "id": "stop-407cd2e959d7102f",
+      "name": "Gnisis",
+      "position": [
+        -86648.391,
+        89352.984
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-45ba6bbd747719ec",
+      "name": "Dagon Fel",
+      "position": [
+        62333.0,
+        184190.203
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-4b7104659b00da0d",
+      "name": "Vivec, Arena",
+      "position": [
+        33428.477,
+        -89213.445
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-54cb24a59d2796ef",
+      "name": "Vivec, Hlaalu",
+      "position": [
+        23928.779,
+        -87537.883
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-67557cfd4d835ae2",
+      "name": "Vivec, Guild of Mages",
+      "position": [
+        28294.008,
+        -79745.062
+      ],
+      "regionId": "vvardenfell",
+      "interior": "Vivec, Guild of Mages"
+    },
+    {
+      "id": "stop-7733feb45065be1e",
+      "name": "Suran",
+      "position": [
+        53155.75,
+        -47745.805
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-7829fe6206556781",
+      "name": "Balmora, Guild of Mages",
+      "position": [
+        -22066.807,
+        -14040.234
+      ],
+      "regionId": "vvardenfell",
+      "interior": "Balmora, Guild of Mages"
+    },
+    {
+      "id": "stop-80f01af6efac2546",
+      "name": "Balmora",
+      "position": [
+        -21226.648,
+        -18292.15
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-82818ef1a211d438",
+      "name": "Tel Mora",
+      "position": [
+        107069.734,
+        117142.367
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-883877e9249fe3d3",
+      "name": "Sadrith Mora, Wolverine Hall: Mage's Guild",
+      "position": [
+        148576.0,
+        28192.0
+      ],
+      "regionId": "vvardenfell",
+      "interior": "Sadrith Mora, Wolverine Hall: Mage's Guild"
+    },
+    {
+      "id": "stop-8f9f99f22400ec1e",
+      "name": "Ebonheart",
+      "position": [
+        20570.135,
+        -101315.125
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-909b4fd9c5c601f0",
+      "name": "Vivec, Telvanni",
+      "position": [
+        43869.965,
+        -87539.477
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-93725418399a450e",
+      "name": "Gnaar Mok",
+      "position": [
+        -58162.965,
+        26616.516
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-a6800159acd38126",
+      "name": "Molag Mar",
+      "position": [
+        103458.578,
+        -58515.367
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-af0c40906535b011",
+      "name": "Khuul",
+      "position": [
+        -68964.438,
+        142156.188
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-b421605187c5bb4d",
+      "name": "Maar Gan",
+      "position": [
+        -22301.484,
+        100047.453
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-ba1c8519b5d10c14",
+      "name": "Khuul",
+      "position": [
+        -69561.234,
+        142137.562
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-d046b00f6c3d5bc1",
+      "name": "Vivec, Temple",
+      "position": [
+        30770.705,
+        -99639.164
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-e1bc172996799ca8",
+      "name": "Ald-ruhn, Guild of Mages",
+      "position": [
+        -14801.888,
+        53102.43
+      ],
+      "regionId": "vvardenfell",
+      "interior": "Ald-ruhn, Guild of Mages"
+    },
+    {
+      "id": "stop-ec22e828ed32f3ed",
+      "name": "Tel Branora",
+      "position": [
+        119242.719,
+        -102108.367
+      ],
+      "regionId": "vvardenfell"
+    },
+    {
+      "id": "stop-efa75e334673fa45",
+      "name": "Vos",
+      "position": [
+        100770.719,
+        114190.0
+      ],
+      "regionId": "vvardenfell"
+    }
+  ],
+  "routes": [
+    {
+      "id": "route-02cabe5646d6c7a1",
+      "from": "stop-67557cfd4d835ae2",
+      "to": "stop-3e14a799f77fb8ed",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Flacassia Fauseius",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "flacassia fauseius",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 166.545,
+        "provider": "Emelia Duronia"
+      },
+      "arrivalPosition": [
+        523.163,
+        335.727,
+        487.872
+      ],
+      "arrivalInterior": "Caldera, Guild of Mages"
+    },
+    {
+      "id": "route-037a8b6b1b04b7b7",
+      "from": "stop-1f200124b5d43239",
+      "to": "stop-93725418399a450e",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Baleni Salavel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "baleni salavel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 554.137,
+        "provider": "Valveli Arelas"
+      },
+      "arrivalPosition": [
+        -58674.816,
+        26485.355,
+        185.772
+      ]
+    },
+    {
+      "id": "route-04e6cb248cd9a85f",
+      "from": "stop-45ba6bbd747719ec",
+      "to": "stop-82818ef1a211d438",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Haema Farseer",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "haema farseer",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 166.938,
+        "provider": "Tonas Telvani"
+      },
+      "arrivalPosition": [
+        106921.359,
+        117169.125,
+        263.359
+      ]
+    },
+    {
+      "id": "route-06b1c6f5dec455de",
+      "from": "stop-45ba6bbd747719ec",
+      "to": "stop-05d3f3577c308f38",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Haema Farseer",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "haema farseer",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-settlement",
+        "distance": 410.355,
+        "provider": "Daynas Darys"
+      },
+      "arrivalPosition": [
+        123303.906,
+        41164.461,
+        182.473
+      ]
+    },
+    {
+      "id": "route-11181a95d4f5c7aa",
+      "from": "stop-ba1c8519b5d10c14",
+      "to": "stop-45ba6bbd747719ec",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Talmeni Drethan",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "talmeni drethan",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 373.552,
+        "provider": "Haema Farseer"
+      },
+      "arrivalPosition": [
+        62679.16,
+        184288.875,
+        185.84
+      ]
+    },
+    {
+      "id": "route-12ade2ba2551934b",
+      "from": "stop-e1bc172996799ca8",
+      "to": "stop-3e14a799f77fb8ed",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Erranil",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "erranil",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 166.234,
+        "provider": "Emelia Duronia"
+      },
+      "arrivalPosition": [
+        521.437,
+        335.16,
+        489.771
+      ],
+      "arrivalInterior": "Caldera, Guild of Mages"
+    },
+    {
+      "id": "route-182c5f9b8d4fba16",
+      "from": "stop-80f01af6efac2546",
+      "to": "stop-0efc8f7db4de7f2c",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Selvil Sareloth",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "selvil sareloth",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 164.597,
+        "provider": "Adondasi Sadalvel"
+      },
+      "arrivalPosition": [
+        32206.885,
+        -72222.422,
+        1004.646
+      ]
+    },
+    {
+      "id": "route-1a452901d0e8df16",
+      "from": "stop-883877e9249fe3d3",
+      "to": "stop-3e14a799f77fb8ed",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Iniel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "iniel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 168.562,
+        "provider": "Emelia Duronia"
+      },
+      "arrivalPosition": [
+        525.714,
+        334.805,
+        490.127
+      ],
+      "arrivalInterior": "Caldera, Guild of Mages"
+    },
+    {
+      "id": "route-1eb4ff47ad93cbe3",
+      "from": "stop-7829fe6206556781",
+      "to": "stop-883877e9249fe3d3",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Masalinie Merian",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "masalinie merian",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 244.03,
+        "provider": "Iniel"
+      },
+      "arrivalPosition": [
+        -30.28,
+        212.142,
+        158.238
+      ],
+      "arrivalInterior": "Sadrith Mora, Wolverine Hall: Mage's Guild"
+    },
+    {
+      "id": "route-21dde6a7fc97d962",
+      "from": "stop-e1bc172996799ca8",
+      "to": "stop-67557cfd4d835ae2",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Erranil",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "erranil",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 134.548,
+        "provider": "Flacassia Fauseius"
+      },
+      "arrivalPosition": [
+        3.565,
+        1393.26,
+        -390.2
+      ],
+      "arrivalInterior": "Vivec, Guild of Mages"
+    },
+    {
+      "id": "route-2217faa32ac08742",
+      "from": "stop-d046b00f6c3d5bc1",
+      "to": "stop-4b7104659b00da0d",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Talsi Uvayn",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "talsi uvayn",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1422.247,
+        "provider": "Dalse Adren"
+      },
+      "arrivalPosition": [
+        33040.215,
+        -87932.133,
+        109.706
+      ]
+    },
+    {
+      "id": "route-240c0268c16b9c85",
+      "from": "stop-12480bd7ea4346ee",
+      "to": "stop-1f200124b5d43239",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Ano Andaram",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "ano andaram",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 189.794,
+        "provider": "Baleni Salavel"
+      },
+      "arrivalPosition": [
+        -48489.703,
+        -39754.93,
+        181.712
+      ]
+    },
+    {
+      "id": "route-253e3f2ddf48446c",
+      "from": "stop-7733feb45065be1e",
+      "to": "stop-01ca03d5eb1874d3",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Folsi Thendas",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "folsi thendas",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 135.652,
+        "provider": "Darvame Hleran"
+      },
+      "arrivalPosition": [
+        -8680.601,
+        -70135.789,
+        919.594
+      ]
+    },
+    {
+      "id": "route-26a4d8967074555c",
+      "from": "stop-ec22e828ed32f3ed",
+      "to": "stop-07fd23786b475b20",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Nireli Farys",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "nireli farys",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 251.855,
+        "provider": "Rindral Dralor"
+      },
+      "arrivalPosition": [
+        113948.602,
+        -61251.453,
+        755.29
+      ]
+    },
+    {
+      "id": "route-26bcb0f92de6f908",
+      "from": "stop-7829fe6206556781",
+      "to": "stop-e1bc172996799ca8",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Masalinie Merian",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "masalinie merian",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 223.881,
+        "provider": "Erranil"
+      },
+      "arrivalPosition": [
+        2597.467,
+        -511.154,
+        -265.328
+      ],
+      "arrivalInterior": "Ald-ruhn, Guild of Mages"
+    },
+    {
+      "id": "route-2f4a97037c0718b3",
+      "from": "stop-ba1c8519b5d10c14",
+      "to": "stop-93725418399a450e",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Talmeni Drethan",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "talmeni drethan",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 559.375,
+        "provider": "Valveli Arelas"
+      },
+      "arrivalPosition": [
+        -58679.211,
+        26485.939,
+        190.112
+      ]
+    },
+    {
+      "id": "route-2f7fcb39f6527386",
+      "from": "stop-0efc8f7db4de7f2c",
+      "to": "stop-80f01af6efac2546",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Adondasi Sadalvel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "adondasi sadalvel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 137.576,
+        "provider": "Selvil Sareloth"
+      },
+      "arrivalPosition": [
+        -21318.512,
+        -18232.85,
+        1180.839
+      ]
+    },
+    {
+      "id": "route-30a12d7c53b5a802",
+      "from": "stop-15aa76805fc05fda",
+      "to": "stop-407cd2e959d7102f",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Seldus Nerendus",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "seldus nerendus",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 185.292,
+        "provider": "Punibi Yahaz"
+      },
+      "arrivalPosition": [
+        -86780.328,
+        89454.156,
+        1125.222
+      ]
+    },
+    {
+      "id": "route-31e00fef716fe086",
+      "from": "stop-e1bc172996799ca8",
+      "to": "stop-883877e9249fe3d3",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Erranil",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "erranil",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 244.03,
+        "provider": "Iniel"
+      },
+      "arrivalPosition": [
+        -30.28,
+        212.142,
+        158.238
+      ],
+      "arrivalInterior": "Sadrith Mora, Wolverine Hall: Mage's Guild"
+    },
+    {
+      "id": "route-3430acc29dd157dd",
+      "from": "stop-b421605187c5bb4d",
+      "to": "stop-0ca4b78ceea73203",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Daras Aryon",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "daras aryon",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 113.211,
+        "provider": "Navam Veran"
+      },
+      "arrivalPosition": [
+        -17642.227,
+        54701.219,
+        2863.686
+      ]
+    },
+    {
+      "id": "route-3749ba4a303a4daf",
+      "from": "stop-16f50187070ee358",
+      "to": "stop-909b4fd9c5c601f0",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Devas Irano",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "devas irano",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1401.026,
+        "provider": "Fendryn Delvi"
+      },
+      "arrivalPosition": [
+        42594.227,
+        -87906.078,
+        145.748
+      ]
+    },
+    {
+      "id": "route-3a5637e71467780f",
+      "from": "stop-01ca03d5eb1874d3",
+      "to": "stop-80f01af6efac2546",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Darvame Hleran",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "darvame hleran",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 136.016,
+        "provider": "Selvil Sareloth"
+      },
+      "arrivalPosition": [
+        -21318.732,
+        -18232.406,
+        1177.664
+      ]
+    },
+    {
+      "id": "route-3aa0b55536a3e8cb",
+      "from": "stop-12480bd7ea4346ee",
+      "to": "stop-ec22e828ed32f3ed",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Ano Andaram",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "ano andaram",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 137.595,
+        "provider": "Nireli Farys"
+      },
+      "arrivalPosition": [
+        119149.922,
+        -102117.047,
+        158.764
+      ]
+    },
+    {
+      "id": "route-3d205d1bb8b1353d",
+      "from": "stop-35f2db95f4f4bf31",
+      "to": "stop-ec22e828ed32f3ed",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Gals Arethi",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "gals arethi",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 135.993,
+        "provider": "Nireli Farys"
+      },
+      "arrivalPosition": [
+        119153.398,
+        -102116.172,
+        159.793
+      ]
+    },
+    {
+      "id": "route-3d9c97938747cd71",
+      "from": "stop-16f50187070ee358",
+      "to": "stop-4b7104659b00da0d",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Devas Irano",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "devas irano",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1386.849,
+        "provider": "Dalse Adren"
+      },
+      "arrivalPosition": [
+        33020.711,
+        -87971.445,
+        126.424
+      ]
+    },
+    {
+      "id": "route-410663540173b6da",
+      "from": "stop-7733feb45065be1e",
+      "to": "stop-80f01af6efac2546",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Folsi Thendas",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "folsi thendas",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 141.148,
+        "provider": "Selvil Sareloth"
+      },
+      "arrivalPosition": [
+        -21322.697,
+        -18234.543,
+        1183.242
+      ]
+    },
+    {
+      "id": "route-4197e731b8ff067a",
+      "from": "stop-7829fe6206556781",
+      "to": "stop-3e14a799f77fb8ed",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Masalinie Merian",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "masalinie merian",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 164.855,
+        "provider": "Emelia Duronia"
+      },
+      "arrivalPosition": [
+        519.827,
+        334.842,
+        489.209
+      ],
+      "arrivalInterior": "Caldera, Guild of Mages"
+    },
+    {
+      "id": "route-421b79467b9e87e7",
+      "from": "stop-35f2db95f4f4bf31",
+      "to": "stop-0b579bb817c2b4ee",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Gals Arethi",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "gals arethi",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 905.4,
+        "provider": "Nevosi Hlan"
+      },
+      "arrivalPosition": [
+        20362.787,
+        -102424.5,
+        185.271
+      ]
+    },
+    {
+      "id": "route-426fda1723d8cf45",
+      "from": "stop-3e14a799f77fb8ed",
+      "to": "stop-883877e9249fe3d3",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Emelia Duronia",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "emelia duronia",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 243.972,
+        "provider": "Iniel"
+      },
+      "arrivalPosition": [
+        -31.41,
+        212.681,
+        159.849
+      ],
+      "arrivalInterior": "Sadrith Mora, Wolverine Hall: Mage's Guild"
+    },
+    {
+      "id": "route-464eb0c8a56c1329",
+      "from": "stop-3e14a799f77fb8ed",
+      "to": "stop-67557cfd4d835ae2",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Emelia Duronia",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "emelia duronia",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 139.843,
+        "provider": "Flacassia Fauseius"
+      },
+      "arrivalPosition": [
+        0.179,
+        1392.822,
+        -385.929
+      ],
+      "arrivalInterior": "Vivec, Guild of Mages"
+    },
+    {
+      "id": "route-4a5eff6c8508c57d",
+      "from": "stop-82818ef1a211d438",
+      "to": "stop-45ba6bbd747719ec",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Tonas Telvani",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "tonas telvani",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 372.741,
+        "provider": "Haema Farseer"
+      },
+      "arrivalPosition": [
+        62677.742,
+        184290.25,
+        186.346
+      ]
+    },
+    {
+      "id": "route-4d828f14dd711547",
+      "from": "stop-16f50187070ee358",
+      "to": "stop-54cb24a59d2796ef",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Devas Irano",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "devas irano",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1454.987,
+        "provider": "Aren Maren"
+      },
+      "arrivalPosition": [
+        22611.465,
+        -87935.922,
+        107.376
+      ]
+    },
+    {
+      "id": "route-4e9b6c39bd610458",
+      "from": "stop-909b4fd9c5c601f0",
+      "to": "stop-4b7104659b00da0d",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Fendryn Delvi",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "fendryn drelvi",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1435.888,
+        "provider": "Dalse Adren"
+      },
+      "arrivalPosition": [
+        33018.176,
+        -87911.859,
+        143.145
+      ]
+    },
+    {
+      "id": "route-4fddc5cb035269a4",
+      "from": "stop-15aa76805fc05fda",
+      "to": "stop-b421605187c5bb4d",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Seldus Nerendus",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "seldus nerendus",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 140.962,
+        "provider": "Daras Aryon"
+      },
+      "arrivalPosition": [
+        -22370.852,
+        100115.141,
+        2520.132
+      ]
+    },
+    {
+      "id": "route-54221eaa4da3d11f",
+      "from": "stop-07fd23786b475b20",
+      "to": "stop-12480bd7ea4346ee",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Rindral Dralor",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "rindral dralor",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 170.636,
+        "provider": "Ano Andaram"
+      },
+      "arrivalPosition": [
+        35752.441,
+        -74468.711,
+        190.272
+      ]
+    },
+    {
+      "id": "route-549aa29f5c1a9874",
+      "from": "stop-45ba6bbd747719ec",
+      "to": "stop-ba1c8519b5d10c14",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Haema Farseer",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "haema farseer",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 167.226,
+        "provider": "Talmeni Drethan"
+      },
+      "arrivalPosition": [
+        -69427.672,
+        142115.75,
+        192.25
+      ]
+    },
+    {
+      "id": "route-5663341b988cdbbe",
+      "from": "stop-7829fe6206556781",
+      "to": "stop-67557cfd4d835ae2",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Masalinie Merian",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "masalinie merian",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 135.098,
+        "provider": "Flacassia Fauseius"
+      },
+      "arrivalPosition": [
+        4.562,
+        1393.788,
+        -388.109
+      ],
+      "arrivalInterior": "Vivec, Guild of Mages"
+    },
+    {
+      "id": "route-56eea8d3803a5d14",
+      "from": "stop-909b4fd9c5c601f0",
+      "to": "stop-16f50187070ee358",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Fendryn Delvi",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "fendryn drelvi",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1413.626,
+        "provider": "Devas Irano"
+      },
+      "arrivalPosition": [
+        28829.506,
+        -76725.164,
+        157.196
+      ]
+    },
+    {
+      "id": "route-5935eb18f1c2a0a4",
+      "from": "stop-883877e9249fe3d3",
+      "to": "stop-7829fe6206556781",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Iniel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "iniel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 185.014,
+        "provider": "Masalinie Merian"
+      },
+      "arrivalPosition": [
+        -755.897,
+        -1002.733,
+        -644.628
+      ],
+      "arrivalInterior": "Balmora, Guild of Mages"
+    },
+    {
+      "id": "route-59e96b0de6b9ad38",
+      "from": "stop-1f200124b5d43239",
+      "to": "stop-12480bd7ea4346ee",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Baleni Salavel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "baleni salavel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 167.898,
+        "provider": "Ano Andaram"
+      },
+      "arrivalPosition": [
+        35748.996,
+        -74467.492,
+        189.107
+      ]
+    },
+    {
+      "id": "route-6195dd31ad926a89",
+      "from": "stop-0b579bb817c2b4ee",
+      "to": "stop-ec22e828ed32f3ed",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Nevosi Hlan",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "nevosi hlan",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 133.558,
+        "provider": "Nireli Farys"
+      },
+      "arrivalPosition": [
+        119148.258,
+        -102117.836,
+        151.485
+      ]
+    },
+    {
+      "id": "route-62a3b88554b47176",
+      "from": "stop-35f2db95f4f4bf31",
+      "to": "stop-82818ef1a211d438",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Gals Arethi",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "gals arethi",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 161.496,
+        "provider": "Tonas Telvani"
+      },
+      "arrivalPosition": [
+        106927.875,
+        117172.414,
+        262.775
+      ]
+    },
+    {
+      "id": "route-68fc3eede46ffeec",
+      "from": "stop-80f01af6efac2546",
+      "to": "stop-0ca4b78ceea73203",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Selvil Sareloth",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "selvil sareloth",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 116.181,
+        "provider": "Navam Veran"
+      },
+      "arrivalPosition": [
+        -17642.643,
+        54699.148,
+        2865.916
+      ]
+    },
+    {
+      "id": "route-6b5c1214e1417eb8",
+      "from": "stop-0ca4b78ceea73203",
+      "to": "stop-407cd2e959d7102f",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Navam Veran",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "navam veran",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 186.468,
+        "provider": "Punibi Yahaz"
+      },
+      "arrivalPosition": [
+        -86782.367,
+        89454.352,
+        1124.334
+      ]
+    },
+    {
+      "id": "route-6e715df116e8e6b0",
+      "from": "stop-efa75e334673fa45",
+      "to": "stop-05d3f3577c308f38",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Sedyni Veran",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "sedyni veran",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-settlement",
+        "distance": 409.298,
+        "provider": "Daynas Darys"
+      },
+      "arrivalPosition": [
+        123303.898,
+        41163.898,
+        180.356
+      ]
+    },
+    {
+      "id": "route-7348d3b8a5cb57c7",
+      "from": "stop-efa75e334673fa45",
+      "to": "stop-35f2db95f4f4bf31",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Sedyni Veran",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "sedyni veran",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 792.224,
+        "provider": "Gals Arethi"
+      },
+      "arrivalPosition": [
+        141876.953,
+        38613.121,
+        325.006
+      ]
+    },
+    {
+      "id": "route-74cc32cee50d09eb",
+      "from": "stop-45ba6bbd747719ec",
+      "to": "stop-35f2db95f4f4bf31",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Haema Farseer",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "haema farseer",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 786.812,
+        "provider": "Gals Arethi"
+      },
+      "arrivalPosition": [
+        141870.906,
+        38621.242,
+        331.338
+      ]
+    },
+    {
+      "id": "route-7689a04c11f87917",
+      "from": "stop-0b579bb817c2b4ee",
+      "to": "stop-35f2db95f4f4bf31",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Nevosi Hlan",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "nevosi hlan",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 769.894,
+        "provider": "Gals Arethi"
+      },
+      "arrivalPosition": [
+        141877.859,
+        38637.309,
+        337.969
+      ]
+    },
+    {
+      "id": "route-786383fdc415040d",
+      "from": "stop-05d3f3577c308f38",
+      "to": "stop-82818ef1a211d438",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Daynas Darys",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "daynas darys",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 164.086,
+        "provider": "Tonas Telvani"
+      },
+      "arrivalPosition": [
+        106924.68,
+        117168.758,
+        263.704
+      ]
+    },
+    {
+      "id": "route-78b1bef430fca3c7",
+      "from": "stop-0ca4b78ceea73203",
+      "to": "stop-b421605187c5bb4d",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Navam Veran",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "navam veran",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 140.724,
+        "provider": "Daras Aryon"
+      },
+      "arrivalPosition": [
+        -22371.016,
+        100115.586,
+        2519.396
+      ]
+    },
+    {
+      "id": "route-7a0f3201c734c767",
+      "from": "stop-67557cfd4d835ae2",
+      "to": "stop-e1bc172996799ca8",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Flacassia Fauseius",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "flacassia fauseius",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 225.956,
+        "provider": "Erranil"
+      },
+      "arrivalPosition": [
+        2597.32,
+        -509.365,
+        -264.276
+      ],
+      "arrivalInterior": "Ald-ruhn, Guild of Mages"
+    },
+    {
+      "id": "route-7c1bbdd3f017d333",
+      "from": "stop-07fd23786b475b20",
+      "to": "stop-ec22e828ed32f3ed",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Rindral Dralor",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "rindral dralor",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 132.71,
+        "provider": "Nireli Farys"
+      },
+      "arrivalPosition": [
+        119153.211,
+        -102118.266,
+        155.023
+      ]
+    },
+    {
+      "id": "route-7cc86d6972361590",
+      "from": "stop-7733feb45065be1e",
+      "to": "stop-a6800159acd38126",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Folsi Thendas",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "folsi thendas",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 146.604,
+        "provider": "Dilami Androm"
+      },
+      "arrivalPosition": [
+        103449.016,
+        -58402.789,
+        1545.538
+      ]
+    },
+    {
+      "id": "route-800303d940381db2",
+      "from": "stop-1f200124b5d43239",
+      "to": "stop-0b579bb817c2b4ee",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Baleni Salavel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "baleni salavel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 918.242,
+        "provider": "Nevosi Hlan"
+      },
+      "arrivalPosition": [
+        20380.297,
+        -102414.148,
+        183.513
+      ]
+    },
+    {
+      "id": "route-8092522f67cf660f",
+      "from": "stop-4b7104659b00da0d",
+      "to": "stop-d046b00f6c3d5bc1",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Dalse Adren",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "dalse adren",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1495.517,
+        "provider": "Talsi Uvayn"
+      },
+      "arrivalPosition": [
+        30125.951,
+        -98355.617,
+        173.45
+      ]
+    },
+    {
+      "id": "route-81c18e755b832fc9",
+      "from": "stop-01ca03d5eb1874d3",
+      "to": "stop-0efc8f7db4de7f2c",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Darvame Hleran",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "darvame hleran",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 166.0,
+        "provider": "Adondasi Sadalvel"
+      },
+      "arrivalPosition": [
+        32207.215,
+        -72223.805,
+        1006.437
+      ]
+    },
+    {
+      "id": "route-829753720b05cd8b",
+      "from": "stop-407cd2e959d7102f",
+      "to": "stop-15aa76805fc05fda",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Punibi Yahaz",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "punibi yahaz",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 161.909,
+        "provider": "Seldus Nerendus"
+      },
+      "arrivalPosition": [
+        -65875.594,
+        135522.344,
+        1106.46
+      ]
+    },
+    {
+      "id": "route-8366842b50c8a1c8",
+      "from": "stop-1f200124b5d43239",
+      "to": "stop-07fd23786b475b20",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Baleni Salavel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "baleni salavel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 257.203,
+        "provider": "Rindral Dralor"
+      },
+      "arrivalPosition": [
+        113960.156,
+        -61257.711,
+        761.31
+      ]
+    },
+    {
+      "id": "route-86f01b5c3d443b40",
+      "from": "stop-01ca03d5eb1874d3",
+      "to": "stop-407cd2e959d7102f",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Darvame Hleran",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "darvame hleran",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 190.76,
+        "provider": "Punibi Yahaz"
+      },
+      "arrivalPosition": [
+        -86786.094,
+        89452.07,
+        1130.661
+      ]
+    },
+    {
+      "id": "route-8afb4690fe00daa2",
+      "from": "stop-4b7104659b00da0d",
+      "to": "stop-909b4fd9c5c601f0",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Dalse Adren",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "dalse adren",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1401.71,
+        "provider": "Fendryn Delvi"
+      },
+      "arrivalPosition": [
+        42593.812,
+        -87905.523,
+        144.336
+      ]
+    },
+    {
+      "id": "route-8b10a9e1c8c69771",
+      "from": "stop-7733feb45065be1e",
+      "to": "stop-0efc8f7db4de7f2c",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Folsi Thendas",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "folsi thendas",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 167.413,
+        "provider": "Adondasi Sadalvel"
+      },
+      "arrivalPosition": [
+        32206.377,
+        -72225.117,
+        1006.658
+      ]
+    },
+    {
+      "id": "route-8d59c78a5ab551ae",
+      "from": "stop-883877e9249fe3d3",
+      "to": "stop-67557cfd4d835ae2",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Iniel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "iniel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 138.045,
+        "provider": "Flacassia Fauseius"
+      },
+      "arrivalPosition": [
+        3.52,
+        1391.325,
+        -385.853
+      ],
+      "arrivalInterior": "Vivec, Guild of Mages"
+    },
+    {
+      "id": "route-8db73df5e4cd84ed",
+      "from": "stop-67557cfd4d835ae2",
+      "to": "stop-883877e9249fe3d3",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Flacassia Fauseius",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "flacassia fauseius",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 244.03,
+        "provider": "Iniel"
+      },
+      "arrivalPosition": [
+        -30.28,
+        212.142,
+        158.238
+      ],
+      "arrivalInterior": "Sadrith Mora, Wolverine Hall: Mage's Guild"
+    },
+    {
+      "id": "route-8e59b7b976765c2c",
+      "from": "stop-195582bfc2806baf",
+      "to": "stop-06d7df35d3824201",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Veresa Alver",
+      "conditions": [
+        "Requires Raven Rock colony progress (ColonyState 3 or later)."
+      ],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "veresa alver",
+      "sourcePlugin": "Bloodmoon.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 376.595,
+        "provider": "Basks-In-The-Sun"
+      },
+      "arrivalPosition": [
+        -174016.0,
+        136704.0,
+        448.0
+      ]
+    },
+    {
+      "id": "route-9285bdb82483d348",
+      "from": "stop-54cb24a59d2796ef",
+      "to": "stop-4b7104659b00da0d",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Aren Maren",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "aren maren",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1357.485,
+        "provider": "Dalse Adren"
+      },
+      "arrivalPosition": [
+        33022.461,
+        -88001.445,
+        132.442
+      ]
+    },
+    {
+      "id": "route-96da7d824cf607fc",
+      "from": "stop-35f2db95f4f4bf31",
+      "to": "stop-45ba6bbd747719ec",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Gals Arethi",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "gals arethi",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 376.356,
+        "provider": "Haema Farseer"
+      },
+      "arrivalPosition": [
+        62681.508,
+        184288.641,
+        188.398
+      ]
+    },
+    {
+      "id": "route-972cd37ffb190a89",
+      "from": "stop-407cd2e959d7102f",
+      "to": "stop-b421605187c5bb4d",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Punibi Yahaz",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "punibi yahaz",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 142.324,
+        "provider": "Daras Aryon"
+      },
+      "arrivalPosition": [
+        -22369.432,
+        100114.109,
+        2523.587
+      ]
+    },
+    {
+      "id": "route-9e09e6443bddb04a",
+      "from": "stop-0ca4b78ceea73203",
+      "to": "stop-15aa76805fc05fda",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Navam Veran",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "navam veran",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 159.504,
+        "provider": "Seldus Nerendus"
+      },
+      "arrivalPosition": [
+        -65872.719,
+        135522.266,
+        1101.983
+      ]
+    },
+    {
+      "id": "route-9e496a6b866480dc",
+      "from": "stop-07fd23786b475b20",
+      "to": "stop-1f200124b5d43239",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Rindral Dralor",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "rindral dralor",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 189.377,
+        "provider": "Baleni Salavel"
+      },
+      "arrivalPosition": [
+        -48492.668,
+        -39754.523,
+        187.125
+      ]
+    },
+    {
+      "id": "route-9f3c917abea9ce30",
+      "from": "stop-ec22e828ed32f3ed",
+      "to": "stop-35f2db95f4f4bf31",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Nireli Farys",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "nireli farys",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 759.071,
+        "provider": "Gals Arethi"
+      },
+      "arrivalPosition": [
+        141880.219,
+        38646.445,
+        315.294
+      ]
+    },
+    {
+      "id": "route-9f7c9ad59f90a22f",
+      "from": "stop-34ace9c2fd1e1104",
+      "to": "stop-8f9f99f22400ec1e",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Vevrana Aryon",
+      "conditions": [
+        "Available after the main quest introduces travel to Holamayan."
+      ],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "vevrana aryon",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 188.153,
+        "provider": "Blatta Hateria"
+      },
+      "arrivalPosition": [
+        20426.113,
+        -101409.07,
+        162.686
+      ]
+    },
+    {
+      "id": "route-a051a34dd2563341",
+      "from": "stop-0efc8f7db4de7f2c",
+      "to": "stop-7733feb45065be1e",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Adondasi Sadalvel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "adondasi sadalvel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 501.5,
+        "provider": "Folsi Thendas"
+      },
+      "arrivalPosition": [
+        53161.16,
+        -48229.477,
+        984.138
+      ]
+    },
+    {
+      "id": "route-a44a7df452137e3b",
+      "from": "stop-b421605187c5bb4d",
+      "to": "stop-407cd2e959d7102f",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Daras Aryon",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "daras aryon",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 184.595,
+        "provider": "Punibi Yahaz"
+      },
+      "arrivalPosition": [
+        -86779.133,
+        89453.344,
+        1126.556
+      ]
+    },
+    {
+      "id": "route-a5ae46f26df8b592",
+      "from": "stop-ec22e828ed32f3ed",
+      "to": "stop-12480bd7ea4346ee",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Nireli Farys",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "nireli farys",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 169.44,
+        "provider": "Ano Andaram"
+      },
+      "arrivalPosition": [
+        35750.648,
+        -74467.562,
+        190.872
+      ]
+    },
+    {
+      "id": "route-a92793b6fe57e0ee",
+      "from": "stop-407cd2e959d7102f",
+      "to": "stop-01ca03d5eb1874d3",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Punibi Yahaz",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "punibi yahaz",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 136.824,
+        "provider": "Darvame Hleran"
+      },
+      "arrivalPosition": [
+        -8680.872,
+        -70138.656,
+        923.298
+      ]
+    },
+    {
+      "id": "route-a99022492511bb43",
+      "from": "stop-4b7104659b00da0d",
+      "to": "stop-16f50187070ee358",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Dalse Adren",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "dalse adren",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1413.473,
+        "provider": "Devas Irano"
+      },
+      "arrivalPosition": [
+        28828.943,
+        -76727.008,
+        154.325
+      ]
+    },
+    {
+      "id": "route-ab73220c5c4492ee",
+      "from": "stop-0efc8f7db4de7f2c",
+      "to": "stop-a6800159acd38126",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Adondasi Sadalvel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "adondasi sadalvel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 149.566,
+        "provider": "Dilami Androm"
+      },
+      "arrivalPosition": [
+        103448.523,
+        -58400.91,
+        1547.869
+      ]
+    },
+    {
+      "id": "route-ac92e3ee2d401c1c",
+      "from": "stop-e1bc172996799ca8",
+      "to": "stop-7829fe6206556781",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Erranil",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "erranil",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 185.014,
+        "provider": "Masalinie Merian"
+      },
+      "arrivalPosition": [
+        -755.897,
+        -1002.733,
+        -644.628
+      ],
+      "arrivalInterior": "Balmora, Guild of Mages"
+    },
+    {
+      "id": "route-aca30f660d6a8c99",
+      "from": "stop-93725418399a450e",
+      "to": "stop-1f200124b5d43239",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Valveli Arelas",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "valveli arelas",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 190.341,
+        "provider": "Baleni Salavel"
+      },
+      "arrivalPosition": [
+        -48492.969,
+        -39756.793,
+        187.181
+      ]
+    },
+    {
+      "id": "route-adf87768f5f08aa6",
+      "from": "stop-54cb24a59d2796ef",
+      "to": "stop-d046b00f6c3d5bc1",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Aren Maren",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "aren maren",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1494.269,
+        "provider": "Talsi Uvayn"
+      },
+      "arrivalPosition": [
+        30127.568,
+        -98356.555,
+        172.538
+      ]
+    },
+    {
+      "id": "route-af934b0483d3e1dd",
+      "from": "stop-67557cfd4d835ae2",
+      "to": "stop-7829fe6206556781",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Flacassia Fauseius",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "flacassia fauseius",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 185.014,
+        "provider": "Masalinie Merian"
+      },
+      "arrivalPosition": [
+        -755.897,
+        -1002.733,
+        -644.628
+      ],
+      "arrivalInterior": "Balmora, Guild of Mages"
+    },
+    {
+      "id": "route-b5ffd86ed63b37b8",
+      "from": "stop-0b579bb817c2b4ee",
+      "to": "stop-12480bd7ea4346ee",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Nevosi Hlan",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "nevosi hlan",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 169.543,
+        "provider": "Ano Andaram"
+      },
+      "arrivalPosition": [
+        35751.109,
+        -74468.734,
+        189.021
+      ]
+    },
+    {
+      "id": "route-b62138f9d9e2e57d",
+      "from": "stop-a6800159acd38126",
+      "to": "stop-0efc8f7db4de7f2c",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Dilami Androm",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "dilami androm",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 166.908,
+        "provider": "Adondasi Sadalvel"
+      },
+      "arrivalPosition": [
+        32207.008,
+        -72224.586,
+        1007.121
+      ]
+    },
+    {
+      "id": "route-bbc3cefcf6f1b6f0",
+      "from": "stop-407cd2e959d7102f",
+      "to": "stop-0ca4b78ceea73203",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Punibi Yahaz",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "punibi yahaz",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 113.134,
+        "provider": "Navam Veran"
+      },
+      "arrivalPosition": [
+        -17641.514,
+        54701.176,
+        2863.453
+      ]
+    },
+    {
+      "id": "route-bed1f031150fca70",
+      "from": "stop-06d7df35d3824201",
+      "to": "stop-af0c40906535b011",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Basks-In-The-Sun",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "basks_in_the_sun",
+      "sourcePlugin": "Bloodmoon.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 257.237,
+        "provider": "S'virr"
+      },
+      "arrivalPosition": [
+        -69200.727,
+        142117.562,
+        214.079
+      ]
+    },
+    {
+      "id": "route-bfb95401e558c986",
+      "from": "stop-3e14a799f77fb8ed",
+      "to": "stop-7829fe6206556781",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Emelia Duronia",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "emelia duronia",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 185.412,
+        "provider": "Masalinie Merian"
+      },
+      "arrivalPosition": [
+        -754.663,
+        -1006.161,
+        -640.235
+      ],
+      "arrivalInterior": "Balmora, Guild of Mages"
+    },
+    {
+      "id": "route-c2448fab508f0aa6",
+      "from": "stop-af0c40906535b011",
+      "to": "stop-06d7df35d3824201",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "S'virr",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "s'virr",
+      "sourcePlugin": "Bloodmoon.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 340.441,
+        "provider": "Basks-In-The-Sun"
+      },
+      "arrivalPosition": [
+        -174024.391,
+        136823.953,
+        457.668
+      ]
+    },
+    {
+      "id": "route-c36fb76b8759af99",
+      "from": "stop-b421605187c5bb4d",
+      "to": "stop-15aa76805fc05fda",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Daras Aryon",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "daras aryon",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 165.863,
+        "provider": "Seldus Nerendus"
+      },
+      "arrivalPosition": [
+        -65882.906,
+        135516.078,
+        1111.169
+      ]
+    },
+    {
+      "id": "route-c4431a702b0ddbd7",
+      "from": "stop-d046b00f6c3d5bc1",
+      "to": "stop-54cb24a59d2796ef",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Talsi Uvayn",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "talsi uvayn",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1457.117,
+        "provider": "Aren Maren"
+      },
+      "arrivalPosition": [
+        22611.785,
+        -87934.031,
+        98.415
+      ]
+    },
+    {
+      "id": "route-c7ebef409b556c4d",
+      "from": "stop-0b579bb817c2b4ee",
+      "to": "stop-1f200124b5d43239",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Nevosi Hlan",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "nevosi hlan",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 188.59,
+        "provider": "Baleni Salavel"
+      },
+      "arrivalPosition": [
+        -48493.727,
+        -39754.043,
+        187.785
+      ]
+    },
+    {
+      "id": "route-cc32b61f916f2453",
+      "from": "stop-8f9f99f22400ec1e",
+      "to": "stop-34ace9c2fd1e1104",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Blatta Hateria",
+      "conditions": [
+        "Available after the main quest introduces travel to Holamayan."
+      ],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "blatta hateria",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 195.43,
+        "provider": "Vevrana Aryon"
+      },
+      "arrivalPosition": [
+        160255.094,
+        -36135.164,
+        168.105
+      ]
+    },
+    {
+      "id": "route-ccdbd1383e331e60",
+      "from": "stop-05d3f3577c308f38",
+      "to": "stop-45ba6bbd747719ec",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Daynas Darys",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "daynas darys",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 372.633,
+        "provider": "Haema Farseer"
+      },
+      "arrivalPosition": [
+        62677.797,
+        184289.766,
+        186.237
+      ]
+    },
+    {
+      "id": "route-ced8ab884e84524f",
+      "from": "stop-06d7df35d3824201",
+      "to": "stop-195582bfc2806baf",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Basks-In-The-Sun",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "basks_in_the_sun",
+      "sourcePlugin": "Bloodmoon.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 261.374,
+        "provider": "Veresa Alver"
+      },
+      "arrivalPosition": [
+        -199408.562,
+        157218.906,
+        435.131
+      ]
+    },
+    {
+      "id": "route-cf5acbeb37c37d17",
+      "from": "stop-a6800159acd38126",
+      "to": "stop-7733feb45065be1e",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Dilami Androm",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "dilami androm",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 502.256,
+        "provider": "Folsi Thendas"
+      },
+      "arrivalPosition": [
+        53162.0,
+        -48230.25,
+        984.138
+      ]
+    },
+    {
+      "id": "route-cfe92f2a7ff53b10",
+      "from": "stop-15aa76805fc05fda",
+      "to": "stop-0ca4b78ceea73203",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Seldus Nerendus",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "seldus nerendus",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 117.385,
+        "provider": "Navam Veran"
+      },
+      "arrivalPosition": [
+        -17640.619,
+        54698.758,
+        2866.861
+      ]
+    },
+    {
+      "id": "route-d08c57b21f2d545b",
+      "from": "stop-ec22e828ed32f3ed",
+      "to": "stop-0b579bb817c2b4ee",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Nireli Farys",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "nireli farys",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 904.369,
+        "provider": "Nevosi Hlan"
+      },
+      "arrivalPosition": [
+        20361.344,
+        -102425.258,
+        182.351
+      ]
+    },
+    {
+      "id": "route-d154954a37e3b490",
+      "from": "stop-82818ef1a211d438",
+      "to": "stop-35f2db95f4f4bf31",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Tonas Telvani",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "tonas telvani",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 800.289,
+        "provider": "Gals Arethi"
+      },
+      "arrivalPosition": [
+        141874.312,
+        38605.598,
+        326.821
+      ]
+    },
+    {
+      "id": "route-d5011b302d84dfc7",
+      "from": "stop-82818ef1a211d438",
+      "to": "stop-efa75e334673fa45",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Tonas Telvani",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "tonas telvani",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 221.004,
+        "provider": "Sedyni Veran"
+      },
+      "arrivalPosition": [
+        100663.641,
+        114037.305,
+        255.471
+      ]
+    },
+    {
+      "id": "route-d986eb2fa3456def",
+      "from": "stop-12480bd7ea4346ee",
+      "to": "stop-07fd23786b475b20",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Ano Andaram",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "ano andaram",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 266.383,
+        "provider": "Rindral Dralor"
+      },
+      "arrivalPosition": [
+        113965.008,
+        -61251.926,
+        766.677
+      ]
+    },
+    {
+      "id": "route-e39c6a2965179bfa",
+      "from": "stop-05d3f3577c308f38",
+      "to": "stop-efa75e334673fa45",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Daynas Darys",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "daynas darys",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 219.64,
+        "provider": "Sedyni Veran"
+      },
+      "arrivalPosition": [
+        100663.219,
+        114038.508,
+        254.09
+      ]
+    },
+    {
+      "id": "route-e488d7ad36348910",
+      "from": "stop-883877e9249fe3d3",
+      "to": "stop-e1bc172996799ca8",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Iniel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "iniel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 226.238,
+        "provider": "Erranil"
+      },
+      "arrivalPosition": [
+        2592.889,
+        -511.854,
+        -261.05
+      ],
+      "arrivalInterior": "Ald-ruhn, Guild of Mages"
+    },
+    {
+      "id": "route-e6cc44eb5df69192",
+      "from": "stop-3e14a799f77fb8ed",
+      "to": "stop-e1bc172996799ca8",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Emelia Duronia",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "emelia duronia",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 224.448,
+        "provider": "Erranil"
+      },
+      "arrivalPosition": [
+        2594.188,
+        -509.689,
+        -267.586
+      ],
+      "arrivalInterior": "Ald-ruhn, Guild of Mages"
+    },
+    {
+      "id": "route-e923de8452381779",
+      "from": "stop-d046b00f6c3d5bc1",
+      "to": "stop-909b4fd9c5c601f0",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Talsi Uvayn",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "talsi uvayn",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1400.988,
+        "provider": "Fendryn Delvi"
+      },
+      "arrivalPosition": [
+        42593.988,
+        -87906.492,
+        146.885
+      ]
+    },
+    {
+      "id": "route-e9d9b0e740b72447",
+      "from": "stop-80f01af6efac2546",
+      "to": "stop-01ca03d5eb1874d3",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Selvil Sareloth",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "selvil sareloth",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 136.183,
+        "provider": "Darvame Hleran"
+      },
+      "arrivalPosition": [
+        -8681.428,
+        -70136.102,
+        919.939
+      ]
+    },
+    {
+      "id": "route-ea2219eeb883b1c4",
+      "from": "stop-0efc8f7db4de7f2c",
+      "to": "stop-01ca03d5eb1874d3",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Adondasi Sadalvel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "adondasi sadalvel",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 136.18,
+        "provider": "Darvame Hleran"
+      },
+      "arrivalPosition": [
+        -8681.27,
+        -70133.805,
+        918.237
+      ]
+    },
+    {
+      "id": "route-edae59a024f5baa9",
+      "from": "stop-909b4fd9c5c601f0",
+      "to": "stop-d046b00f6c3d5bc1",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Fendryn Delvi",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "fendryn drelvi",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1496.974,
+        "provider": "Talsi Uvayn"
+      },
+      "arrivalPosition": [
+        30125.871,
+        -98353.562,
+        174.678
+      ]
+    },
+    {
+      "id": "route-ef493e006c241710",
+      "from": "stop-80f01af6efac2546",
+      "to": "stop-7733feb45065be1e",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Selvil Sareloth",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "selvil sareloth",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 500.645,
+        "provider": "Folsi Thendas"
+      },
+      "arrivalPosition": [
+        53159.551,
+        -48228.605,
+        984.138
+      ]
+    },
+    {
+      "id": "route-f0418427e44e670c",
+      "from": "stop-82818ef1a211d438",
+      "to": "stop-05d3f3577c308f38",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Tonas Telvani",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "tonas telvani",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-settlement",
+        "distance": 410.272,
+        "provider": "Daynas Darys"
+      },
+      "arrivalPosition": [
+        123304.719,
+        41165.219,
+        178.397
+      ]
+    },
+    {
+      "id": "route-f34ce575d82f0ee4",
+      "from": "stop-0ca4b78ceea73203",
+      "to": "stop-80f01af6efac2546",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Navam Veran",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "navam veran",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 137.838,
+        "provider": "Selvil Sareloth"
+      },
+      "arrivalPosition": [
+        -21320.674,
+        -18233.113,
+        1179.032
+      ]
+    },
+    {
+      "id": "route-f41e35728cb2f2fa",
+      "from": "stop-12480bd7ea4346ee",
+      "to": "stop-0b579bb817c2b4ee",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Ano Andaram",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "ano andaram",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 925.745,
+        "provider": "Nevosi Hlan"
+      },
+      "arrivalPosition": [
+        20377.666,
+        -102406.234,
+        187.522
+      ]
+    },
+    {
+      "id": "route-f4ff49b7ae65aa84",
+      "from": "stop-93725418399a450e",
+      "to": "stop-ba1c8519b5d10c14",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Valveli Arelas",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "valveli arelas",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 168.065,
+        "provider": "Talmeni Drethan"
+      },
+      "arrivalPosition": [
+        -69428.789,
+        142115.719,
+        195.144
+      ]
+    },
+    {
+      "id": "route-f6c8d724365a1a87",
+      "from": "stop-efa75e334673fa45",
+      "to": "stop-82818ef1a211d438",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Sedyni Veran",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "sedyni veran",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 164.285,
+        "provider": "Tonas Telvani"
+      },
+      "arrivalPosition": [
+        106924.555,
+        117169.297,
+        263.707
+      ]
+    },
+    {
+      "id": "route-fa69a6e5d3fda228",
+      "from": "stop-54cb24a59d2796ef",
+      "to": "stop-16f50187070ee358",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Aren Maren",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "aren maren",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1413.302,
+        "provider": "Devas Irano"
+      },
+      "arrivalPosition": [
+        28829.268,
+        -76725.492,
+        157.253
+      ]
+    },
+    {
+      "id": "route-fbcf6261474137b6",
+      "from": "stop-4b7104659b00da0d",
+      "to": "stop-54cb24a59d2796ef",
+      "mode": "water",
+      "subtype": "Gondola",
+      "provider": "Dalse Adren",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "dalse adren",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 1454.208,
+        "provider": "Aren Maren"
+      },
+      "arrivalPosition": [
+        22613.068,
+        -87935.859,
+        105.257
+      ]
+    },
+    {
+      "id": "route-fd34b040dbdd92a1",
+      "from": "stop-01ca03d5eb1874d3",
+      "to": "stop-7733feb45065be1e",
+      "mode": "land",
+      "subtype": "Silt strider",
+      "provider": "Darvame Hleran",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Morrowind:Transport",
+      "sourceRecord": "darvame hleran",
+      "sourcePlugin": "Morrowind.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 500.855,
+        "provider": "Folsi Thendas"
+      },
+      "arrivalPosition": [
+        53158.793,
+        -48228.828,
+        984.138
+      ]
+    }
+  ],
+  "review": {
+    "excluded": [
+      "Todd's Super Tester Guy: Development/test actor",
+      "Wind-In-His-Hair: no effective placement"
+    ],
+    "notes": [
+      "Directed travel comes from effective NPC/creature DODT records; reverse services are never inferred.",
+      "Interior display anchors follow teleport doors to the exterior; exact arrival coordinates are preserved on routes.",
+      "Exterior arrival points share a compatible boarding marker within 2048 world units; exact arrivalPosition and arrivalMatch preserve the difference and matching evidence. Boats/waterstriders share intercity docks; local gondolas are separate.",
+      "Services requiring absent optional plugins are excluded. External stops are retained as destinations without map lines.",
+      "Quest and faction requirements are reviewed annotations, not live player-state checks.",
+      "Skylamps, propylons, intervention spells and other script-only travel are outside these three service groups."
+    ]
+  }
+}

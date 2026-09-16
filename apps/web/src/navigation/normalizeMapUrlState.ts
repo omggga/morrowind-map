@@ -1,6 +1,7 @@
 import type { PlaceType, ProgressStatus } from '@morrowind-map/contracts';
 import { PLACE_TYPE_ORDER, PROGRESS_STATUS_ORDER } from '../data/placeFilters';
 import type { MapUrlState, MapUrlView } from './mapUrlState';
+import { transportModes } from '../transport/types';
 
 export interface MapUrlConstraints {
   readonly datasetId: string;
@@ -74,5 +75,9 @@ export function normalizeMapUrlState(
     placeId,
     typeFilters,
     statusFilters,
+    ...(transportModes(state.transportModes).length > 0 ? {
+      transportModes: transportModes(state.transportModes),
+      transportStopId: placeId === null ? state.transportStopId ?? null : null,
+    } : {}),
   };
 }

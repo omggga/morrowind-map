@@ -95,6 +95,9 @@ import {
   requiresRuntimeBasemapAdjustment,
 } from './basemapPresentation';
 import { PlaceFilterControls } from './PlaceFilterControls';
+import { TransportOverlay } from '../transport/TransportOverlay';
+import { hasTransport } from '../transport/loadTransport';
+import { transportStopAtPixel } from '../transport/transportLayer';
 import {
   SparseTileCoverageIndex,
   createSparseTileUrlFunction,
@@ -327,6 +330,8 @@ function navigationStatesMatch(
   return left.datasetId === right.datasetId &&
     left.regionId === right.regionId &&
     left.placeId === right.placeId &&
+    (left.transportStopId ?? null) === (right.transportStopId ?? null) &&
+    (left.transportModes ?? []).join(',') === (right.transportModes ?? []).join(',') &&
     left.typeFilters.length === right.typeFilters.length &&
     left.typeFilters.every((value, index) => value === right.typeFilters[index]) &&
     left.statusFilters.length === right.statusFilters.length &&
@@ -530,6 +535,7 @@ function DatasetMapReady({
   const targetRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<Map | null>(null);
+  const [transportMap, setTransportMap] = useState<Map | null>(null);
   const failedTilesRef = useRef(new Set<Tile>());
   const pendingTilesRef = useRef(new Set<Tile>());
   const currentBasemapLoadWindowRef = useRef(new CurrentBasemapLoadWindow<Tile>());
@@ -1078,12 +1084,30 @@ function DatasetMapReady({
 
   const commitNavigation = useCallback(
     (nextState: MapUrlState, mode: 'push' | 'replace') => {
-      navigationStateRef.current = nextState;
-      selfAuthoredNavigationRef.current = nextState;
-      onNavigationChange(nextState, mode);
+      const resolved = nextState.placeId !== null && nextState.transportStopId
+        ? { ...nextState, transportStopId: null } : nextState;
+      navigationStateRef.current = resolved;
+      selfAuthoredNavigationRef.current = resolved;
+      onNavigationChange(resolved, mode);
     },
     [onNavigationChange],
   );
+
+  const changeTransportNavigation = useCallback((patch: Pick<MapUrlState,
+    'transportModes' | 'transportStopId'>, mode: 'push' | 'replace' = 'push') => {
+    commitNavigation({
+      ...navigationStateRef.current,
+      ...patch,
+      ...(patch.transportStopId ? { placeId: null } : {}),
+    }, mode);
+  }, [commitNavigation]);
+  const selectTransport = useCallback(() => {
+    setSelectedId(null);
+    selectedIdRef.current = null;
+    setSelectedMarkerId(null);
+    selectedMarkerIdRef.current = null;
+    setPlacingMarker(false);
+  }, []);
 
   useEffect(() => {
     if (
@@ -1102,9 +1126,9 @@ function DatasetMapReady({
       }
       selectedIdRef.current = null;
       setSelectedId(null);
-      if (navigationStateRef.current.placeId !== null) {
+      if (navigationStateRef.current.placeId !== null || navigationStateRef.current.transportStopId) {
         commitNavigation(
-          { ...navigationStateRef.current, placeId: null },
+          { ...navigationStateRef.current, placeId: null, transportStopId: null },
           'replace',
         );
       }
@@ -1149,9 +1173,9 @@ function DatasetMapReady({
           setSelectedId(null);
           selectedMarkerIdRef.current = marker.id;
           setSelectedMarkerId(marker.id);
-          if (navigationStateRef.current.placeId !== null) {
+          if (navigationStateRef.current.placeId !== null || navigationStateRef.current.transportStopId) {
             commitNavigation(
-              { ...navigationStateRef.current, placeId: null },
+              { ...navigationStateRef.current, placeId: null, transportStopId: null },
               'push',
             );
           }
@@ -1486,6 +1510,7 @@ function DatasetMapReady({
       }),
     });
     mapRef.current = map;
+    setTransportMap(map);
     if (initialView === null) {
       const initialExtent = initialNavigation.regionId === 'all'
         ? extent
@@ -1610,13 +1635,17 @@ function DatasetMapReady({
       }
       map.getTargetElement().classList.toggle(
         'map-canvas--marker-hover',
-        markerId !== null || placeId !== null,
+        markerId !== null || placeId !== null ||
+          ((navigationStateRef.current.transportModes?.length ?? 0) > 0 && transportStopAtPixel(map, event.pixel) !== null),
       );
     });
     const clickKey = map.on('singleclick', (event) => {
       if (placingMarkerRef.current) {
         const [x = 0, y = 0] = event.coordinate;
         createMarkerAt([x, y]);
+        return;
+      }
+      if ((navigationStateRef.current.transportModes?.length ?? 0) > 0 && transportStopAtPixel(map, event.pixel)) {
         return;
       }
       const feature = featureAtPixel(event.pixel);
@@ -1627,9 +1656,9 @@ function DatasetMapReady({
           setSelectedId(null);
           selectedMarkerIdRef.current = markerId;
           setSelectedMarkerId(markerId);
-          if (navigationStateRef.current.placeId !== null) {
+          if (navigationStateRef.current.placeId !== null || navigationStateRef.current.transportStopId) {
             commitNavigation(
-              { ...navigationStateRef.current, placeId: null },
+              { ...navigationStateRef.current, placeId: null, transportStopId: null },
               'push',
             );
           }
@@ -1968,9 +1997,9 @@ function DatasetMapReady({
     selectedIdRef.current = null;
     selectedMarkerIdRef.current = marker.id;
     setSelectedMarkerId(marker.id);
-    if (navigationStateRef.current.placeId !== null) {
+    if (navigationStateRef.current.placeId !== null || navigationStateRef.current.transportStopId) {
       commitNavigation(
-        { ...navigationWithCurrentView(), placeId: null },
+        { ...navigationWithCurrentView(), placeId: null, transportStopId: null },
         'push',
       );
     }
@@ -2149,9 +2178,9 @@ function DatasetMapReady({
     setSelectedId(null);
     setSelectedMarkerId(null);
     selectedIdRef.current = null;
-    if (navigationStateRef.current.placeId !== null) {
+    if (navigationStateRef.current.placeId !== null || navigationStateRef.current.transportStopId) {
       commitNavigation(
-        { ...navigationWithCurrentView(), placeId: null },
+        { ...navigationWithCurrentView(), placeId: null, transportStopId: null },
         'push',
       );
     }
@@ -2162,7 +2191,7 @@ function DatasetMapReady({
     setSelectedId(null);
     selectedIdRef.current = null;
     commitNavigation(
-      { ...navigationWithCurrentView(), placeId: null },
+      { ...navigationWithCurrentView(), placeId: null, transportStopId: null },
       'push',
     );
     placeCardFocus.restore(() => targetRef.current);
@@ -2475,6 +2504,16 @@ function DatasetMapReady({
             <span><StatusMark kind="custom" />{t('map.personalMarker')}</span>
           </div>
 
+          {hasTransport(dataset) ? <TransportOverlay
+            dataset={dataset}
+            places={places}
+            map={transportMap}
+            navigation={normalizedNavigationState}
+            placingMarker={placingMarker}
+            onChange={changeTransportNavigation}
+            onSelect={selectTransport}
+          /> : null}
+
           {basemapState.failures > 0 ? (
             <div
               className={`basemap-state basemap-state--error basemap-state--${basemapState.loaded > 0 ? 'partial' : 'full'}`}
@@ -2522,7 +2561,7 @@ function DatasetMapReady({
             </div>
           ) : null}
 
-          {catalogFiltersReady && selectedPlace ? (
+          {catalogFiltersReady && selectedPlace && !normalizedNavigationState.transportStopId ? (
             <PlaceCard
               cardRef={placeCardRef}
               datasetId={dataset.datasetId}
