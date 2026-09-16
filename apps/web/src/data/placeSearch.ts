@@ -34,11 +34,14 @@ export function buildPlaceViews(
     if (!primaryName) {
       throw new Error(`Missing localized name for ${place.id}`);
     }
+    const name = place.regionId === 'solstheim' && primaryName.name.startsWith('Solstheim, ')
+      ? primaryName.name.slice('Solstheim, '.length)
+      : primaryName.name;
     return {
       id: place.id,
       place,
       locale,
-      name: primaryName.name,
+      name,
       aliases: primaryName.aliases,
       searchableType: place.type,
     };
