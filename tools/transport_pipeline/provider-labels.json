@@ -1,0 +1,506 @@
+{
+  "aamunos rolvar": {
+    "origin": "Tel Ouada",
+    "section": "Waterstrider"
+  },
+  "adairan llerayn": {
+    "origin": "Hlerynhul",
+    "section": "Silt Strider"
+  },
+  "adondasi sadalvel": {
+    "origin": "Vivec",
+    "section": "Civilian Transportation"
+  },
+  "aeta the spear": {
+    "origin": "Old Ebonheart",
+    "section": "Boat"
+  },
+  "aisa ulo": {
+    "origin": "Brina Cross",
+    "section": "Carriage"
+  },
+  "alvur nirano": {
+    "origin": "Bodrum",
+    "section": "Silt Strider"
+  },
+  "anedhil": {
+    "origin": "Sadrith Mora",
+    "section": "Vvardenfell Changes and Additions"
+  },
+  "annine golden-blade": {
+    "origin": "Anvil's Port Quarter",
+    "section": "Boat"
+  },
+  "ano andaram": {
+    "origin": "Vivec",
+    "section": "Boat"
+  },
+  "aren maren": {
+    "origin": "Hlaalu Canton",
+    "section": "Gondola"
+  },
+  "artisa dulo": {
+    "origin": "Marog",
+    "section": "Boat"
+  },
+  "arvs themyn": {
+    "origin": "Hlerynhul",
+    "section": "Caravans"
+  },
+  "arvund": {
+    "origin": "Dragonstar East",
+    "section": "Carriage"
+  },
+  "aurius jaronich": {
+    "origin": "Karthwasten",
+    "section": "Carriage"
+  },
+  "baleni salavel": {
+    "origin": "Hla Oad",
+    "section": "Boat"
+  },
+  "basks-in-the-sun": {
+    "origin": "Fort Frostmoth",
+    "section": "Boat"
+  },
+  "blatta hateria": {
+    "origin": "Ebonheart",
+    "section": "Boat"
+  },
+  "bolvin virenith": {
+    "origin": "Stormgate Pass",
+    "section": "Caravans"
+  },
+  "bronding wind-catcher": {
+    "origin": "Karthwasten Docks",
+    "section": "Boat"
+  },
+  "cascus daro": {
+    "origin": "Karthwasten Docks",
+    "section": "Boat"
+  },
+  "dalse adren": {
+    "origin": "Arena Canton",
+    "section": "Gondola"
+  },
+  "darane sadralo": {
+    "origin": "Narsis",
+    "section": "Waterstrider"
+  },
+  "daras aryon": {
+    "origin": "Maar Gan",
+    "section": "Civilian Transportation"
+  },
+  "darvame hleran": {
+    "origin": "Seyda Neen",
+    "section": "Civilian Transportation"
+  },
+  "daynas darys": {
+    "origin": "Tel Aruhn",
+    "section": "Boat"
+  },
+  "dedave atherayn": {
+    "origin": "Llothanis",
+    "section": "Waterstrider"
+  },
+  "delmus dalis": {
+    "origin": "Hlan Oek",
+    "section": "Waterstrider"
+  },
+  "derana llenam": {
+    "origin": "Helnim",
+    "section": "Boat"
+  },
+  "derara ildram": {
+    "origin": "Shipal-Sharai",
+    "section": "Caravans"
+  },
+  "devas irano": {
+    "origin": "Foreign Quarter",
+    "section": "Gondola"
+  },
+  "didilu-edinu belharranit": {
+    "origin": "Arvud",
+    "section": "Silt Strider"
+  },
+  "dilami androm": {
+    "origin": "Molag Mar",
+    "section": "Civilian Transportation"
+  },
+  "dolmse andala": {
+    "origin": "Port Telvannis",
+    "section": "Waterstrider"
+  },
+  "domiah": {
+    "origin": "Ebonheart",
+    "section": "Vvardenfell Changes and Additions"
+  },
+  "dravil bradyn": {
+    "origin": "Akamora",
+    "section": "Silt Strider"
+  },
+  "dunveri rodran": {
+    "origin": "Tel Ouada",
+    "section": "Boat"
+  },
+  "durab gro-gatog": {
+    "origin": "Nanaav",
+    "section": "Palanquin"
+  },
+  "durokh gro-bakush": {
+    "origin": "Archad",
+    "section": "Boat"
+  },
+  "echoes-in-darkness": {
+    "origin": "Othrenis",
+    "section": "Palanquin"
+  },
+  "elveno rethalen": {
+    "origin": "Othmura",
+    "section": "Waterstrider"
+  },
+  "erendas senatam": {
+    "origin": "Llothanis",
+    "section": "Boat"
+  },
+  "ervyna saran": {
+    "origin": "Bal Foyen",
+    "section": "Silt Strider"
+  },
+  "fathalas romalen": {
+    "origin": "Maar-Bani Crossing",
+    "section": "Boat"
+  },
+  "fathusa balvel": {
+    "origin": "Sailen",
+    "section": "Silt Strider"
+  },
+  "fendryn delvi": {
+    "origin": "Telvanni Canton",
+    "section": "Gondola"
+  },
+  "folsi thendas": {
+    "origin": "Suran",
+    "section": "Civilian Transportation"
+  },
+  "gadam tiren": {
+    "origin": "Port Telvannis",
+    "section": "Waterstrider"
+  },
+  "galis urvyon": {
+    "origin": "Idathren",
+    "section": "Boat"
+  },
+  "galotha sareloth": {
+    "origin": "Omaynis",
+    "section": "Silt Strider"
+  },
+  "galrei": {
+    "origin": "Aimrah",
+    "section": "Palanquin"
+  },
+  "gals arethi": {
+    "origin": "Sadrith Mora",
+    "section": "Boat"
+  },
+  "galu feldrayn": {
+    "origin": "Ald Iuval",
+    "section": "Boat"
+  },
+  "gilsi aryn": {
+    "origin": "Septim's Gate Pass",
+    "section": "Caravans"
+  },
+  "gindrala nethri": {
+    "origin": "Vivec",
+    "section": "Vvardenfell Changes and Additions"
+  },
+  "gols ulven": {
+    "origin": "Menaan",
+    "section": "Silt Strider"
+  },
+  "haema farseer": {
+    "origin": "Dagon Fel",
+    "section": "Boat"
+  },
+  "haldine": {
+    "origin": "Karthwasten Docks",
+    "section": "Boat"
+  },
+  "hlavora gilnith": {
+    "origin": "Alt Bosara",
+    "section": "Boat"
+  },
+  "hlor gonav": {
+    "origin": "Bosmora",
+    "section": "Silt Strider"
+  },
+  "hodling": {
+    "origin": "Roa Dyr",
+    "section": "Palanquin"
+  },
+  "ieva llori": {
+    "origin": "Darvonis",
+    "section": "Boat"
+  },
+  "ilnora pelelius": {
+    "origin": "Nivalis",
+    "section": "Boat"
+  },
+  "irva famori": {
+    "origin": "Hlan Oek",
+    "section": "Silt Strider"
+  },
+  "ivela minith": {
+    "origin": "Marog",
+    "section": "Boat"
+  },
+  "ivrea llothro": {
+    "origin": "Almas Thirr",
+    "section": "Silt Strider"
+  },
+  "jovodii": {
+    "origin": "Vorndgad Forest Region",
+    "section": "Boat"
+  },
+  "jurid fast-travel": {
+    "origin": "Dagon Fel",
+    "section": "Boat"
+  },
+  "kaltan doralis": {
+    "origin": "Anvil",
+    "section": "Boat"
+  },
+  "komira": {
+    "origin": "Othmura",
+    "section": "Boat"
+  },
+  "laga gra-shogar": {
+    "origin": "Enamor Dayn",
+    "section": "Boat"
+  },
+  "llanel adrano": {
+    "origin": "Sadrathim",
+    "section": "Boat"
+  },
+  "llehra sarani": {
+    "origin": "Oran Plantation",
+    "section": "Boat"
+  },
+  "llerar valaai": {
+    "origin": "Hlerynhul",
+    "section": "Boat"
+  },
+  "lleres sarando": {
+    "origin": "Aimrah",
+    "section": "Silt Strider"
+  },
+  "manni": {
+    "origin": "Thresvy",
+    "section": "Boat"
+  },
+  "maros sadryon": {
+    "origin": "Bal Foyen",
+    "section": "Boat"
+  },
+  "marthen redri": {
+    "origin": "Bahrammu",
+    "section": "Boat"
+  },
+  "masalmalu mendas": {
+    "origin": "Alt Bosara",
+    "section": "Waterstrider"
+  },
+  "mehra hleran": {
+    "origin": "Gorne",
+    "section": "Boat"
+  },
+  "milara selenoth": {
+    "origin": "Ranyon-ruhn",
+    "section": "Silt Strider"
+  },
+  "milverna gildran": {
+    "origin": "Maar-Bani Crossing",
+    "section": "Waterstrider"
+  },
+  "miris": {
+    "origin": "Hal Sadek",
+    "section": "Carriage"
+  },
+  "mordinara valethi": {
+    "origin": "Sadas Plantation",
+    "section": "Waterstrider"
+  },
+  "navam veran": {
+    "origin": "Ald'ruhn",
+    "section": "Civilian Transportation"
+  },
+  "nevosi hlan": {
+    "origin": "Ebonheart",
+    "section": "Boat"
+  },
+  "nireli farys": {
+    "origin": "Tel Branora",
+    "section": "Boat"
+  },
+  "nol gro-yalagrump": {
+    "origin": "Mundrethi Plantation",
+    "section": "Boat"
+  },
+  "nuleno nethri": {
+    "origin": "Gah Sadrith",
+    "section": "Boat"
+  },
+  "orvano tralen": {
+    "origin": "Tel Mothrivra",
+    "section": "Waterstrider"
+  },
+  "pien vene": {
+    "origin": "Teyn",
+    "section": "Boat"
+  },
+  "punibi yahaz": {
+    "origin": "Gnisis",
+    "section": "Civilian Transportation"
+  },
+  "r'vana": {
+    "origin": "Almas Thirr",
+    "section": "Palanquin"
+  },
+  "ralis nalor": {
+    "origin": "Almas Thirr",
+    "section": "Waterstrider"
+  },
+  "rellus delano": {
+    "origin": "Nan Iban",
+    "section": "Boat"
+  },
+  "relvyn telandas": {
+    "origin": "Tel Branora",
+    "section": "Vvardenfell Changes and Additions"
+  },
+  "rexus serperian": {
+    "origin": "Anvil",
+    "section": "Carriage"
+  },
+  "riltse helandil": {
+    "origin": "Vhul",
+    "section": "Silt Strider"
+  },
+  "rindral dralor": {
+    "origin": "Molag Mar",
+    "section": "Boat"
+  },
+  "rylara karaleth": {
+    "origin": "Narsis",
+    "section": "Silt Strider"
+  },
+  "s'virr": {
+    "origin": "Khuul",
+    "section": "Boat"
+  },
+  "saquerilla": {
+    "origin": "Anvil",
+    "section": "Boat"
+  },
+  "sedyni veran": {
+    "origin": "Vos",
+    "section": "Boat"
+  },
+  "seldus nerendus": {
+    "origin": "Khuul",
+    "section": "Civilian Transportation"
+  },
+  "selothril llana": {
+    "origin": "Tel Onoria",
+    "section": "Silt Strider"
+  },
+  "selvil sareloth": {
+    "origin": "Balmora",
+    "section": "Civilian Transportation"
+  },
+  "sera bavan": {
+    "origin": "Tel Gilan",
+    "section": "Silt Strider"
+  },
+  "sinedus notius": {
+    "origin": "Charach",
+    "section": "Boat"
+  },
+  "suvala beran": {
+    "origin": "Aimrah",
+    "section": "Boat"
+  },
+  "talmeni drethan": {
+    "origin": "Khuul",
+    "section": "Boat"
+  },
+  "talsi uvayn": {
+    "origin": "Temple Canton",
+    "section": "Gondola"
+  },
+  "tandryen reyas": {
+    "origin": "Bal Oyra",
+    "section": "Boat"
+  },
+  "tedril nothro": {
+    "origin": "Necrom",
+    "section": "Boat"
+  },
+  "titus corilex[nb2]": {
+    "origin": "Ebonheart",
+    "section": "Boat"
+  },
+  "tonas telvani": {
+    "origin": "Tel Mora",
+    "section": "Boat"
+  },
+  "valna sippusoti": {
+    "origin": "Tel Muthada",
+    "section": "Silt Strider"
+  },
+  "valveli arelas": {
+    "origin": "Gnaar Mok",
+    "section": "Boat"
+  },
+  "varusha caril": {
+    "origin": "Tel Ouada",
+    "section": "Silt Strider"
+  },
+  "veresa alver*": {
+    "origin": "Raven Rock",
+    "section": "Boat"
+  },
+  "vernis drethan": {
+    "origin": "Necrom",
+    "section": "Silt Strider"
+  },
+  "vevrana aryon": {
+    "origin": "Holamayan",
+    "section": "Boat"
+  },
+  "virevar tilvayn": {
+    "origin": "Firewatch",
+    "section": "Boat"
+  },
+  "vunal ralvayn": {
+    "origin": "Narsis",
+    "section": "Caravans"
+  },
+  "wajeel-chei": {
+    "origin": "Tilmeth",
+    "section": "Palanquin"
+  },
+  "ysmund white-gale": {
+    "origin": "Dagon Fel",
+    "section": "Vvardenfell Changes and Additions"
+  },
+  "yugil nethri": {
+    "origin": "Gah Sadrith",
+    "section": "Waterstrider"
+  },
+  "zarasni-sa": {
+    "origin": "Maar-Bani Crossing",
+    "section": "Boat"
+  }
+}

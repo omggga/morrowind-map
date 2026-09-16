@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-09-16
+
+### Added
+
+- Add an optional Transport overlay to Original Morrowind, Tamriel Rebuilt, Skyrim: Home of the Nords and Project Cyrodiil, with independent Land transport, Water transport and Guild guides toggles.
+- Show direct travel connections and boarding stops from each map's exact game/mod snapshot. Include boats, waterstriders, gondolas, silt striders, carriages, caravans and palanquins; preserve travel direction and annotate known quest, rank and faction requirements.
+- Add transport stop cards with departure destinations, carrier names, linked UESP titles and a copy-link action. Selecting a destination centers the map on its stop; shared links restore the selected stop and transport networks.
+
+### Changed
+
+- Use thin, bright transport lines without dark outlines, with distinct line patterns and stop shapes. Highlight departures from the selected stop and keep the transport overlay independent of place and progress filters.
+- Remember transport network choices per map and support browser Back/Forward navigation. Load transport catalogs only when enabled, with a separate retry if transport data cannot be loaded.
+
+### Fixed
+
+- Correct manually reviewed UESP links for Original Morrowind and Tamriel Rebuilt places, preserving existing dedicated Tamriel Rebuilt targets where appropriate.
+- Remove the `Solstheim, ` prefix from displayed place names on both maps while retaining the Solstheim category.
+
+## 2026-09-13
+
+- Release 1.1.0 with Project Cyrodiil — Abecean Shores and Skyrim: Home of the Nords — Dragonstar updated to 26.09, including refreshed map tiles, location catalogs and dataset metadata.
+
 ## 2026-09-12
 
 - Keep every marker shape at its normal size when hovered or selected, preserving label backgrounds and color highlighting. Keep wiki-link generation tools and maintainer documentation local.
@@ -18,3 +40,13 @@
 - Add distinct shapes in colorblind-friendly mode: white squares for unvisited places, blue diamonds for active places, orange circles for visited places, and reddish-purple triangles for personal markers, including their labels and previews.
 - Give personal marker labels the same translucent hover background and text-only hit bounds as place labels. Keep marker sizes unchanged on hover and show Saved feedback only for note edits, without flicker when changing place status.
 - Dismiss the JSON backup download confirmation after five seconds with a fade-out, restarting the timeout on each successful export.
+
+## 2026-09-09
+
+- Use project-local rendering inputs and expand setup, contribution and platform documentation, including Unix build requirements and the current limits of Windows support.
+- Allow trusted dataset review after a dataset pull request has been merged.
+
+## 2026-09-08
+
+- Move active map tiles from Git LFS to immutable GitHub Release packages with pinned hashes. Keep runtime JSON and metadata in Git and restore local tiles through `pnpm datasets:download`.
+- Remove obsolete workflows and LFS restoration paths.

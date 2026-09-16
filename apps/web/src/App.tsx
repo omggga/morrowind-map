@@ -44,6 +44,8 @@ function mapUrlStatesEqual(left: MapUrlState, right: MapUrlState): boolean {
   return left.datasetId === right.datasetId &&
     left.regionId === right.regionId &&
     left.placeId === right.placeId &&
+    (left.transportStopId ?? null) === (right.transportStopId ?? null) &&
+    (left.transportModes ?? []).join(',') === (right.transportModes ?? []).join(',') &&
     left.typeFilters.length === right.typeFilters.length &&
     left.typeFilters.every((value, index) => value === right.typeFilters[index]) &&
     left.statusFilters.length === right.statusFilters.length &&

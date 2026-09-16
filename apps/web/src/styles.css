@@ -57,6 +57,7 @@
   --layer-ledger: 6;
   --layer-system: 7;
   --layer-card: 8;
+  --layer-transport-controls: 9;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -1537,6 +1538,10 @@ dialog.map-settings-panel {
   background: rgba(27, 23, 16, 0.92);
   box-shadow: 3px 4px 14px rgba(0, 0, 0, 0.42);
   font-size: 10px;
+}
+
+.dataset-map-stage:has(.transport-controls) .marker-legend {
+  top: 64px;
 }
 
 .marker-legend span {

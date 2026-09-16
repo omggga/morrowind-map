@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "dragonstar-26.09",
+  "snapshotId": "shotn:dragonstar-26.09:fc161d3df4b24cab",
+  "sourcePlugins": [
+    {
+      "name": "Morrowind.esm",
+      "sha256": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647"
+    },
+    {
+      "name": "Tribunal.esm",
+      "sha256": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b"
+    },
+    {
+      "name": "Bloodmoon.esm",
+      "sha256": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+    },
+    {
+      "name": "Tamriel_Data.esm",
+      "sha256": "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f"
+    },
+    {
+      "name": "Sky_Main.esm",
+      "sha256": "82dd55b396220937459d7489d415c93c02b41606292a1ffc84c890acaa6d3b51"
+    }
+  ],
+  "stops": [
+    {
+      "id": "stop-21249e063dc33c55",
+      "name": "Karthgad",
+      "position": [
+        -840123.375,
+        86541.875
+      ],
+      "regionId": "skyrim"
+    },
+    {
+      "id": "stop-2beda629722a6696",
+      "name": "Dragonstar West, Guild of Mages",
+      "position": [
+        -930535.25,
+        104387.062
+      ],
+      "regionId": "skyrim",
+      "interior": "Dragonstar West, Guild of Mages"
+    },
+    {
+      "id": "stop-4544aa02a74a4f49",
+      "name": "Karthwasten, Guild of Mages",
+      "position": [
+        -851960.0,
+        45704.0
+      ],
+      "regionId": "skyrim",
+      "interior": "Karthwasten, Guild of Mages"
+    },
+    {
+      "id": "stop-45ba6bbd747719ec",
+      "name": "Dagon Fel",
+      "position": [
+        62333.0,
+        184190.203
+      ],
+      "regionId": "vvardenfell",
+      "external": true
+    },
+    {
+      "id": "stop-7891a68beab42e2f",
+      "name": "Karthwasten Docks",
+      "position": [
+        -863380.875,
+        65922.133
+      ],
+      "regionId": "skyrim"
+    },
+    {
+      "id": "stop-829aca5b06fb9002",
+      "name": "Dagon Fel",
+      "position": [
+        62779.008,
+        183895.156
+      ],
+      "regionId": "vvardenfell",
+      "external": true
+    },
+    {
+      "id": "stop-9e0df5ce4b4b45d5",
+      "name": "Karthwasten",
+      "position": [
+        -852928.438,
+        50354.508
+      ],
+      "regionId": "skyrim"
+    },
+    {
+      "id": "stop-e386c9d2609f84ea",
+      "name": "Dragonstar East",
+      "position": [
+        -919620.875,
+        108166.969
+      ],
+      "regionId": "skyrim"
+    },
+    {
+      "id": "stop-e790428cb851aedf",
+      "name": "Karthwasten Docks",
+      "position": [
+        -861172.375,
+        65827.32
+      ],
+      "regionId": "skyrim"
+    }
+  ],
+  "routes": [
+    {
+      "id": "route-12402ffc7912ca15",
+      "from": "stop-4544aa02a74a4f49",
+      "to": "stop-2beda629722a6696",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Irgas",
+      "conditions": [
+        "Requires Turbulent Teleporting (journal stage 120 or later, excluding the failed stage 130)."
+      ],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Skyrim/Transport",
+      "sourceRecord": "sky_qre_kwmg5_irgas_02",
+      "sourcePlugin": "Sky_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 97.873,
+        "provider": "Marcurio Ampis"
+      },
+      "arrivalPosition": [
+        3772.0,
+        3408.0,
+        15200.0
+      ],
+      "arrivalInterior": "Dragonstar West, Guild of Mages"
+    },
+    {
+      "id": "route-325b59139204a0f4",
+      "from": "stop-21249e063dc33c55",
+      "to": "stop-e790428cb851aedf",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Jovodii",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Skyrim/Transport",
+      "sourceRecord": "sky_xre_vf_jovodii",
+      "sourcePlugin": "Sky_Main.esm",
+      "arrivalMatch": {
+        "kind": "nearby-boarding-point",
+        "distance": 461.911,
+        "provider": "Haldine"
+      },
+      "arrivalPosition": [
+        -861368.0,
+        65416.0,
+        176.0
+      ]
+    },
+    {
+      "id": "route-460bcff6f81c20fa",
+      "from": "stop-9e0df5ce4b4b45d5",
+      "to": "stop-e386c9d2609f84ea",
+      "mode": "land",
+      "subtype": "Carriage",
+      "provider": "Aurius Jaronich",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Skyrim/Transport",
+      "sourceRecord": "sky_xre_kw_aurius",
+      "sourcePlugin": "Sky_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 259.192,
+        "provider": "Arvund"
+      },
+      "arrivalPosition": [
+        -919853.188,
+        108245.922,
+        4680.78
+      ]
+    },
+    {
+      "id": "route-aaa1cf0112c45d03",
+      "from": "stop-2beda629722a6696",
+      "to": "stop-4544aa02a74a4f49",
+      "mode": "guild",
+      "subtype": "Guild guide",
+      "provider": "Marcurio Ampis",
+      "conditions": [
+        "Requires Turbulent Teleporting (journal stage 120 or later, excluding the failed stage 130)."
+      ],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Skyrim/Transport",
+      "sourceRecord": "sky_qre_kwmg5_marcur_02",
+      "sourcePlugin": "Sky_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-interior",
+        "distance": 139.025,
+        "provider": "Irgas"
+      },
+      "arrivalPosition": [
+        4256.0,
+        3984.0,
+        15808.0
+      ],
+      "arrivalInterior": "Karthwasten, Guild of Mages"
+    },
+    {
+      "id": "route-abde2fe0697ee500",
+      "from": "stop-829aca5b06fb9002",
+      "to": "stop-7891a68beab42e2f",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Jurid Fast-Travel",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Skyrim/Transport",
+      "sourceRecord": "sky_xvv_df_jurid",
+      "sourcePlugin": "Sky_Main.esm",
+      "arrivalMatch": {
+        "kind": "nearby-boarding-point",
+        "distance": 485.845,
+        "provider": "Bronding Wind-Catcher"
+      },
+      "arrivalPosition": [
+        -863245.75,
+        65456.316,
+        176.0
+      ]
+    },
+    {
+      "id": "route-ad490f42068a084a",
+      "from": "stop-e386c9d2609f84ea",
+      "to": "stop-9e0df5ce4b4b45d5",
+      "mode": "land",
+      "subtype": "Carriage",
+      "provider": "Arvund",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Skyrim/Transport",
+      "sourceRecord": "sky_xre_dse_arvund",
+      "sourcePlugin": "Sky_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 321.772,
+        "provider": "Aurius Jaronich"
+      },
+      "arrivalPosition": [
+        -852640.875,
+        50481.387,
+        2198.248
+      ]
+    },
+    {
+      "id": "route-b3ed09917fed60f0",
+      "from": "stop-e790428cb851aedf",
+      "to": "stop-21249e063dc33c55",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Haldine",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Skyrim/Transport",
+      "sourceRecord": "sky_qre_kwfg1_haldine",
+      "sourcePlugin": "Sky_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 634.271,
+        "provider": "Jovodii"
+      },
+      "arrivalPosition": [
+        -839493.812,
+        86616.328,
+        121.183
+      ]
+    },
+    {
+      "id": "route-e0dd6ae8463cc664",
+      "from": "stop-7891a68beab42e2f",
+      "to": "stop-45ba6bbd747719ec",
+      "mode": "water",
+      "subtype": "Boat",
+      "provider": "Bronding Wind-Catcher",
+      "conditions": [],
+      "source": "https://en.uesp.net/wiki/Project_Tamriel:Skyrim/Transport",
+      "sourceRecord": "sky_xre_kw_bronding",
+      "sourcePlugin": "Sky_Main.esm",
+      "arrivalMatch": {
+        "kind": "same-cell",
+        "distance": 379.142,
+        "provider": "Haema Farseer"
+      },
+      "arrivalPosition": [
+        62679.695,
+        184288.922,
+        203.446
+      ]
+    }
+  ],
+  "review": {
+    "excluded": [
+      "Cascus Daro: Requires Cyr_Main.esm, absent from the Skyrim profile",
+      "Todd's Super Tester Guy: Development/test actor",
+      "Wind-In-His-Hair: no effective placement"
+    ],
+    "notes": [
+      "Directed travel comes from effective NPC/creature DODT records; reverse services are never inferred.",
+      "Interior display anchors follow teleport doors to the exterior; exact arrival coordinates are preserved on routes.",
+      "Exterior arrival points share a compatible boarding marker within 2048 world units; exact arrivalPosition and arrivalMatch preserve the difference and matching evidence. Boats/waterstriders share intercity docks; local gondolas are separate.",
+      "Services requiring absent optional plugins are excluded. External stops are retained as destinations without map lines.",
+      "Quest and faction requirements are reviewed annotations, not live player-state checks.",
+      "Skylamps, propylons, intervention spells and other script-only travel are outside these three service groups."
+    ]
+  }
+}
